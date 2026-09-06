@@ -16,8 +16,10 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private Vector3 offset = new Vector3(0f, 0f, -10f);
 
     [Header("Camera Modes")]
-    [Tooltip("If true, camera rotates to match truck heading. Press 'C' to toggle")]
-    [SerializeField] private bool rotateWithTruck = false;
+    [Tooltip("If true, camera rigidly locks to tractor (truck points strictly UP). Press 'C' to toggle")]
+    [SerializeField] private bool rotateWithTruck = true;
+    [Tooltip("Local Y offset of camera relative to tractor (negative shifts camera backward so tractor is higher on screen)")]
+    [SerializeField] private float tractorLocalYOffset = -4.0f;
     [SerializeField] private float rotationSmoothSpeed = 6f;
 
     [Header("Zoom Settings (Extended Range)")]
@@ -101,17 +103,19 @@ public class CameraFollow : MonoBehaviour
 
     public void SnapToTarget()
     {
-        Vector3 center = CalculateRigCenter();
-        Vector3 targetPos = center + offset;
-        targetPos.z = -10f;
-        transform.position = targetPos;
-
         if (rotateWithTruck && tractorTarget != null)
         {
+            Vector3 targetPos = tractorTarget.TransformPoint(new Vector3(offset.x, tractorLocalYOffset + offset.y, 0f));
+            targetPos.z = -10f;
+            transform.position = targetPos;
             transform.rotation = Quaternion.Euler(0f, 0f, tractorTarget.eulerAngles.z);
         }
         else
         {
+            Vector3 center = CalculateRigCenter();
+            Vector3 targetPos = center + offset;
+            targetPos.z = -10f;
+            transform.position = targetPos;
             transform.rotation = Quaternion.identity;
         }
     }
@@ -132,6 +136,7 @@ public class CameraFollow : MonoBehaviour
             if (kb.cKey.wasPressedThisFrame)
             {
                 rotateWithTruck = !rotateWithTruck;
+                if (rotateWithTruck) SnapToTarget();
             }
 
             // Keyboard zoom controls (+ / - / PageUp / PageDown)
@@ -169,6 +174,7 @@ public class CameraFollow : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.C))
         {
             rotateWithTruck = !rotateWithTruck;
+            if (rotateWithTruck) SnapToTarget();
         }
 
         float kbZoom = 0f;
@@ -271,24 +277,26 @@ public class CameraFollow : MonoBehaviour
 
     private void LateUpdate()
     {
-        Vector3 rigCenter = CalculateRigCenter();
-        Vector3 desiredPosition = rigCenter + offset + shakeOffset;
-        desiredPosition.z = -10f;
-
-        // Dynamic catch-up speed: if camera falls behind, it accelerates smoothly
-        float distanceToTarget = Vector2.Distance(transform.position, desiredPosition);
-        float dynamicSpeed = Mathf.Max(smoothSpeed, distanceToTarget * 4.0f);
-
-        transform.position = Vector3.Lerp(transform.position, desiredPosition, dynamicSpeed * Time.deltaTime);
-
-        // Rotation handling (toggled via 'C')
         if (rotateWithTruck && tractorTarget != null)
         {
-            Quaternion targetRot = Quaternion.Euler(0f, 0f, tractorTarget.eulerAngles.z);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, rotationSmoothSpeed * Time.deltaTime);
+            // Rigid follow: tractor is rigidly locked on screen and points strictly UP (12 o'clock)
+            Vector3 targetPos = tractorTarget.TransformPoint(new Vector3(offset.x, tractorLocalYOffset + offset.y, 0f));
+            targetPos.z = -10f;
+            transform.position = targetPos + shakeOffset;
+            transform.rotation = Quaternion.Euler(0f, 0f, tractorTarget.eulerAngles.z);
         }
         else
         {
+            // Overview North-aligned mode (toggled via 'C')
+            Vector3 rigCenter = CalculateRigCenter();
+            Vector3 desiredPosition = rigCenter + offset + shakeOffset;
+            desiredPosition.z = -10f;
+
+            // Dynamic catch-up speed: if camera falls behind, it accelerates smoothly
+            float distanceToTarget = Vector2.Distance(transform.position, desiredPosition);
+            float dynamicSpeed = Mathf.Max(smoothSpeed, distanceToTarget * 4.0f);
+
+            transform.position = Vector3.Lerp(transform.position, desiredPosition, dynamicSpeed * Time.deltaTime);
             transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.identity, rotationSmoothSpeed * Time.deltaTime);
         }
     }

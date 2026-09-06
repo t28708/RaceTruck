@@ -273,7 +273,8 @@ MonoBehaviour:
   trailerTarget: {fileID: 1334634929}
   smoothSpeed: 10
   offset: {x: 0, y: 0, z: -10}
-  rotateWithTruck: 0
+  rotateWithTruck: 1
+  tractorLocalYOffset: -4
   rotationSmoothSpeed: 6
   minZoom: 3.5
   maxZoom: 120
