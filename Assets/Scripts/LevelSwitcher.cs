@@ -107,21 +107,35 @@ public class LevelSwitcher : MonoBehaviour
         string target = GetNextSceneName(currentScene);
 
         Debug.Log($"[LevelSwitcher] Switching scene from {currentScene} to: {target}");
-        SceneManager.LoadScene(target);
+        LoadSceneByName(target);
     }
 
     public void LoadMap1()
     {
-        SceneManager.LoadScene("SampleScene");
+        LoadSceneByName("SampleScene");
     }
 
     public void LoadMap2()
     {
-        SceneManager.LoadScene("Level2_AlleyDock");
+        LoadSceneByName("Level2_AlleyDock");
     }
 
     public void LoadMap3()
     {
-        SceneManager.LoadScene("Level3_GasStation");
+        LoadSceneByName("Level3_GasStation");
+    }
+
+    private void LoadSceneByName(string target)
+    {
+#if UNITY_EDITOR
+        if (!Application.CanStreamedLevelBeLoaded(target))
+        {
+            string scenePath = $"Assets/Scenes/{target}.unity";
+            var loadParams = new UnityEngine.SceneManagement.LoadSceneParameters(UnityEngine.SceneManagement.LoadSceneMode.Single);
+            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(scenePath, loadParams);
+            return;
+        }
+#endif
+        SceneManager.LoadScene(target);
     }
 }
