@@ -255,7 +255,7 @@ public class TruckCrashEffect : MonoBehaviour
         currentCrashRoutine = null;
     }
 
-    public void TriggerCrash(string obstacleName, Vector2? contactPos = null)
+    public void TriggerCrash(string obstacleName, Vector2? contactPos = null, bool forwardImpact = true)
     {
         EnsureAudio();
         if (audioSource != null && impactAudioClip != null)
@@ -272,10 +272,10 @@ public class TruckCrashEffect : MonoBehaviour
         {
             StopCoroutine(currentCrashRoutine);
         }
-        currentCrashRoutine = StartCoroutine(CrashSequence(obstacleName));
+        currentCrashRoutine = StartCoroutine(CrashSequence(obstacleName, forwardImpact));
     }
 
-    private IEnumerator CrashSequence(string obstacleName)
+    private IEnumerator CrashSequence(string obstacleName, bool forwardImpact)
     {
         // 1. Trigger Camera Shake
         if (cameraFollow == null && Camera.main != null)
@@ -292,7 +292,10 @@ public class TruckCrashEffect : MonoBehaviour
         {
             crashText.gameObject.SetActive(true);
             crashText.color = new Color(1f, 0.2f, 0.2f, 1f);
-            crashText.text = $"💥 БУХ! ВРЕЗАЛСЯ В {obstacleName.ToUpper()}! 💥";
+            string escapeHint = forwardImpact
+                ? "НАЖМИТЕ [ТОРМОЗ / S] (НАЗАД), ЧТОБЫ СДАТЬ НАЗАД"
+                : "НАЖМИТЕ [ГАЗ / W] (ВПЕРЕД), ЧТОБЫ ОТЪЕХАТЬ";
+            crashText.text = $"💥 БУХ! ВРЕЗАЛСЯ В {obstacleName.ToUpper()}! 💥\n<size=22><color=#FFFF66>{escapeHint}</color></size>";
         }
 
         if (redFlashImage != null)

@@ -43,16 +43,11 @@ public class TruckCollisionDetector : MonoBehaviour
             touchingColliders.Add(other);
         }
 
-        // Clean up colliders no longer overlapping
         touchingColliders.RemoveWhere(col => col == null || !col.enabled || !currentObstacles.Contains(col));
 
         if (hasObstacle && firstObstacle != null)
         {
-            HandleCollision(firstObstacle.gameObject);
-        }
-        else if (touchingColliders.Count == 0 && TruckController.Instance != null)
-        {
-            TruckController.Instance.ClearBlock();
+            HandleCollision(firstObstacle.gameObject, firstObstacle);
         }
     }
 
@@ -60,51 +55,38 @@ public class TruckCollisionDetector : MonoBehaviour
     {
         if (IsPlayerVehicle(other.gameObject)) return;
         touchingColliders.Add(other);
-        HandleCollision(other.gameObject);
+        HandleCollision(other.gameObject, other);
     }
 
     private void OnTriggerStay2D(Collider2D other)
     {
         if (IsPlayerVehicle(other.gameObject)) return;
         touchingColliders.Add(other);
-
-        // Keep truck stopped if it attempts to push further into the obstacle
-        if (TruckController.Instance != null && Mathf.Abs(TruckController.Instance.CurrentSpeed) > 0.02f)
-        {
-            HandleCollision(other.gameObject);
-        }
+        HandleCollision(other.gameObject, other);
     }
 
     private void OnTriggerExit2D(Collider2D other)
     {
         touchingColliders.Remove(other);
-        if (touchingColliders.Count == 0 && TruckController.Instance != null)
-        {
-            TruckController.Instance.ClearBlock();
-        }
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (IsPlayerVehicle(collision.gameObject)) return;
-        HandleCollision(collision.gameObject);
+        touchingColliders.Add(collision.collider);
+        HandleCollision(collision.gameObject, collision.collider);
     }
 
     private void OnCollisionStay2D(Collision2D collision)
     {
         if (IsPlayerVehicle(collision.gameObject)) return;
-        if (TruckController.Instance != null && Mathf.Abs(TruckController.Instance.CurrentSpeed) > 0.02f)
-        {
-            HandleCollision(collision.gameObject);
-        }
+        touchingColliders.Add(collision.collider);
+        HandleCollision(collision.gameObject, collision.collider);
     }
 
     private void OnCollisionExit2D(Collision2D collision)
     {
-        if (TruckController.Instance != null)
-        {
-            TruckController.Instance.ClearBlock();
-        }
+        touchingColliders.Remove(collision.collider);
     }
 
     private bool IsPlayerVehicle(GameObject other)
@@ -147,56 +129,59 @@ public class TruckCollisionDetector : MonoBehaviour
         return false;
     }
 
-    private void HandleCollision(GameObject other)
+    private void HandleCollision(GameObject other, Collider2D hitCol = null)
     {
         if (IsPlayerVehicle(other)) return;
+        if (TruckController.Instance == null) return;
+
+        float speed = TruckController.Instance.CurrentSpeed;
+
+        // CRITICAL 1: Stationary truck (speed == 0) CANNOT crash!
+        // A stationary truck is resting against an obstacle or waiting for player input to drive away.
+        // DO NOT call OnCrash when stationary!
+        if (Mathf.Abs(speed) < 0.01f)
+        {
+            return;
+        }
 
         // Relative position to this vehicle part (Tractor or Trailer)
         Vector2 localObstaclePos = transform.InverseTransformPoint(other.transform.position);
         bool isFrontObstacle = (localObstaclePos.y >= 0f);
 
-        if (TruckController.Instance != null)
+        // CRITICAL 2: If moving AWAY from this obstacle, DO NOT crash or block!
+        if (isFrontObstacle && speed < -0.01f)
         {
-            float speed = TruckController.Instance.CurrentSpeed;
+            return; // Moving backward away from front obstacle
+        }
 
-            // CRITICAL: If moving AWAY from this obstacle, DO NOT crash or block!
-            // If obstacle is in FRONT (isFrontObstacle == true) and vehicle is reversing (speed < -0.01f):
-            // The vehicle is backing away/escaping! Allow it to reverse!
-            if (isFrontObstacle && speed < -0.01f)
+        if (!isFrontObstacle && speed > 0.01f)
+        {
+            return; // Moving forward away from rear obstacle
+        }
+
+        // CRITICAL 3: If this vehicle already crashed and is actively moving in the ESCAPE direction, DO NOT crash!
+        if (speed > 0.01f && TruckController.Instance.LastCrashDirection == -1)
+        {
+            return; // Escaping from a reverse crash!
+        }
+        if (speed < -0.01f && TruckController.Instance.LastCrashDirection == +1)
+        {
+            return; // Escaping from a forward crash!
+        }
+
+        string obstacleName = FormatObstacleNameStatic(other.name, other.transform);
+        bool forwardImpact = (speed > 0f);
+
+        Collider2D actualCol = hitCol != null ? hitCol : other.GetComponent<Collider2D>();
+        TruckController.Instance.OnCrash(obstacleName, forwardImpact, actualCol);
+
+        // Trigger visual screen shake, metal impact sound, spark burst, and "БУХ!" UI banner
+        if (Time.time - lastCrashTime >= CrashCooldown)
+        {
+            lastCrashTime = Time.time;
+            if (TruckCrashEffect.Instance != null)
             {
-                return;
-            }
-
-            // If obstacle is in REAR (isFrontObstacle == false) and vehicle is moving forward (speed > 0.01f):
-            // The vehicle is pulling away! Allow it to pull forward!
-            if (!isFrontObstacle && speed > 0.01f)
-            {
-                return;
-            }
-
-            string obstacleName = FormatObstacleNameStatic(other.name, other.transform);
-            bool forwardImpact;
-
-            if (Mathf.Abs(speed) > 0.01f)
-            {
-                forwardImpact = (speed > 0f);
-            }
-            else
-            {
-                // Stopped: direction is defined by where the obstacle is relative to vehicle
-                forwardImpact = isFrontObstacle;
-            }
-
-            TruckController.Instance.OnCrash(obstacleName, forwardImpact);
-
-            // Trigger visual screen shake, metal impact sound, spark burst, and "БУХ!" UI banner
-            if (Time.time - lastCrashTime >= CrashCooldown)
-            {
-                lastCrashTime = Time.time;
-                if (TruckCrashEffect.Instance != null)
-                {
-                    TruckCrashEffect.Instance.TriggerCrash(obstacleName, transform.position);
-                }
+                TruckCrashEffect.Instance.TriggerCrash(obstacleName, transform.position, forwardImpact);
             }
         }
     }

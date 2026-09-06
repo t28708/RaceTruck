@@ -447,6 +447,8 @@ public class TruckController : MonoBehaviour
 
     private bool isBlockedForward = false;
     private bool isBlockedReverse = false;
+    private int lastCrashDirection = 0; // +1 = crashed going forward, -1 = crashed going in reverse, 0 = none
+    private Collider2D lastCrashedObstacle = null;
     private bool isJackknifed = false;
     private float lastJackknifeCrashTime = -1f;
     private const float JackknifeCrashCooldown = 0.5f;
@@ -459,8 +461,10 @@ public class TruckController : MonoBehaviour
     public bool IsJackknifed => isJackknifed;
     public bool IsBlockedForward => isBlockedForward;
     public bool IsBlockedReverse => isBlockedReverse;
+    public int LastCrashDirection => lastCrashDirection;
+    public Collider2D LastCrashedObstacle => lastCrashedObstacle;
 
-    public void OnCrash(string obstacleName, bool forwardImpact)
+    public void OnCrash(string obstacleName, bool forwardImpact, Collider2D hitObstacle = null)
     {
         // Stop the truck dead in its tracks without bouncing or displacing position
         currentSpeed = 0f;
@@ -470,10 +474,19 @@ public class TruckController : MonoBehaviour
         if (forwardImpact)
         {
             isBlockedForward = true;
+            isBlockedReverse = false; // Always allow reversing away from forward collision!
+            lastCrashDirection = +1;
         }
         else
         {
             isBlockedReverse = true;
+            isBlockedForward = false; // Always allow pulling forward to escape reverse collision!
+            lastCrashDirection = -1;
+        }
+
+        if (hitObstacle != null)
+        {
+            lastCrashedObstacle = hitObstacle;
         }
     }
 
@@ -484,6 +497,8 @@ public class TruckController : MonoBehaviour
         {
             isBlockedForward = false;
             isBlockedReverse = false;
+            lastCrashDirection = 0;
+            lastCrashedObstacle = null;
         }
     }
 
@@ -578,11 +593,34 @@ public class TruckController : MonoBehaviour
                 Collider2D col = candidateHits[i];
                 if (!IsObstacle(col)) continue;
 
+                // If this is the obstacle we collided with, and we are moving in the ESCAPE direction, ignore it!
+                if (col == lastCrashedObstacle)
+                {
+                    if (isMovingForward && lastCrashDirection == -1) continue;
+                    if (!isMovingForward && lastCrashDirection == +1) continue;
+                }
+
                 // Relative position to tractor: local Y > 0 is front, local Y < 0 is rear
                 Vector2 localObstaclePos = transform.InverseTransformPoint(col.bounds.center);
 
+                // If moving forward and we previously crashed in reverse (lastCrashDirection == -1):
+                // We are actively pulling forward to escape!
+                // Only obstacles directly in front of the tractor cabin (> 2.0m) can block forward movement.
+                if (isMovingForward && lastCrashDirection == -1 && localObstaclePos.y <= 2.0f)
+                {
+                    continue;
+                }
+
+                // If reversing and we previously crashed forward (lastCrashDirection == +1):
+                // We are backing away/escaping from a front collision!
+                // Tractor is pulling backward away from the front obstacle, so ignore tractor hits.
+                if (!isMovingForward && lastCrashDirection == +1)
+                {
+                    continue;
+                }
+
+                // Standard moving away checks:
                 // If reversing (speed < 0) and obstacle is in front of tractor, the tractor is moving AWAY!
-                // Do not block reverse!
                 if (!isMovingForward && localObstaclePos.y > -0.5f)
                 {
                     continue;
@@ -609,11 +647,34 @@ public class TruckController : MonoBehaviour
                 Collider2D col = candidateHits[i];
                 if (!IsObstacle(col)) continue;
 
-                // For trailer: local Y < 0 is rear bumper
+                // If this is the obstacle we collided with, and we are moving in the ESCAPE direction, ignore it!
+                if (col == lastCrashedObstacle)
+                {
+                    if (isMovingForward && lastCrashDirection == -1) continue;
+                    if (!isMovingForward && lastCrashDirection == +1) continue;
+                }
+
+                // Relative position to trailer
                 Vector2 localObstaclePos = trailerRb.transform.InverseTransformPoint(col.bounds.center);
 
+                // If moving forward and we previously crashed in reverse (lastCrashDirection == -1):
+                // We are pulling forward to escape! The trailer follows the tractor forward.
+                // Any obstacle hit in reverse along trailer sides or rear MUST NOT block pulling forward!
+                if (isMovingForward && lastCrashDirection == -1)
+                {
+                    continue;
+                }
+
+                // If reversing and we previously crashed forward (lastCrashDirection == +1):
+                // We are backing away from front collision!
+                // Only obstacles behind trailer rear tandem (< -5.0m) can block reverse.
+                if (!isMovingForward && lastCrashDirection == +1 && localObstaclePos.y >= -5.0f)
+                {
+                    continue;
+                }
+
+                // Standard moving away checks:
                 // If moving forward and obstacle is behind trailer rear, the trailer is pulling AWAY!
-                // Do not block forward!
                 if (isMovingForward && localObstaclePos.y < 0f)
                 {
                     continue;
@@ -801,7 +862,15 @@ public class TruckController : MonoBehaviour
         string warning = "";
         if (isJackknifed)
         {
-            warning = " | <color=#FF1111>💥 СКЛАДЫВАНИЕ! НАЖМИТЕ [W] ДЛЯ ВЫРАВНИВАНИЯ 💥</color>";
+            warning = " | <color=#FF1111>💥 СКЛАДЫВАНИЕ! НАЖМИТЕ [ГАЗ / W] ДЛЯ ВЫРАВНИВАНИЯ 💥</color>";
+        }
+        else if (isBlockedReverse)
+        {
+            warning = " | <color=#FF3333>⚠️ УДАР СЗАДИ! НАЖМИТЕ [ГАЗ / W], ЧТОБЫ ОТЪЕХАТЬ ⚠️</color>";
+        }
+        else if (isBlockedForward)
+        {
+            warning = " | <color=#FF3333>⚠️ УДАР СПЕРЕДИ! НАЖМИТЕ [ТОРМОЗ / S], ЧТОБЫ СДАТЬ НАЗАД ⚠️</color>";
         }
         else if (Mathf.Abs(articulation) > maxArticulationAngle * 0.8f)
         {
@@ -925,11 +994,11 @@ public class TruckController : MonoBehaviour
                 {
                     bool forwardImpact = (currentSpeed > 0f);
                     string obstacleName = TruckCollisionDetector.FormatObstacleNameStatic(hitObstacle.name, hitObstacle.transform);
-                    OnCrash(obstacleName, forwardImpact);
+                    OnCrash(obstacleName, forwardImpact, hitObstacle);
 
                     if (TruckCrashEffect.Instance != null)
                     {
-                        TruckCrashEffect.Instance.TriggerCrash(obstacleName, hitObstacle.transform.position);
+                        TruckCrashEffect.Instance.TriggerCrash(obstacleName, hitObstacle.transform.position, forwardImpact);
                     }
 
                     currentSpeed = 0f;
@@ -953,11 +1022,11 @@ public class TruckController : MonoBehaviour
                 {
                     bool forwardImpact = (currentSpeed > 0f);
                     string obstacleName = TruckCollisionDetector.FormatObstacleNameStatic(hitObstacle.name, hitObstacle.transform);
-                    OnCrash(obstacleName, forwardImpact);
+                    OnCrash(obstacleName, forwardImpact, hitObstacle);
 
                     if (TruckCrashEffect.Instance != null)
                     {
-                        TruckCrashEffect.Instance.TriggerCrash(obstacleName, hitObstacle.transform.position);
+                        TruckCrashEffect.Instance.TriggerCrash(obstacleName, hitObstacle.transform.position, forwardImpact);
                     }
 
                     currentSpeed = 0f;
@@ -972,6 +1041,33 @@ public class TruckController : MonoBehaviour
 
         // Store hitch position for next step
         prevHitchPos = newHitchPos;
+
+        // Automatically clear collision blocks once the entire rig has completely moved away from all obstacles
+        if ((isBlockedForward || isBlockedReverse) && !isJackknifed)
+        {
+            bool isTouching = false;
+            if (tractorCollider != null)
+            {
+                int tCount = tractorCollider.Overlap(obstacleFilter, candidateHits);
+                for (int i = 0; i < tCount; i++)
+                {
+                    if (IsObstacle(candidateHits[i])) { isTouching = true; break; }
+                }
+            }
+            if (!isTouching && trailerCollider != null)
+            {
+                int trCount = trailerCollider.Overlap(obstacleFilter, candidateHits);
+                for (int i = 0; i < trCount; i++)
+                {
+                    if (IsObstacle(candidateHits[i])) { isTouching = true; break; }
+                }
+            }
+
+            if (!isTouching)
+            {
+                ClearBlock();
+            }
+        }
     }
 
     private void UpdateSpeed(float dt)
@@ -1023,10 +1119,6 @@ public class TruckController : MonoBehaviour
                 }
                 else
                 {
-                    if (!isJackknifed)
-                    {
-                        isBlockedReverse = false;
-                    }
                     currentSpeed = Mathf.MoveTowards(currentSpeed, MaxForwardSpeed, acceleration * dt);
                 }
             }
@@ -1048,7 +1140,6 @@ public class TruckController : MonoBehaviour
                 }
                 else
                 {
-                    isBlockedForward = false;
                     currentSpeed = Mathf.MoveTowards(currentSpeed, -MaxReverseSpeed, reverseAcceleration * dt);
                 }
             }
