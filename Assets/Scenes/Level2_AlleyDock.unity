@@ -1280,7 +1280,7 @@ MonoBehaviour:
   maxSteerAngle: 38
   powerSteeringSpeed: 48
   maxForwardSpeedKmh: 10
-  maxReverseSpeedKmh: 8
+  maxReverseSpeedKmh: 10
   acceleration: 1.6
   brakePower: 8.5
   reverseAcceleration: 1.2
