@@ -40,9 +40,9 @@ public class CameraFollow : MonoBehaviour
     private Vector3 shakeOffset = Vector3.zero;
     private Coroutine shakeRoutine;
     private float currentShift = -6.5f;
-    private float mouseScrollAccumulator = 0f;
     private float lastScrollStepTime = 0f;
-    private const float ScrollStepCooldown = 0.16f;
+    private int lastScrollDirection = 0;
+    private const float MinScrollStepInterval = 0.12f;
 
     public bool RotateWithTruck => rotateWithTruck;
     public float CurrentZoom => cam != null ? cam.orthographicSize : targetZoom;
@@ -204,13 +204,29 @@ public class CameraFollow : MonoBehaviour
             }
         }
 
+        float scroll = 0f;
+#if ENABLE_INPUT_SYSTEM
         var mouse = Mouse.current;
         if (mouse != null)
         {
-            float scroll = mouse.scroll.ReadValue().y;
-            HandleMouseScroll(scroll);
+            try
+            {
+                scroll = mouse.scroll.ReadValue().y;
+            }
+            catch { }
         }
-#else
+#endif
+        if (Mathf.Abs(scroll) < 0.001f)
+        {
+            try
+            {
+                scroll = Input.mouseScrollDelta.y;
+            }
+            catch { }
+        }
+
+        HandleMouseScroll(scroll);
+#if !ENABLE_INPUT_SYSTEM
         if (Input.GetKeyDown(KeyCode.C))
         {
             SetZoomMultiplier(zoomMultiplier == 1 ? 2 : 1);
@@ -224,39 +240,36 @@ public class CameraFollow : MonoBehaviour
         {
             StepZoom(+1); // Zoom out wider
         }
-
-        float scroll = Input.mouseScrollDelta.y * 120f;
-        HandleMouseScroll(scroll);
 #endif
     }
 
     private void HandleMouseScroll(float scroll)
     {
-        if (Mathf.Abs(scroll) > 0.01f)
+        float now = Time.unscaledTime;
+
+        if (Mathf.Abs(scroll) < 0.001f)
         {
-            mouseScrollAccumulator += scroll;
-        }
-        else
-        {
-            mouseScrollAccumulator = Mathf.MoveTowards(mouseScrollAccumulator, 0f, 300f * Time.deltaTime);
+            // Reset direction lock after a brief idle pause
+            if (now - lastScrollStepTime > 0.22f)
+            {
+                lastScrollDirection = 0;
+            }
+            return;
         }
 
-        if (Time.time - lastScrollStepTime >= ScrollStepCooldown)
+        // Direction: UP (positive scroll) = zoom in closer (e.g. 5x -> 4x -> 3x -> 2x -> 1x)
+        //            DOWN (negative scroll) = zoom out wider (e.g. 1x -> 2x -> 3x -> 4x -> 5x)
+        int currentDirection = (scroll > 0f) ? -1 : +1;
+
+        // If reversing direction (e.g. was scrolling down to 3x, now scrolling up towards 2x),
+        // allow immediate instant response without waiting for cooldown!
+        bool directionReversed = (lastScrollDirection != 0 && currentDirection != lastScrollDirection);
+
+        if (directionReversed || (now - lastScrollStepTime >= MinScrollStepInterval))
         {
-            // Scroll DOWN (negative delta): zoom OUT / wider overview (1x -> 2x -> 3x -> 4x -> 5x), max 5x
-            if (mouseScrollAccumulator <= -50f)
-            {
-                StepZoom(+1);
-                mouseScrollAccumulator = 0f;
-                lastScrollStepTime = Time.time;
-            }
-            // Scroll UP (positive delta): zoom IN / closer view (5x -> 4x -> 3x -> 2x -> 1x), min 1x
-            else if (mouseScrollAccumulator >= 50f)
-            {
-                StepZoom(-1);
-                mouseScrollAccumulator = 0f;
-                lastScrollStepTime = Time.time;
-            }
+            StepZoom(currentDirection);
+            lastScrollStepTime = now;
+            lastScrollDirection = currentDirection;
         }
     }
 

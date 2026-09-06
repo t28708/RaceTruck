@@ -12,6 +12,9 @@ public class CameraZoomUI : MonoBehaviour
     [SerializeField] private Text rightBtnText;
 
     private CameraFollow cameraFollow;
+    private int currentDisplayedMultiplier = -1;
+    private float lastLeftClickTime = 0f;
+    private float lastRightClickTime = 0f;
 
     private void Awake()
     {
@@ -29,6 +32,7 @@ public class CameraZoomUI : MonoBehaviour
         ConnectCameraFollow();
         if (cameraFollow != null)
         {
+            cameraFollow.OnZoomMultiplierChanged -= OnZoomMultiplierChanged;
             cameraFollow.OnZoomMultiplierChanged += OnZoomMultiplierChanged;
             UpdateUI(cameraFollow.ZoomMultiplier);
         }
@@ -49,9 +53,14 @@ public class CameraZoomUI : MonoBehaviour
             ConnectCameraFollow();
             if (cameraFollow != null)
             {
+                cameraFollow.OnZoomMultiplierChanged -= OnZoomMultiplierChanged;
                 cameraFollow.OnZoomMultiplierChanged += OnZoomMultiplierChanged;
                 UpdateUI(cameraFollow.ZoomMultiplier);
             }
+        }
+        else if (cameraFollow.ZoomMultiplier != currentDisplayedMultiplier)
+        {
+            UpdateUI(cameraFollow.ZoomMultiplier);
         }
     }
 
@@ -67,6 +76,14 @@ public class CameraZoomUI : MonoBehaviour
             if (cameraFollow == null)
             {
                 cameraFollow = Object.FindFirstObjectByType<CameraFollow>();
+            }
+            if (cameraFollow == null)
+            {
+                Camera cam = Camera.main ?? Object.FindFirstObjectByType<Camera>();
+                if (cam != null)
+                {
+                    cameraFollow = cam.GetComponent<CameraFollow>() ?? cam.gameObject.AddComponent<CameraFollow>();
+                }
             }
         }
     }
@@ -101,34 +118,81 @@ public class CameraZoomUI : MonoBehaviour
             }
         }
 
+        // Fix raycast targets and rect bounds on existing elements so they never block buttons
+        if (zoomLabel != null)
+        {
+            zoomLabel.raycastTarget = false;
+            RectTransform labelRt = zoomLabel.rectTransform;
+            labelRt.anchorMin = new Vector2(0.28f, 0f);
+            labelRt.anchorMax = new Vector2(0.72f, 1f);
+            labelRt.offsetMin = Vector2.zero;
+            labelRt.offsetMax = Vector2.zero;
+        }
+
+        if (leftBtnText != null)
+        {
+            leftBtnText.raycastTarget = false;
+        }
+
+        if (rightBtnText != null)
+        {
+            rightBtnText.raycastTarget = false;
+        }
+
+        if (leftBtnImage != null)
+        {
+            leftBtnImage.raycastTarget = true;
+        }
+
+        if (rightBtnImage != null)
+        {
+            rightBtnImage.raycastTarget = true;
+        }
+
         if (leftButton != null)
         {
             leftButton.onClick.RemoveListener(OnLeftClicked);
             leftButton.onClick.AddListener(OnLeftClicked);
+
+            ZoomPointerTrigger trigger = leftButton.GetComponent<ZoomPointerTrigger>();
+            if (trigger == null) trigger = leftButton.gameObject.AddComponent<ZoomPointerTrigger>();
+            trigger.onClick = OnLeftClicked;
         }
 
         if (rightButton != null)
         {
             rightButton.onClick.RemoveListener(OnRightClicked);
             rightButton.onClick.AddListener(OnRightClicked);
+
+            ZoomPointerTrigger trigger = rightButton.GetComponent<ZoomPointerTrigger>();
+            if (trigger == null) trigger = rightButton.gameObject.AddComponent<ZoomPointerTrigger>();
+            trigger.onClick = OnRightClicked;
         }
     }
 
     public void OnLeftClicked()
     {
+        if (Time.unscaledTime - lastLeftClickTime < 0.05f) return;
+        lastLeftClickTime = Time.unscaledTime;
+
         ConnectCameraFollow();
         if (cameraFollow != null)
         {
             cameraFollow.StepZoom(-1);
+            UpdateUI(cameraFollow.ZoomMultiplier);
         }
     }
 
     public void OnRightClicked()
     {
+        if (Time.unscaledTime - lastRightClickTime < 0.05f) return;
+        lastRightClickTime = Time.unscaledTime;
+
         ConnectCameraFollow();
         if (cameraFollow != null)
         {
             cameraFollow.StepZoom(+1);
+            UpdateUI(cameraFollow.ZoomMultiplier);
         }
     }
 
@@ -139,6 +203,8 @@ public class CameraZoomUI : MonoBehaviour
 
     public void UpdateUI(int mult)
     {
+        currentDisplayedMultiplier = mult;
+
         if (zoomLabel != null)
         {
             zoomLabel.text = $"{mult}x";
@@ -146,6 +212,9 @@ public class CameraZoomUI : MonoBehaviour
 
         bool canDecrease = mult > 1;
         bool canIncrease = mult < 5;
+
+        if (leftButton != null) leftButton.interactable = canDecrease;
+        if (rightButton != null) rightButton.interactable = canIncrease;
 
         if (leftBtnImage != null)
         {
@@ -197,7 +266,7 @@ public class CameraZoomUI : MonoBehaviour
         widgetRt.anchorMax = new Vector2(1f, 1f);
         widgetRt.pivot = new Vector2(1f, 1f);
         widgetRt.anchoredPosition = new Vector2(-25f, -25f);
-        widgetRt.sizeDelta = new Vector2(200f, 50f);
+        widgetRt.sizeDelta = new Vector2(210f, 54f);
 
         Image bg = widgetGo.AddComponent<Image>();
         bg.color = new Color(0.10f, 0.12f, 0.16f, 0.88f);
@@ -207,7 +276,26 @@ public class CameraZoomUI : MonoBehaviour
         outline.effectColor = new Color(0.35f, 0.42f, 0.55f, 0.75f);
         outline.effectDistance = new Vector2(1.5f, -1.5f);
 
-        // 1. Left button "<"
+        // 1. Center Text "1x" (Constrained to center 44%, never raycastable)
+        GameObject labelGo = new GameObject("ZoomLabel");
+        labelGo.transform.SetParent(widgetGo.transform, false);
+        RectTransform labelRt = labelGo.AddComponent<RectTransform>();
+        labelRt.anchorMin = new Vector2(0.28f, 0f);
+        labelRt.anchorMax = new Vector2(0.72f, 1f);
+        labelRt.pivot = new Vector2(0.5f, 0.5f);
+        labelRt.offsetMin = Vector2.zero;
+        labelRt.offsetMax = Vector2.zero;
+
+        Text label = labelGo.AddComponent<Text>();
+        if (font != null) label.font = font;
+        label.text = "1x";
+        label.fontSize = 24;
+        label.fontStyle = FontStyle.Bold;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.color = new Color(1f, 0.92f, 0.3f, 1f);
+        label.raycastTarget = false;
+
+        // 2. Left button "<"
         GameObject leftGo = new GameObject("ZoomLeftButton");
         leftGo.transform.SetParent(widgetGo.transform, false);
         RectTransform leftRt = leftGo.AddComponent<RectTransform>();
@@ -215,10 +303,11 @@ public class CameraZoomUI : MonoBehaviour
         leftRt.anchorMax = new Vector2(0f, 1f);
         leftRt.pivot = new Vector2(0f, 0.5f);
         leftRt.anchoredPosition = new Vector2(5f, 0f);
-        leftRt.sizeDelta = new Vector2(48f, -10f);
+        leftRt.sizeDelta = new Vector2(54f, -8f);
 
         Image leftImg = leftGo.AddComponent<Image>();
         leftImg.color = new Color(0.24f, 0.30f, 0.40f, 0.95f);
+        leftImg.raycastTarget = true;
         Button leftBtn = leftGo.AddComponent<Button>();
         leftBtn.targetGraphic = leftImg;
 
@@ -236,24 +325,7 @@ public class CameraZoomUI : MonoBehaviour
         leftText.fontStyle = FontStyle.Bold;
         leftText.alignment = TextAnchor.MiddleCenter;
         leftText.color = Color.white;
-
-        // 2. Center Text "1x"
-        GameObject labelGo = new GameObject("ZoomLabel");
-        labelGo.transform.SetParent(widgetGo.transform, false);
-        RectTransform labelRt = labelGo.AddComponent<RectTransform>();
-        labelRt.anchorMin = new Vector2(0f, 0f);
-        labelRt.anchorMax = new Vector2(1f, 1f);
-        labelRt.pivot = new Vector2(0.5f, 0.5f);
-        labelRt.anchoredPosition = Vector2.zero;
-        labelRt.sizeDelta = Vector2.zero;
-
-        Text label = labelGo.AddComponent<Text>();
-        if (font != null) label.font = font;
-        label.text = "1x";
-        label.fontSize = 24;
-        label.fontStyle = FontStyle.Bold;
-        label.alignment = TextAnchor.MiddleCenter;
-        label.color = new Color(1f, 0.92f, 0.3f, 1f);
+        leftText.raycastTarget = false;
 
         // 3. Right button ">"
         GameObject rightGo = new GameObject("ZoomRightButton");
@@ -263,10 +335,11 @@ public class CameraZoomUI : MonoBehaviour
         rightRt.anchorMax = new Vector2(1f, 1f);
         rightRt.pivot = new Vector2(1f, 0.5f);
         rightRt.anchoredPosition = new Vector2(-5f, 0f);
-        rightRt.sizeDelta = new Vector2(48f, -10f);
+        rightRt.sizeDelta = new Vector2(54f, -8f);
 
         Image rightImg = rightGo.AddComponent<Image>();
         rightImg.color = new Color(0.24f, 0.30f, 0.40f, 0.95f);
+        rightImg.raycastTarget = true;
         Button rightBtn = rightGo.AddComponent<Button>();
         rightBtn.targetGraphic = rightImg;
 
@@ -284,11 +357,21 @@ public class CameraZoomUI : MonoBehaviour
         rightText.fontStyle = FontStyle.Bold;
         rightText.alignment = TextAnchor.MiddleCenter;
         rightText.color = Color.white;
+        rightText.raycastTarget = false;
 
         CameraZoomUI zoomUI = widgetGo.AddComponent<CameraZoomUI>();
         zoomUI.FindComponents();
         zoomUI.UpdateUI(1);
 
         return widgetGo;
+    }
+}
+
+public class ZoomPointerTrigger : MonoBehaviour, IPointerClickHandler
+{
+    public System.Action onClick;
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        onClick?.Invoke();
     }
 }
