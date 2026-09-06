@@ -55,8 +55,10 @@ public static class TruckSimulatorSetup
 
         Sprite tractorSprite = LoadSpriteSafe($"{SpritesDir}/Tractor.png");
         Sprite trailerSprite = LoadSpriteSafe($"{SpritesDir}/Trailer.png");
-        Sprite wheelSprite = LoadSpriteSafe($"{SpritesDir}/Tire.png");
-        Sprite steeringWheelSprite = LoadSpriteSafe($"{SpritesDir}/SteeringWheel.png");
+        Sprite steeringWheelSprite = LoadSpriteSafe($"{SpritesDir}/SteeringWheelRealistic.png");
+        if (steeringWheelSprite == null) steeringWheelSprite = LoadSpriteSafe($"{SpritesDir}/SteeringWheel.png");
+        Sprite pedalGasSprite = LoadSpriteSafe($"{SpritesDir}/PedalGas.png");
+        Sprite pedalBrakeSprite = LoadSpriteSafe($"{SpritesDir}/PedalBrake.png");
         Sprite groundSprite = LoadSpriteSafe($"{SpritesDir}/AsphaltGround.png");
         Sprite coneSprite = LoadSpriteSafe($"{SpritesDir}/TrafficCone.png");
         Sprite barrierSprite = LoadSpriteSafe($"{SpritesDir}/ConcreteBarrier.png");
@@ -66,7 +68,7 @@ public static class TruckSimulatorSetup
         BuildTrainingYard(groundSprite, barrierSprite, coneSprite, barrelSprite, tractorSprite, trailerSprite);
 
         // 3. Create UI Canvas with Steering Wheel, HUD, and Crash Feedback
-        GameObject canvasGo = CreateControlsCanvas(steeringWheelSprite);
+        GameObject canvasGo = CreateControlsCanvas(steeringWheelSprite, pedalGasSprite, pedalBrakeSprite);
 
         // 4. Create 'Tractor' GameObject (Real Class 8 American Conventional Semi)
         // Length: 8.5m, Width: 2.6m
@@ -395,7 +397,7 @@ public static class TruckSimulatorSetup
         return wheel;
     }
 
-    private static GameObject CreateControlsCanvas(Sprite steeringWheelSprite)
+    private static GameObject CreateControlsCanvas(Sprite steeringWheelSprite, Sprite pedalGasSprite, Sprite pedalBrakeSprite)
     {
         GameObject canvasGo = new GameObject("TruckControlsCanvas");
         Canvas canvas = canvasGo.AddComponent<Canvas>();
@@ -417,22 +419,61 @@ public static class TruckSimulatorSetup
         flashImg.raycastTarget = false;
         flashGo.SetActive(false);
 
-        // Steering Wheel
+        // Steering Wheel (bottom-right corner, matching reference)
         GameObject wheelGo = new GameObject("SteeringWheel");
         wheelGo.transform.SetParent(canvasGo.transform, false);
 
         RectTransform wheelRt = wheelGo.AddComponent<RectTransform>();
-        wheelRt.anchorMin = new Vector2(0.12f, 0.22f);
-        wheelRt.anchorMax = new Vector2(0.12f, 0.22f);
+        wheelRt.anchorMin = new Vector2(1f, 0f);
+        wheelRt.anchorMax = new Vector2(1f, 0f);
         wheelRt.pivot = new Vector2(0.5f, 0.5f);
-        wheelRt.anchoredPosition = Vector2.zero;
-        wheelRt.sizeDelta = new Vector2(240, 240);
+        wheelRt.anchoredPosition = new Vector2(-240f, 240f);
+        wheelRt.sizeDelta = new Vector2(400f, 400f);
 
         Image wheelImg = wheelGo.AddComponent<Image>();
         wheelImg.sprite = steeringWheelSprite;
         wheelImg.raycastTarget = true;
 
         wheelGo.AddComponent<SteeringWheelUI>();
+
+        // Pedals (bottom-left corner)
+        // 1. Gas Pedal (Upper Left)
+        GameObject gasGo = new GameObject("Pedal_Gas");
+        gasGo.transform.SetParent(canvasGo.transform, false);
+
+        RectTransform gasRt = gasGo.AddComponent<RectTransform>();
+        gasRt.anchorMin = new Vector2(0f, 0f);
+        gasRt.anchorMax = new Vector2(0f, 0f);
+        gasRt.pivot = new Vector2(0.5f, 0.5f);
+        gasRt.anchoredPosition = new Vector2(130f, 380f);
+        gasRt.sizeDelta = new Vector2(120f, 240f);
+
+        Image gasImg = gasGo.AddComponent<Image>();
+        gasImg.sprite = pedalGasSprite;
+        gasImg.raycastTarget = true;
+        gasImg.color = new Color(1f, 1f, 1f, 0.8f);
+
+        PedalUI gasPedal = gasGo.AddComponent<PedalUI>();
+        gasPedal.SetPedalType(PedalUI.PedalType.Gas);
+
+        // 2. Brake / Reverse Pedal (Lower Left)
+        GameObject brakeGo = new GameObject("Pedal_Brake");
+        brakeGo.transform.SetParent(canvasGo.transform, false);
+
+        RectTransform brakeRt = brakeGo.AddComponent<RectTransform>();
+        brakeRt.anchorMin = new Vector2(0f, 0f);
+        brakeRt.anchorMax = new Vector2(0f, 0f);
+        brakeRt.pivot = new Vector2(0.5f, 0.5f);
+        brakeRt.anchoredPosition = new Vector2(130f, 160f);
+        brakeRt.sizeDelta = new Vector2(150f, 150f);
+
+        Image brakeImg = brakeGo.AddComponent<Image>();
+        brakeImg.sprite = pedalBrakeSprite;
+        brakeImg.raycastTarget = true;
+        brakeImg.color = new Color(1f, 1f, 1f, 0.8f);
+
+        PedalUI brakePedal = brakeGo.AddComponent<PedalUI>();
+        brakePedal.SetPedalType(PedalUI.PedalType.BrakeReverse);
 
         // Dashboard HUD Text
         GameObject hudGo = new GameObject("TruckHUDText");

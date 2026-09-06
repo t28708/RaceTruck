@@ -47,16 +47,16 @@ public class TruckController : MonoBehaviour
     [SerializeField] private float powerSteeringSpeed = 48f;
 
     [Header("Diesel Engine & Driving Dynamics (km/h)")]
-    [Tooltip("Maximum forward maneuvering speed in km/h (limited to 10 km/h)")]
-    [SerializeField] private float maxForwardSpeedKmh = 10.0f;
-    [Tooltip("Maximum reverse backing speed in km/h (8 km/h)")]
-    [SerializeField] private float maxReverseSpeedKmh = 8.0f;
-    [Tooltip("Engine acceleration (heavy 36-ton gross weight momentum)")]
-    [SerializeField] private float acceleration = 1.6f;
-    [Tooltip("Progressive pneumatic air brake deceleration")]
-    [SerializeField] private float brakePower = 8.5f;
-    [Tooltip("Reverse acceleration (smooth, low-speed backing torque)")]
-    [SerializeField] private float reverseAcceleration = 1.2f;
+    [Tooltip("Maximum forward maneuvering speed in km/h (fixed at 4.0 km/h)")]
+    [SerializeField] private float maxForwardSpeedKmh = 4.0f;
+    [Tooltip("Maximum reverse backing speed in km/h (fixed at 4.0 km/h)")]
+    [SerializeField] private float maxReverseSpeedKmh = 4.0f;
+    [Tooltip("Engine acceleration (smooth ramp to 4 km/h)")]
+    [SerializeField] private float acceleration = 2.0f;
+    [Tooltip("Progressive pneumatic air brake deceleration (smooth stop)")]
+    [SerializeField] private float brakePower = 3.5f;
+    [Tooltip("Reverse acceleration (smooth ramp to 4 km/h)")]
+    [SerializeField] private float reverseAcceleration = 2.0f;
     [Tooltip("Rolling resistance of 18 wheels on asphalt")]
     [SerializeField] private float rollingResistance = 1.6f;
 
@@ -67,7 +67,12 @@ public class TruckController : MonoBehaviour
     private float currentSpeed = 0f;
     private float actualSteerAngle = 0f; // Smooth hydraulic front wheel angle
 
-    // My Trucking Skills Cruise Throttle & Symmetric Braking state
+    // Mobile touch pedal & keyboard state
+    private bool gasPedalPressed = false;
+    private bool brakePedalPressed = false;
+    private bool prevGasPedalPressed = false;
+    private bool prevBrakePedalPressed = false;
+
     private bool wPressed = false;
     private bool sPressed = false;
     private bool spacePressed = false;
@@ -75,6 +80,19 @@ public class TruckController : MonoBehaviour
     private bool sIsBraking = false;
     private bool prevWPressed = false;
     private bool prevSPressed = false;
+
+    public void SetGasPedal(bool isPressed)
+    {
+        gasPedalPressed = isPressed;
+    }
+
+    public void SetBrakePedal(bool isPressed)
+    {
+        brakePedalPressed = isPressed;
+    }
+
+    public bool IsGasPedalPressed => gasPedalPressed || wPressed;
+    public bool IsBrakePedalPressed => brakePedalPressed || sPressed;
 
     // Tracked historical positions for smooth tractrix integration
     private Vector2 prevHitchPos;
@@ -100,11 +118,15 @@ public class TruckController : MonoBehaviour
             trailerRb.interpolation = RigidbodyInterpolation2D.Interpolate;
         }
 
+        maxForwardSpeedKmh = 4.0f;
+        maxReverseSpeedKmh = 4.0f;
         maxArticulationAngle = 107.3f;
     }
 
     private void OnValidate()
     {
+        maxForwardSpeedKmh = 4.0f;
+        maxReverseSpeedKmh = 4.0f;
         maxArticulationAngle = 107.3f;
     }
 
@@ -256,30 +278,37 @@ public class TruckController : MonoBehaviour
         spacePressed = Input.GetKey(KeyCode.Space);
 #endif
 
-        // Detect leading edge of W press
-        if (wPressed && !prevWPressed)
+        bool forwardInput = wPressed || gasPedalPressed;
+        bool reverseInput = sPressed || brakePedalPressed;
+        bool prevForwardInput = prevWPressed || prevGasPedalPressed;
+        bool prevReverseInput = prevSPressed || prevBrakePedalPressed;
+
+        // Detect leading edge of forward press
+        if (forwardInput && !prevForwardInput)
         {
-            // If rolling backward, W acts as a BRAKE to stop
+            // If rolling backward, forward acts as a BRAKE to stop
             wIsBraking = (currentSpeed < -0.03f);
         }
-        else if (!wPressed)
+        else if (!forwardInput)
         {
             wIsBraking = false;
         }
 
-        // Detect leading edge of S press
-        if (sPressed && !prevSPressed)
+        // Detect leading edge of reverse press
+        if (reverseInput && !prevReverseInput)
         {
-            // If rolling forward, S acts as a BRAKE to stop
+            // If rolling forward, reverse acts as a BRAKE to stop
             sIsBraking = (currentSpeed > 0.03f);
         }
-        else if (!sPressed)
+        else if (!reverseInput)
         {
             sIsBraking = false;
         }
 
         prevWPressed = wPressed;
         prevSPressed = sPressed;
+        prevGasPedalPressed = gasPedalPressed;
+        prevBrakePedalPressed = brakePedalPressed;
 
         // Hydraulic power steering smoothing
         float targetSteer = TargetSteerAngle;
@@ -309,19 +338,22 @@ public class TruckController : MonoBehaviour
         string gear = "N";
         string mode = "СТОП";
 
+        bool forwardInput = wPressed || gasPedalPressed;
+        bool reverseInput = sPressed || brakePedalPressed;
+
         if (currentSpeed > 0.05f)
         {
             gear = "D";
-            if (sPressed && sIsBraking) mode = "ТОРМОЗ";
-            else if (wPressed) mode = "ГАЗ";
-            else mode = "КРУИЗ";
+            if (reverseInput && sIsBraking) mode = "ТОРМОЗ";
+            else if (forwardInput) mode = "ГАЗ (4 км/ч)";
+            else mode = "ТОРМОЖЕНИЕ";
         }
         else if (currentSpeed < -0.05f)
         {
             gear = "R";
-            if (wPressed && wIsBraking) mode = "ТОРМОЗ";
-            else if (sPressed) mode = "ГАЗ";
-            else mode = "КРУИЗ";
+            if (forwardInput && wIsBraking) mode = "ТОРМОЗ";
+            else if (reverseInput) mode = "НАЗАД (4 км/ч)";
+            else mode = "ТОРМОЖЕНИЕ";
         }
         else
         {
@@ -480,37 +512,35 @@ public class TruckController : MonoBehaviour
 
     private void UpdateSpeed(float dt)
     {
+        bool forwardInput = wPressed || gasPedalPressed;
+        bool reverseInput = sPressed || brakePedalPressed;
+
         // 1. Emergency handbrake (Space)
         if (spacePressed)
         {
-            currentSpeed = Mathf.MoveTowards(currentSpeed, 0f, brakePower * 1.5f * dt);
+            currentSpeed = Mathf.MoveTowards(currentSpeed, 0f, brakePower * 2.0f * dt);
             if (Mathf.Abs(currentSpeed) < 0.01f) currentSpeed = 0f;
             return;
         }
 
-        // 2. Both W and S pressed simultaneously -> brake to stop
-        if (wPressed && sPressed)
+        // 2. Both forward and reverse pressed simultaneously -> brake to stop
+        if (forwardInput && reverseInput)
         {
             currentSpeed = Mathf.MoveTowards(currentSpeed, 0f, brakePower * dt);
             if (Mathf.Abs(currentSpeed) < 0.01f) currentSpeed = 0f;
             return;
         }
 
-        // 3. W (Gas forward / Brake reverse)
-        if (wPressed)
+        // 3. Forward Gas Pedal (Accelerates and holds constant 4.0 km/h)
+        if (forwardInput)
         {
             if (wIsBraking)
             {
-                // Air brakes while moving backward -> slows to 0
                 currentSpeed = Mathf.MoveTowards(currentSpeed, 0f, brakePower * dt);
-                if (currentSpeed >= 0f)
-                {
-                    currentSpeed = 0f; // Clamps at 0 without switching to forward
-                }
+                if (currentSpeed >= 0f) currentSpeed = 0f;
             }
             else
             {
-                // Accelerate forward up to MaxForwardSpeed (10 km/h)
                 if (isBlockedForward)
                 {
                     currentSpeed = 0f;
@@ -527,21 +557,16 @@ public class TruckController : MonoBehaviour
             return;
         }
 
-        // 4. S (Gas reverse / Brake forward)
-        if (sPressed)
+        // 4. Reverse / Brake Pedal (Accelerates and holds constant -4.0 km/h)
+        if (reverseInput)
         {
             if (sIsBraking)
             {
-                // Air brakes while moving forward -> slows to 0
                 currentSpeed = Mathf.MoveTowards(currentSpeed, 0f, brakePower * dt);
-                if (currentSpeed <= 0f)
-                {
-                    currentSpeed = 0f; // Clamps at 0 without switching to reverse
-                }
+                if (currentSpeed <= 0f) currentSpeed = 0f;
             }
             else
             {
-                // Accelerate backward up to MaxReverseSpeed (8 km/h)
                 if (isBlockedReverse)
                 {
                     currentSpeed = 0f;
@@ -555,8 +580,9 @@ public class TruckController : MonoBehaviour
             return;
         }
 
-        // 5. Neither key pressed: MAINTAIN CURRENT CRUISE SPEED (My Trucking Skills throttle!)
-        // Speed is held constant; no deceleration or rolling drag occurs.
+        // 5. Neither pedal pressed: smoothly decelerate to complete stop (smooth braking)
+        currentSpeed = Mathf.MoveTowards(currentSpeed, 0f, brakePower * dt);
+        if (Mathf.Abs(currentSpeed) < 0.01f) currentSpeed = 0f;
     }
 
     public void SetupWheelReferences(Transform fl, Transform fr)
