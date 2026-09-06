@@ -215,7 +215,11 @@ public class CameraFollow : MonoBehaviour
 
     public void Shake(float duration, float magnitude)
     {
-        if (shakeRoutine != null) StopCoroutine(shakeRoutine);
+        if (shakeRoutine != null)
+        {
+            StopCoroutine(shakeRoutine);
+            shakeOffset = Vector3.zero;
+        }
         shakeRoutine = StartCoroutine(DoShake(duration, magnitude));
     }
 

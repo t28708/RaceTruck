@@ -12,17 +12,22 @@ public class TruckCrashEffect : MonoBehaviour
 
     [Header("Camera Shake")]
     [SerializeField] private CameraFollow cameraFollow;
-    [SerializeField] private float shakeDuration = 0.45f;
-    [SerializeField] private float shakeMagnitude = 0.55f;
+    [SerializeField] private float shakeDuration = 0.12f;
+    [SerializeField] private float shakeMagnitude = 0.08f;
 
     private Coroutine currentCrashRoutine;
     private AudioSource audioSource;
     private AudioClip impactAudioClip;
     private Sprite impactSparkSprite;
+    private float lastCrashTriggerTime = -1f;
+    private const float MinCrashInterval = 0.45f;
 
     private void Awake()
     {
         Instance = this;
+        // Enforce minimal gentle shake settings even if older scene serialized values exist
+        if (shakeDuration > 0.15f) shakeDuration = 0.12f;
+        if (shakeMagnitude > 0.10f) shakeMagnitude = 0.08f;
     }
 
     private void Start()
@@ -68,19 +73,19 @@ public class TruckCrashEffect : MonoBehaviour
     private static AudioClip GenerateMetalImpactClip()
     {
         int sampleRate = 22050;
-        float duration = 0.38f;
+        float duration = 0.22f;
         int sampleCount = (int)(sampleRate * duration);
         float[] samples = new float[sampleCount];
 
         for (int i = 0; i < sampleCount; i++)
         {
             float t = (float)i / sampleRate;
-            // Heavy metallic punch: low boom + mid-frequency crunch clang + noise
-            float decayFast = Mathf.Exp(-t * 26f);
-            float decaySlow = Mathf.Exp(-t * 9f);
-            float boom = Mathf.Sin(2f * Mathf.PI * 65f * t) * decaySlow * 0.7f;
-            float clang = Mathf.Sin(2f * Mathf.PI * 260f * t) * decayFast * 0.4f;
-            float noise = (Random.value * 2f - 1f) * decayFast * 0.5f;
+            // Softer, damped bump thud instead of harsh loud boom
+            float decayFast = Mathf.Exp(-t * 35f);
+            float decaySlow = Mathf.Exp(-t * 18f);
+            float boom = Mathf.Sin(2f * Mathf.PI * 75f * t) * decaySlow * 0.4f;
+            float clang = Mathf.Sin(2f * Mathf.PI * 220f * t) * decayFast * 0.25f;
+            float noise = (Random.value * 2f - 1f) * decayFast * 0.2f;
 
             samples[i] = Mathf.Clamp(boom + clang + noise, -1f, 1f);
         }
@@ -143,10 +148,10 @@ public class TruckCrashEffect : MonoBehaviour
 
     private IEnumerator AnimateBurst(GameObject burstGo, SpriteRenderer sr)
     {
-        float duration = 0.4f;
+        float duration = 0.2f;
         float elapsed = 0f;
-        Vector3 initialScale = Vector3.one * 0.7f;
-        Vector3 targetScale = Vector3.one * 2.8f;
+        Vector3 initialScale = Vector3.one * 0.4f;
+        Vector3 targetScale = Vector3.one * 1.2f;
 
         while (elapsed < duration)
         {
@@ -159,7 +164,7 @@ public class TruckCrashEffect : MonoBehaviour
                 if (sr != null)
                 {
                     Color c = sr.color;
-                    c.a = Mathf.Lerp(1f, 0f, t * t);
+                    c.a = Mathf.Lerp(0.8f, 0f, t * t);
                     sr.color = c;
                 }
             }
@@ -174,10 +179,16 @@ public class TruckCrashEffect : MonoBehaviour
 
     public void TriggerJackknifeCrash(Vector2 contactWorldPos)
     {
+        if (Time.time - lastCrashTriggerTime < MinCrashInterval)
+        {
+            return;
+        }
+        lastCrashTriggerTime = Time.time;
+
         EnsureAudio();
         if (audioSource != null && impactAudioClip != null)
         {
-            audioSource.PlayOneShot(impactAudioClip, 1f);
+            audioSource.PlayOneShot(impactAudioClip, 0.45f);
         }
 
         SpawnImpactBurst(contactWorldPos);
@@ -191,7 +202,7 @@ public class TruckCrashEffect : MonoBehaviour
 
     private IEnumerator JackknifeCrashSequence()
     {
-        // 1. Camera Shake
+        // 1. Camera Shake (Gentle minimal bump)
         if (cameraFollow == null && Camera.main != null)
         {
             cameraFollow = Camera.main.GetComponent<CameraFollow>();
@@ -201,7 +212,7 @@ public class TruckCrashEffect : MonoBehaviour
             cameraFollow.Shake(shakeDuration, shakeMagnitude);
         }
 
-        // 2. Banner & Red Flash
+        // 2. Banner & Red Flash (Subtle flash)
         if (crashText != null)
         {
             crashText.gameObject.SetActive(true);
@@ -212,7 +223,7 @@ public class TruckCrashEffect : MonoBehaviour
         if (redFlashImage != null)
         {
             redFlashImage.gameObject.SetActive(true);
-            redFlashImage.color = new Color(1f, 0.1f, 0.1f, 0.6f);
+            redFlashImage.color = new Color(1f, 0.1f, 0.1f, 0.18f);
         }
 
         // 3. Fade out flash
@@ -223,13 +234,13 @@ public class TruckCrashEffect : MonoBehaviour
             float percent = 1f - (elapsed / shakeDuration);
             if (redFlashImage != null)
             {
-                redFlashImage.color = new Color(1f, 0.1f, 0.1f, 0.6f * percent);
+                redFlashImage.color = new Color(1f, 0.1f, 0.1f, 0.18f * percent);
             }
             yield return null;
         }
 
         // 4. Fade out banner
-        float textFadeDuration = 1.0f;
+        float textFadeDuration = 0.8f;
         float textElapsed = 0f;
         while (textElapsed < textFadeDuration)
         {
@@ -257,10 +268,16 @@ public class TruckCrashEffect : MonoBehaviour
 
     public void TriggerCrash(string obstacleName, Vector2? contactPos = null, bool forwardImpact = true)
     {
+        if (Time.time - lastCrashTriggerTime < MinCrashInterval)
+        {
+            return;
+        }
+        lastCrashTriggerTime = Time.time;
+
         EnsureAudio();
         if (audioSource != null && impactAudioClip != null)
         {
-            audioSource.PlayOneShot(impactAudioClip, 0.85f);
+            audioSource.PlayOneShot(impactAudioClip, 0.40f);
         }
 
         if (contactPos.HasValue)
@@ -277,7 +294,7 @@ public class TruckCrashEffect : MonoBehaviour
 
     private IEnumerator CrashSequence(string obstacleName, bool forwardImpact)
     {
-        // 1. Trigger Camera Shake
+        // 1. Trigger Camera Shake (Gentle minimal bump)
         if (cameraFollow == null && Camera.main != null)
         {
             cameraFollow = Camera.main.GetComponent<CameraFollow>();
@@ -287,7 +304,7 @@ public class TruckCrashEffect : MonoBehaviour
             cameraFollow.Shake(shakeDuration, shakeMagnitude);
         }
 
-        // 2. Show Red Flash & Crash Banner Text
+        // 2. Show Red Flash & Crash Banner Text (Subtle vignette)
         if (crashText != null)
         {
             crashText.gameObject.SetActive(true);
@@ -301,7 +318,7 @@ public class TruckCrashEffect : MonoBehaviour
         if (redFlashImage != null)
         {
             redFlashImage.gameObject.SetActive(true);
-            redFlashImage.color = new Color(1f, 0.1f, 0.1f, 0.5f);
+            redFlashImage.color = new Color(1f, 0.1f, 0.1f, 0.18f);
         }
 
         // 3. Fade out flash
@@ -313,13 +330,13 @@ public class TruckCrashEffect : MonoBehaviour
 
             if (redFlashImage != null)
             {
-                redFlashImage.color = new Color(1f, 0.1f, 0.1f, 0.5f * percent);
+                redFlashImage.color = new Color(1f, 0.1f, 0.1f, 0.18f * percent);
             }
             yield return null;
         }
 
         // 4. Fade out text banner
-        float textFadeDuration = 0.8f;
+        float textFadeDuration = 0.7f;
         float textElapsed = 0f;
         while (textElapsed < textFadeDuration)
         {

@@ -1876,8 +1876,8 @@ MonoBehaviour:
   crashText: {fileID: 0}
   redFlashImage: {fileID: 0}
   cameraFollow: {fileID: 0}
-  shakeDuration: 0.45
-  shakeMagnitude: 0.55
+  shakeDuration: 0.12
+  shakeMagnitude: 0.08
 --- !u!114 &791084508
 MonoBehaviour:
   m_ObjectHideFlags: 0
