@@ -319,7 +319,7 @@ public static class TruckSimulatorSetup
         rig.transform.rotation = Quaternion.Euler(0f, 0f, rotAngleDeg);
 
         // Trailer
-        GameObject trailerGo = new GameObject("Trailer");
+        GameObject trailerGo = new GameObject($"{name}_Trailer");
         trailerGo.transform.SetParent(rig.transform, false);
         trailerGo.transform.localPosition = Vector3.zero;
 
@@ -333,7 +333,7 @@ public static class TruckSimulatorSetup
 
         // Tractor parked in front of trailer (hitch connected)
         // Trailer kingpin at +7.7m connects to Tractor hitch at -2.9m -> tractor offset = +10.6m
-        GameObject tractorGo = new GameObject("Tractor");
+        GameObject tractorGo = new GameObject($"{name}_Tractor");
         tractorGo.transform.SetParent(rig.transform, false);
         tractorGo.transform.localPosition = new Vector3(0f, 10.6f, 0f);
 

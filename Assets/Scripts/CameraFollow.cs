@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -74,26 +74,28 @@ public class CameraFollow : MonoBehaviour
 
     private void FindTargetsIfNull()
     {
+        TruckController tc = TruckController.Instance;
+        if (tc == null)
+        {
+            tc = Object.FindFirstObjectByType<TruckController>();
+        }
+
+        if (tc != null)
+        {
+            if (tractorTarget == null) tractorTarget = tc.transform;
+            if (trailerTarget == null && tc.TrailerRb != null) trailerTarget = tc.TrailerRb.transform;
+        }
+
         if (tractorTarget == null)
         {
             GameObject tractor = GameObject.Find("Tractor");
             if (tractor != null) tractorTarget = tractor.transform;
-            if (tractorTarget == null)
-            {
-                TruckController tc = FindObjectOfType<TruckController>();
-                if (tc != null) tractorTarget = tc.transform;
-            }
         }
 
         if (trailerTarget == null)
         {
             GameObject trailer = GameObject.Find("Trailer");
             if (trailer != null) trailerTarget = trailer.transform;
-            if (trailerTarget == null)
-            {
-                TruckController tc = FindObjectOfType<TruckController>();
-                if (tc != null && tc.TrailerRb != null) trailerTarget = tc.TrailerRb.transform;
-            }
         }
     }
 

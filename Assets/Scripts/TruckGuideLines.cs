@@ -95,8 +95,15 @@ public class TruckGuideLines : MonoBehaviour
 
         if (trailerTransform == null)
         {
-            GameObject trGo = GameObject.Find("Trailer");
-            if (trGo != null) trailerTransform = trGo.transform;
+            if (controller != null && controller.TrailerRb != null)
+            {
+                trailerTransform = controller.TrailerRb.transform;
+            }
+            else
+            {
+                GameObject trGo = GameObject.Find("Trailer");
+                if (trGo != null) trailerTransform = trGo.transform;
+            }
         }
     }
 
