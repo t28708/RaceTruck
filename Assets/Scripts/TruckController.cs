@@ -473,6 +473,8 @@ public class TruckController : MonoBehaviour
     public bool IsBlockedReverse => isBlockedReverse;
     public int LastCrashDirection => lastCrashDirection;
     public Collider2D LastCrashedObstacle => lastCrashedObstacle;
+    public bool IsForwardInputActive => wPressed || gasPedalPressed;
+    public bool IsReverseInputActive => sPressed || brakePedalPressed;
 
     public void OnCrash(string obstacleName, bool forwardImpact, Collider2D hitObstacle = null)
     {

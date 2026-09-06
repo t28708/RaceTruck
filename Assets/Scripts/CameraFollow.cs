@@ -26,6 +26,14 @@ public class CameraFollow : MonoBehaviour
     [Header("Zoom Multiplier (1x - 5x)")]
     [SerializeField] private int zoomMultiplier = 1;
 
+    [Header("Dynamic Directional Shift")]
+    [Tooltip("Camera forward shift (along tractor forward) when driving forward or at rest")]
+    [SerializeField] private float forwardShift = 5.0f;
+    [Tooltip("Camera reverse shift (along tractor forward) when backing up to reveal trailer")]
+    [SerializeField] private float reverseShift = -6.5f;
+    [Tooltip("Smooth transition speed between forward and reverse shifts")]
+    [SerializeField] private float shiftTransitionSpeed = 3.5f;
+
     public static CameraFollow Instance { get; private set; }
 
     public int ZoomMultiplier => zoomMultiplier;
@@ -35,9 +43,13 @@ public class CameraFollow : MonoBehaviour
     private float targetZoom;
     private Vector3 shakeOffset = Vector3.zero;
     private Coroutine shakeRoutine;
+    private float currentShift = 5.0f;
+    private bool isReversing = false;
 
     public bool RotateWithTruck => rotateWithTruck;
     public float CurrentZoom => cam != null ? cam.orthographicSize : targetZoom;
+    public float CurrentShift => currentShift;
+    public bool IsReversingShift => isReversing;
 
     private void Awake()
     {
@@ -57,6 +69,7 @@ public class CameraFollow : MonoBehaviour
         // Unconditionally ensure camera is strictly locked to tractor at dead center
         rotateWithTruck = true;
         offset = new Vector3(0f, 0f, -10f);
+        currentShift = forwardShift;
 
         FindTargetsIfNull();
         SnapToTarget();
@@ -136,8 +149,10 @@ public class CameraFollow : MonoBehaviour
         if (tractorTarget == null) FindTargetsIfNull();
         if (tractorTarget == null) return;
 
-        // Rigid lock: tractor is ALWAYS strictly in the center of the frame and looks strictly UP (90 degrees to bottom line of screen)
-        Vector3 targetPos = new Vector3(tractorTarget.position.x, tractorTarget.position.y, -10f);
+        // Rigid lock: tractor points UP, with default forward view
+        float zoomScale = 1f + 0.25f * (zoomMultiplier - 1);
+        currentShift = (isReversing ? reverseShift : forwardShift) * zoomScale;
+        Vector3 targetPos = new Vector3(tractorTarget.position.x, tractorTarget.position.y, -10f) + (Vector3)(tractorTarget.up * currentShift);
         transform.position = targetPos;
         transform.rotation = Quaternion.Euler(0f, 0f, tractorTarget.eulerAngles.z);
     }
@@ -243,8 +258,31 @@ public class CameraFollow : MonoBehaviour
             if (tractorTarget == null) return;
         }
 
-        // Rigid lock: tractor is ALWAYS strictly in the center of the frame and looks strictly UP (90 degrees to bottom line of screen)
-        Vector3 targetPos = new Vector3(tractorTarget.position.x, tractorTarget.position.y, -10f);
+        // Determine driving direction: forward by default, reverse when backing up
+        TruckController tc = TruckController.Instance;
+        if (tc == null) tc = Object.FindFirstObjectByType<TruckController>();
+
+        if (tc != null)
+        {
+            if (tc.CurrentSpeed > 0.05f || tc.IsForwardInputActive)
+            {
+                isReversing = false;
+            }
+            else if (tc.CurrentSpeed < -0.05f || tc.IsReverseInputActive)
+            {
+                isReversing = true;
+            }
+        }
+
+        // Target shift: forwardShift (+5) by default, reverseShift (-6.5) when reversing
+        float zoomScale = 1f + 0.25f * (zoomMultiplier - 1);
+        float targetShift = (isReversing ? reverseShift : forwardShift) * zoomScale;
+        currentShift = Mathf.Lerp(currentShift, targetShift, shiftTransitionSpeed * Time.deltaTime);
+
+        // Position camera: tractor is locked to heading (points UP), with dynamic forward/backward shift along tractor axis
+        Vector3 shiftVector = (Vector3)(tractorTarget.up * currentShift);
+        Vector3 targetPos = new Vector3(tractorTarget.position.x, tractorTarget.position.y, -10f) + shiftVector;
+
         transform.position = targetPos + shakeOffset;
         transform.rotation = Quaternion.Euler(0f, 0f, tractorTarget.eulerAngles.z);
     }
