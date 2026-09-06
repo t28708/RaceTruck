@@ -209,128 +209,127 @@ public class TruckController : MonoBehaviour
             canvasGo.AddComponent<GraphicRaycaster>();
         }
 
-        // 1. Steering Wheel
-        SteeringWheelUI existingWheel = Object.FindFirstObjectByType<SteeringWheelUI>();
-        if (existingWheel == null)
+        // 1. Steering Wheel (Strictly on bottom-right, identical across all maps)
+        SteeringWheelUI[] existingWheels = Object.FindObjectsByType<SteeringWheelUI>(FindObjectsSortMode.None);
+        SteeringWheelUI wheel = existingWheels.Length > 0 ? existingWheels[0] : null;
+
+        // Destroy any duplicate extra wheels if they exist
+        for (int i = 1; i < existingWheels.Length; i++)
+        {
+            if (existingWheels[i] != null) Destroy(existingWheels[i].gameObject);
+        }
+
+        GameObject wheelGo = null;
+        if (wheel == null)
         {
             Transform wheelTrans = canvasGo.transform.Find("SteeringWheel");
-            GameObject wheelGo = (wheelTrans != null) ? wheelTrans.gameObject : null;
-            if (wheelGo == null)
-            {
-                wheelGo = new GameObject("SteeringWheel");
-                wheelGo.transform.SetParent(canvasGo.transform, false);
-            }
-            wheelGo.SetActive(true);
-
-            RectTransform wheelRect = wheelGo.GetComponent<RectTransform>();
-            if (wheelRect == null) wheelRect = wheelGo.AddComponent<RectTransform>();
-            wheelRect.anchorMin = new Vector2(1f, 0f);
-            wheelRect.anchorMax = new Vector2(1f, 0f);
-            wheelRect.pivot = new Vector2(0.5f, 0.5f);
-            wheelRect.anchoredPosition = new Vector2(-240f, 240f);
-            wheelRect.sizeDelta = new Vector2(400f, 400f);
-            wheelRect.localScale = Vector3.one;
-
-            Image wheelImg = wheelGo.GetComponent<Image>();
-            if (wheelImg == null) wheelImg = wheelGo.AddComponent<Image>();
-            wheelImg.raycastTarget = true;
-            wheelImg.preserveAspect = true;
-            if (wheelImg.sprite == null)
-            {
-                wheelImg.sprite = GetOrCreateSprite("SteeringWheelRealistic", GenerateSteeringWheelTexture);
-            }
-
-            existingWheel = wheelGo.GetComponent<SteeringWheelUI>();
-            if (existingWheel == null) existingWheel = wheelGo.AddComponent<SteeringWheelUI>();
+            wheelGo = (wheelTrans != null) ? wheelTrans.gameObject : new GameObject("SteeringWheel");
+            wheelGo.transform.SetParent(canvasGo.transform, false);
+            wheel = wheelGo.GetComponent<SteeringWheelUI>();
+            if (wheel == null) wheel = wheelGo.AddComponent<SteeringWheelUI>();
         }
         else
         {
-            existingWheel.gameObject.SetActive(true);
-            RectTransform rt = existingWheel.GetComponent<RectTransform>();
-            if (rt != null && rt.localScale.sqrMagnitude < 0.001f)
+            wheelGo = wheel.gameObject;
+            wheelGo.transform.SetParent(canvasGo.transform, false);
+        }
+
+        wheelGo.SetActive(true);
+        RectTransform wheelRect = wheelGo.GetComponent<RectTransform>();
+        if (wheelRect == null) wheelRect = wheelGo.AddComponent<RectTransform>();
+        wheelRect.anchorMin = new Vector2(1f, 0f);
+        wheelRect.anchorMax = new Vector2(1f, 0f);
+        wheelRect.pivot = new Vector2(0.5f, 0.5f);
+        wheelRect.anchoredPosition = new Vector2(-240f, 240f);
+        wheelRect.sizeDelta = new Vector2(400f, 400f);
+        wheelRect.localScale = Vector3.one;
+
+        Image wheelImg = wheelGo.GetComponent<Image>();
+        if (wheelImg == null) wheelImg = wheelGo.AddComponent<Image>();
+        wheelImg.raycastTarget = true;
+        wheelImg.preserveAspect = true;
+        wheelImg.color = Color.white;
+        // Always enforce the exact same realistic steering wheel sprite across all maps!
+        wheelImg.sprite = GetOrCreateSprite("SteeringWheelRealistic", GenerateSteeringWheelTexture);
+
+        steeringWheel = wheel;
+
+        // 2. Gas & Brake Pedals (Strictly on bottom-left, identical across all maps)
+        PedalUI[] allPedals = Object.FindObjectsByType<PedalUI>(FindObjectsSortMode.None);
+        PedalUI gasPedal = null;
+        PedalUI brakePedal = null;
+
+        foreach (var p in allPedals)
+        {
+            if (p.Type == PedalUI.PedalType.Gas && gasPedal == null) gasPedal = p;
+            else if (p.Type == PedalUI.PedalType.BrakeReverse && brakePedal == null) brakePedal = p;
+            else if (p != gasPedal && p != brakePedal)
             {
-                rt.localScale = Vector3.one;
+                Destroy(p.gameObject);
             }
         }
-        steeringWheel = existingWheel;
 
-        // 2. Gas & Brake Pedals
-        PedalUI[] pedals = Object.FindObjectsByType<PedalUI>(FindObjectsSortMode.None);
-        bool hasGas = false;
-        bool hasBrake = false;
-        foreach (var p in pedals)
-        {
-            if (p.Type == PedalUI.PedalType.Gas) { hasGas = true; p.gameObject.SetActive(true); }
-            if (p.Type == PedalUI.PedalType.BrakeReverse) { hasBrake = true; p.gameObject.SetActive(true); }
-            RectTransform prt = p.GetComponent<RectTransform>();
-            if (prt != null && prt.localScale.sqrMagnitude < 0.001f) prt.localScale = Vector3.one;
-        }
-
-        if (!hasGas)
+        // Configure Gas Pedal (Top-Left)
+        if (gasPedal == null)
         {
             Transform gasTrans = canvasGo.transform.Find("Pedal_Gas");
-            GameObject gasGo = (gasTrans != null) ? gasTrans.gameObject : null;
-            if (gasGo == null)
-            {
-                gasGo = new GameObject("Pedal_Gas");
-                gasGo.transform.SetParent(canvasGo.transform, false);
-            }
-            gasGo.SetActive(true);
-
-            RectTransform gasRect = gasGo.GetComponent<RectTransform>();
-            if (gasRect == null) gasRect = gasGo.AddComponent<RectTransform>();
-            gasRect.anchorMin = new Vector2(0f, 0f);
-            gasRect.anchorMax = new Vector2(0f, 0f);
-            gasRect.pivot = new Vector2(0.5f, 0.5f);
-            gasRect.anchoredPosition = new Vector2(130f, 380f);
-            gasRect.sizeDelta = new Vector2(120f, 240f);
-            gasRect.localScale = Vector3.one;
-
-            Image gasImg = gasGo.GetComponent<Image>();
-            if (gasImg == null) gasImg = gasGo.AddComponent<Image>();
-            gasImg.raycastTarget = true;
-            if (gasImg.sprite == null)
-            {
-                gasImg.sprite = GetOrCreateSprite("PedalGas", () => GeneratePedalTexture(new Color(0.15f, 0.55f, 0.25f, 0.95f), "GAS"));
-            }
-
-            PedalUI gasUI = gasGo.GetComponent<PedalUI>();
-            if (gasUI == null) gasUI = gasGo.AddComponent<PedalUI>();
-            gasUI.SetPedalType(PedalUI.PedalType.Gas);
+            GameObject gasGo = (gasTrans != null) ? gasTrans.gameObject : new GameObject("Pedal_Gas");
+            gasGo.transform.SetParent(canvasGo.transform, false);
+            gasPedal = gasGo.GetComponent<PedalUI>();
+            if (gasPedal == null) gasPedal = gasGo.AddComponent<PedalUI>();
+            gasPedal.SetPedalType(PedalUI.PedalType.Gas);
+        }
+        else
+        {
+            gasPedal.transform.SetParent(canvasGo.transform, false);
         }
 
-        if (!hasBrake)
+        gasPedal.gameObject.SetActive(true);
+        RectTransform gasRect = gasPedal.GetComponent<RectTransform>();
+        if (gasRect == null) gasRect = gasPedal.gameObject.AddComponent<RectTransform>();
+        gasRect.anchorMin = new Vector2(0f, 0f);
+        gasRect.anchorMax = new Vector2(0f, 0f);
+        gasRect.pivot = new Vector2(0.5f, 0.5f);
+        gasRect.anchoredPosition = new Vector2(130f, 380f);
+        gasRect.sizeDelta = new Vector2(120f, 240f);
+        gasRect.localScale = Vector3.one;
+
+        Image gasImg = gasPedal.GetComponent<Image>();
+        if (gasImg == null) gasImg = gasPedal.gameObject.AddComponent<Image>();
+        gasImg.raycastTarget = true;
+        gasImg.color = new Color(1f, 1f, 1f, 0.85f);
+        gasImg.sprite = GetOrCreateSprite("PedalGas", () => GeneratePedalTexture(new Color(0.15f, 0.55f, 0.25f, 0.95f), "GAS"));
+
+        // Configure Brake Pedal (Bottom-Left)
+        if (brakePedal == null)
         {
             Transform brakeTrans = canvasGo.transform.Find("Pedal_Brake");
-            GameObject brakeGo = (brakeTrans != null) ? brakeTrans.gameObject : null;
-            if (brakeGo == null)
-            {
-                brakeGo = new GameObject("Pedal_Brake");
-                brakeGo.transform.SetParent(canvasGo.transform, false);
-            }
-            brakeGo.SetActive(true);
-
-            RectTransform brakeRect = brakeGo.GetComponent<RectTransform>();
-            if (brakeRect == null) brakeRect = brakeGo.AddComponent<RectTransform>();
-            brakeRect.anchorMin = new Vector2(0f, 0f);
-            brakeRect.anchorMax = new Vector2(0f, 0f);
-            brakeRect.pivot = new Vector2(0.5f, 0.5f);
-            brakeRect.anchoredPosition = new Vector2(130f, 160f);
-            brakeRect.sizeDelta = new Vector2(150f, 150f);
-            brakeRect.localScale = Vector3.one;
-
-            Image brakeImg = brakeGo.GetComponent<Image>();
-            if (brakeImg == null) brakeImg = brakeGo.AddComponent<Image>();
-            brakeImg.raycastTarget = true;
-            if (brakeImg.sprite == null)
-            {
-                brakeImg.sprite = GetOrCreateSprite("PedalBrake", () => GeneratePedalTexture(new Color(0.65f, 0.15f, 0.15f, 0.95f), "BRAKE"));
-            }
-
-            PedalUI brakeUI = brakeGo.GetComponent<PedalUI>();
-            if (brakeUI == null) brakeUI = brakeGo.AddComponent<PedalUI>();
-            brakeUI.SetPedalType(PedalUI.PedalType.BrakeReverse);
+            GameObject brakeGo = (brakeTrans != null) ? brakeTrans.gameObject : new GameObject("Pedal_Brake");
+            brakeGo.transform.SetParent(canvasGo.transform, false);
+            brakePedal = brakeGo.GetComponent<PedalUI>();
+            if (brakePedal == null) brakePedal = brakeGo.AddComponent<PedalUI>();
+            brakePedal.SetPedalType(PedalUI.PedalType.BrakeReverse);
         }
+        else
+        {
+            brakePedal.transform.SetParent(canvasGo.transform, false);
+        }
+
+        brakePedal.gameObject.SetActive(true);
+        RectTransform brakeRect = brakePedal.GetComponent<RectTransform>();
+        if (brakeRect == null) brakeRect = brakePedal.gameObject.AddComponent<RectTransform>();
+        brakeRect.anchorMin = new Vector2(0f, 0f);
+        brakeRect.anchorMax = new Vector2(0f, 0f);
+        brakeRect.pivot = new Vector2(0.5f, 0.5f);
+        brakeRect.anchoredPosition = new Vector2(130f, 160f);
+        brakeRect.sizeDelta = new Vector2(150f, 150f);
+        brakeRect.localScale = Vector3.one;
+
+        Image brakeImg = brakePedal.GetComponent<Image>();
+        if (brakeImg == null) brakeImg = brakePedal.gameObject.AddComponent<Image>();
+        brakeImg.raycastTarget = true;
+        brakeImg.color = new Color(1f, 1f, 1f, 0.85f);
+        brakeImg.sprite = GetOrCreateSprite("PedalBrake", () => GeneratePedalTexture(new Color(0.65f, 0.15f, 0.15f, 0.95f), "BRAKE"));
 
         // 3. HUD Text
         if (hudText == null)
