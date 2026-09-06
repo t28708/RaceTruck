@@ -71,9 +71,13 @@ public class LevelSwitcher : MonoBehaviour
 
     public static string GetNextSceneName(string currentScene)
     {
-        if (currentScene.Contains("Level3") || currentScene.Contains("RestArea") || currentScene.Contains("GasStation"))
+        if (currentScene.Contains("Level4") || currentScene.Contains("TightDock"))
         {
             return "SampleScene";
+        }
+        else if (currentScene.Contains("Level3") || currentScene.Contains("RestArea") || currentScene.Contains("GasStation"))
+        {
+            return "Level4_TightDock";
         }
         else if (currentScene.Contains("Level2") || currentScene.Contains("AlleyDock"))
         {
@@ -87,9 +91,13 @@ public class LevelSwitcher : MonoBehaviour
 
     public static string GetButtonLabel(string currentScene)
     {
-        if (currentScene.Contains("Level3") || currentScene.Contains("RestArea") || currentScene.Contains("GasStation"))
+        if (currentScene.Contains("Level4") || currentScene.Contains("TightDock"))
         {
             return "КАРТА 1 (ПОЛИГОН) [M]";
+        }
+        else if (currentScene.Contains("Level3") || currentScene.Contains("RestArea") || currentScene.Contains("GasStation"))
+        {
+            return "КАРТА 4 (МЕЖДУ ТРАКАМИ) [M]";
         }
         else if (currentScene.Contains("Level2") || currentScene.Contains("AlleyDock"))
         {
@@ -123,6 +131,11 @@ public class LevelSwitcher : MonoBehaviour
     public void LoadMap3()
     {
         LoadSceneByName("Level3_RestArea");
+    }
+
+    public void LoadMap4()
+    {
+        LoadSceneByName("Level4_TightDock");
     }
 
     private void LoadSceneByName(string target)
