@@ -51,6 +51,9 @@ public class CameraFollow : MonoBehaviour
     private float shiftVelocity = 0f;
     private float reverseInputDuration = 0f;
     private bool isReversing = false;
+    private float mouseScrollAccumulator = 0f;
+    private float lastScrollStepTime = 0f;
+    private const float ScrollStepCooldown = 0.16f;
 
     public bool RotateWithTruck => rotateWithTruck;
     public float CurrentZoom => cam != null ? cam.orthographicSize : targetZoom;
@@ -184,22 +187,14 @@ public class CameraFollow : MonoBehaviour
                 SetZoomMultiplier(zoomMultiplier == 1 ? 2 : 1);
             }
 
-            // Keyboard zoom controls (+ / - / PageUp / PageDown)
-            float kbZoom = 0f;
-            if (kb.equalsKey.isPressed || kb.numpadPlusKey.isPressed || kb.pageUpKey.isPressed)
+            // Keyboard zoom controls (+ / - / PageUp / PageDown) - discrete steps like UI buttons
+            if (kb.equalsKey.wasPressedThisFrame || kb.numpadPlusKey.wasPressedThisFrame || kb.pageDownKey.wasPressedThisFrame)
             {
-                kbZoom -= 1f; // Zoom in
+                StepZoom(-1); // Zoom in closer
             }
-            if (kb.minusKey.isPressed || kb.numpadMinusKey.isPressed || kb.pageDownKey.isPressed)
+            if (kb.minusKey.wasPressedThisFrame || kb.numpadMinusKey.wasPressedThisFrame || kb.pageUpKey.wasPressedThisFrame)
             {
-                kbZoom += 1f; // Zoom out
-            }
-
-            if (Mathf.Abs(kbZoom) > 0.01f)
-            {
-                float step = Mathf.Max(4f, targetZoom * 0.5f) * Time.deltaTime * 2.5f;
-                targetZoom = Mathf.Clamp(targetZoom + kbZoom * step, minZoom, maxZoom);
-                SyncMultiplierFromTarget();
+                StepZoom(+1); // Zoom out wider
             }
         }
 
@@ -207,15 +202,7 @@ public class CameraFollow : MonoBehaviour
         if (mouse != null)
         {
             float scroll = mouse.scroll.ReadValue().y;
-            if (Mathf.Abs(scroll) > 0.05f)
-            {
-                // Multi-notch acceleration: scale step by scroll ticks (120 units per notch in Input System)
-                float notches = Mathf.Sign(scroll) * Mathf.Max(1f, Mathf.Abs(scroll) / 120f);
-                // Proportional zoom step: fine when close, fast when high up
-                float step = Mathf.Max(1.5f, targetZoom * 0.22f);
-                targetZoom = Mathf.Clamp(targetZoom - notches * step, minZoom, maxZoom);
-                SyncMultiplierFromTarget();
-            }
+            HandleMouseScroll(scroll);
         }
 #else
         if (Input.GetKeyDown(KeyCode.C))
@@ -223,32 +210,48 @@ public class CameraFollow : MonoBehaviour
             SetZoomMultiplier(zoomMultiplier == 1 ? 2 : 1);
         }
 
-        float kbZoom = 0f;
-        if (Input.GetKey(KeyCode.Equals) || Input.GetKey(KeyCode.Plus) || Input.GetKey(KeyCode.KeypadPlus) || Input.GetKey(KeyCode.PageUp))
+        if (Input.GetKeyDown(KeyCode.Equals) || Input.GetKeyDown(KeyCode.Plus) || Input.GetKeyDown(KeyCode.KeypadPlus) || Input.GetKeyDown(KeyCode.PageDown))
         {
-            kbZoom -= 1f;
+            StepZoom(-1); // Zoom in closer
         }
-        if (Input.GetKey(KeyCode.Minus) || Input.GetKey(KeyCode.KeypadMinus) || Input.GetKey(KeyCode.PageDown))
+        if (Input.GetKeyDown(KeyCode.Minus) || Input.GetKeyDown(KeyCode.KeypadMinus) || Input.GetKeyDown(KeyCode.PageUp))
         {
-            kbZoom += 1f;
-        }
-
-        if (Mathf.Abs(kbZoom) > 0.01f)
-        {
-            float step = Mathf.Max(4f, targetZoom * 0.5f) * Time.deltaTime * 2.5f;
-            targetZoom = Mathf.Clamp(targetZoom + kbZoom * step, minZoom, maxZoom);
-            SyncMultiplierFromTarget();
+            StepZoom(+1); // Zoom out wider
         }
 
-        float scroll = Input.mouseScrollDelta.y;
-        if (Mathf.Abs(scroll) > 0.05f)
-        {
-            float notches = Mathf.Sign(scroll) * Mathf.Max(1f, Mathf.Abs(scroll));
-            float step = Mathf.Max(1.5f, targetZoom * 0.22f);
-            targetZoom = Mathf.Clamp(targetZoom - notches * step, minZoom, maxZoom);
-            SyncMultiplierFromTarget();
-        }
+        float scroll = Input.mouseScrollDelta.y * 120f;
+        HandleMouseScroll(scroll);
 #endif
+    }
+
+    private void HandleMouseScroll(float scroll)
+    {
+        if (Mathf.Abs(scroll) > 0.01f)
+        {
+            mouseScrollAccumulator += scroll;
+        }
+        else
+        {
+            mouseScrollAccumulator = Mathf.MoveTowards(mouseScrollAccumulator, 0f, 300f * Time.deltaTime);
+        }
+
+        if (Time.time - lastScrollStepTime >= ScrollStepCooldown)
+        {
+            // Scroll DOWN (negative delta): zoom OUT / wider overview (1x -> 2x -> 3x -> 4x -> 5x), max 5x
+            if (mouseScrollAccumulator <= -50f)
+            {
+                StepZoom(+1);
+                mouseScrollAccumulator = 0f;
+                lastScrollStepTime = Time.time;
+            }
+            // Scroll UP (positive delta): zoom IN / closer view (5x -> 4x -> 3x -> 2x -> 1x), min 1x
+            else if (mouseScrollAccumulator >= 50f)
+            {
+                StepZoom(-1);
+                mouseScrollAccumulator = 0f;
+                lastScrollStepTime = Time.time;
+            }
+        }
     }
 
     private void HandleZoom()
