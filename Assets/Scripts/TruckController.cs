@@ -133,10 +133,11 @@ public class TruckController : MonoBehaviour
     private void Start()
     {
         maxArticulationAngle = 107.3f;
+        EnsureEventSystem();
+        EnsureControlsCanvas();
         FindReferences();
         InitializePositions();
         EnsureLevelSwitcher();
-        EnsureEventSystem();
     }
 
     private void EnsureEventSystem()
@@ -159,6 +160,288 @@ public class TruckController : MonoBehaviour
         {
             gameObject.AddComponent<LevelSwitcher>();
         }
+    }
+
+    private void EnsureControlsCanvas()
+    {
+        Canvas existingCanvas = Object.FindFirstObjectByType<Canvas>();
+        GameObject canvasGo = null;
+
+        if (existingCanvas != null)
+        {
+            canvasGo = existingCanvas.gameObject;
+            if (!canvasGo.activeSelf) canvasGo.SetActive(true);
+            existingCanvas.enabled = true;
+            existingCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            existingCanvas.sortingOrder = 100;
+        }
+        else
+        {
+            canvasGo = GameObject.Find("TruckControlsCanvas");
+            if (canvasGo == null)
+            {
+                canvasGo = new GameObject("TruckControlsCanvas");
+                Canvas c = canvasGo.AddComponent<Canvas>();
+                c.renderMode = RenderMode.ScreenSpaceOverlay;
+                c.sortingOrder = 100;
+            }
+            else
+            {
+                canvasGo.SetActive(true);
+                Canvas c = canvasGo.GetComponent<Canvas>();
+                if (c == null) c = canvasGo.AddComponent<Canvas>();
+                c.renderMode = RenderMode.ScreenSpaceOverlay;
+                c.sortingOrder = 100;
+                c.enabled = true;
+            }
+        }
+
+        CanvasScaler scaler = canvasGo.GetComponent<CanvasScaler>();
+        if (scaler == null) scaler = canvasGo.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.matchWidthOrHeight = 0f;
+
+        if (canvasGo.GetComponent<GraphicRaycaster>() == null)
+        {
+            canvasGo.AddComponent<GraphicRaycaster>();
+        }
+
+        // 1. Steering Wheel
+        SteeringWheelUI existingWheel = Object.FindFirstObjectByType<SteeringWheelUI>();
+        if (existingWheel == null)
+        {
+            Transform wheelTrans = canvasGo.transform.Find("SteeringWheel");
+            GameObject wheelGo = (wheelTrans != null) ? wheelTrans.gameObject : null;
+            if (wheelGo == null)
+            {
+                wheelGo = new GameObject("SteeringWheel");
+                wheelGo.transform.SetParent(canvasGo.transform, false);
+            }
+            wheelGo.SetActive(true);
+
+            RectTransform wheelRect = wheelGo.GetComponent<RectTransform>();
+            if (wheelRect == null) wheelRect = wheelGo.AddComponent<RectTransform>();
+            wheelRect.anchorMin = new Vector2(1f, 0f);
+            wheelRect.anchorMax = new Vector2(1f, 0f);
+            wheelRect.pivot = new Vector2(0.5f, 0.5f);
+            wheelRect.anchoredPosition = new Vector2(-240f, 240f);
+            wheelRect.sizeDelta = new Vector2(400f, 400f);
+            wheelRect.localScale = Vector3.one;
+
+            Image wheelImg = wheelGo.GetComponent<Image>();
+            if (wheelImg == null) wheelImg = wheelGo.AddComponent<Image>();
+            wheelImg.raycastTarget = true;
+            wheelImg.preserveAspect = true;
+            if (wheelImg.sprite == null)
+            {
+                wheelImg.sprite = GetOrCreateSprite("SteeringWheelRealistic", GenerateSteeringWheelTexture);
+            }
+
+            existingWheel = wheelGo.GetComponent<SteeringWheelUI>();
+            if (existingWheel == null) existingWheel = wheelGo.AddComponent<SteeringWheelUI>();
+        }
+        else
+        {
+            existingWheel.gameObject.SetActive(true);
+            RectTransform rt = existingWheel.GetComponent<RectTransform>();
+            if (rt != null && rt.localScale.sqrMagnitude < 0.001f)
+            {
+                rt.localScale = Vector3.one;
+            }
+        }
+        steeringWheel = existingWheel;
+
+        // 2. Gas & Brake Pedals
+        PedalUI[] pedals = Object.FindObjectsByType<PedalUI>(FindObjectsSortMode.None);
+        bool hasGas = false;
+        bool hasBrake = false;
+        foreach (var p in pedals)
+        {
+            if (p.Type == PedalUI.PedalType.Gas) { hasGas = true; p.gameObject.SetActive(true); }
+            if (p.Type == PedalUI.PedalType.BrakeReverse) { hasBrake = true; p.gameObject.SetActive(true); }
+            RectTransform prt = p.GetComponent<RectTransform>();
+            if (prt != null && prt.localScale.sqrMagnitude < 0.001f) prt.localScale = Vector3.one;
+        }
+
+        if (!hasGas)
+        {
+            Transform gasTrans = canvasGo.transform.Find("Pedal_Gas");
+            GameObject gasGo = (gasTrans != null) ? gasTrans.gameObject : null;
+            if (gasGo == null)
+            {
+                gasGo = new GameObject("Pedal_Gas");
+                gasGo.transform.SetParent(canvasGo.transform, false);
+            }
+            gasGo.SetActive(true);
+
+            RectTransform gasRect = gasGo.GetComponent<RectTransform>();
+            if (gasRect == null) gasRect = gasGo.AddComponent<RectTransform>();
+            gasRect.anchorMin = new Vector2(0f, 0f);
+            gasRect.anchorMax = new Vector2(0f, 0f);
+            gasRect.pivot = new Vector2(0.5f, 0.5f);
+            gasRect.anchoredPosition = new Vector2(130f, 380f);
+            gasRect.sizeDelta = new Vector2(120f, 240f);
+            gasRect.localScale = Vector3.one;
+
+            Image gasImg = gasGo.GetComponent<Image>();
+            if (gasImg == null) gasImg = gasGo.AddComponent<Image>();
+            gasImg.raycastTarget = true;
+            if (gasImg.sprite == null)
+            {
+                gasImg.sprite = GetOrCreateSprite("PedalGas", () => GeneratePedalTexture(new Color(0.15f, 0.55f, 0.25f, 0.95f), "GAS"));
+            }
+
+            PedalUI gasUI = gasGo.GetComponent<PedalUI>();
+            if (gasUI == null) gasUI = gasGo.AddComponent<PedalUI>();
+            gasUI.SetPedalType(PedalUI.PedalType.Gas);
+        }
+
+        if (!hasBrake)
+        {
+            Transform brakeTrans = canvasGo.transform.Find("Pedal_Brake");
+            GameObject brakeGo = (brakeTrans != null) ? brakeTrans.gameObject : null;
+            if (brakeGo == null)
+            {
+                brakeGo = new GameObject("Pedal_Brake");
+                brakeGo.transform.SetParent(canvasGo.transform, false);
+            }
+            brakeGo.SetActive(true);
+
+            RectTransform brakeRect = brakeGo.GetComponent<RectTransform>();
+            if (brakeRect == null) brakeRect = brakeGo.AddComponent<RectTransform>();
+            brakeRect.anchorMin = new Vector2(0f, 0f);
+            brakeRect.anchorMax = new Vector2(0f, 0f);
+            brakeRect.pivot = new Vector2(0.5f, 0.5f);
+            brakeRect.anchoredPosition = new Vector2(130f, 160f);
+            brakeRect.sizeDelta = new Vector2(150f, 150f);
+            brakeRect.localScale = Vector3.one;
+
+            Image brakeImg = brakeGo.GetComponent<Image>();
+            if (brakeImg == null) brakeImg = brakeGo.AddComponent<Image>();
+            brakeImg.raycastTarget = true;
+            if (brakeImg.sprite == null)
+            {
+                brakeImg.sprite = GetOrCreateSprite("PedalBrake", () => GeneratePedalTexture(new Color(0.65f, 0.15f, 0.15f, 0.95f), "BRAKE"));
+            }
+
+            PedalUI brakeUI = brakeGo.GetComponent<PedalUI>();
+            if (brakeUI == null) brakeUI = brakeGo.AddComponent<PedalUI>();
+            brakeUI.SetPedalType(PedalUI.PedalType.BrakeReverse);
+        }
+
+        // 3. HUD Text
+        if (hudText == null)
+        {
+            Transform hudTrans = canvasGo.transform.Find("TruckHUDText");
+            GameObject hudGo = (hudTrans != null) ? hudTrans.gameObject : null;
+            if (hudGo == null)
+            {
+                hudGo = new GameObject("TruckHUDText");
+                hudGo.transform.SetParent(canvasGo.transform, false);
+                RectTransform hudRect = hudGo.AddComponent<RectTransform>();
+                hudRect.anchorMin = new Vector2(0.5f, 1f);
+                hudRect.anchorMax = new Vector2(0.5f, 1f);
+                hudRect.pivot = new Vector2(0.5f, 1f);
+                hudRect.anchoredPosition = new Vector2(0f, -25f);
+                hudRect.sizeDelta = new Vector2(650f, 160f);
+                Text t = hudGo.AddComponent<Text>();
+                t.alignment = TextAnchor.UpperCenter;
+                t.fontSize = 24;
+                t.fontStyle = FontStyle.Bold;
+                t.color = Color.white;
+                hudText = t;
+            }
+            else
+            {
+                hudText = hudGo.GetComponent<Text>();
+            }
+        }
+    }
+
+    private static Sprite GetOrCreateSprite(string resourceName, System.Func<Texture2D> generator)
+    {
+        Sprite s = Resources.Load<Sprite>(resourceName);
+        if (s != null) return s;
+        Texture2D tex = generator();
+        return Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+    }
+
+    private static Texture2D GenerateSteeringWheelTexture()
+    {
+        int size = 256;
+        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        Color[] colors = new Color[size * size];
+        Vector2 center = new Vector2(size * 0.5f, size * 0.5f);
+        float radius = size * 0.46f;
+        float thickness = size * 0.08f;
+        float hubRadius = size * 0.16f;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                Vector2 pos = new Vector2(x, y);
+                float dist = Vector2.Distance(pos, center);
+                Color col = Color.clear;
+
+                if (dist <= radius && dist >= radius - thickness)
+                {
+                    col = new Color(0.18f, 0.18f, 0.22f, 0.95f);
+                    if (y > center.y + radius * 0.65f && Mathf.Abs(x - center.x) < size * 0.04f)
+                    {
+                        col = new Color(0.95f, 0.15f, 0.15f, 1f);
+                    }
+                }
+                else if (dist <= hubRadius)
+                {
+                    col = new Color(0.25f, 0.25f, 0.3f, 0.95f);
+                }
+                else if (dist < radius - thickness && dist > hubRadius)
+                {
+                    float dy = y - center.y;
+                    float dx = x - center.x;
+                    if (Mathf.Abs(dy) < size * 0.035f) col = new Color(0.3f, 0.3f, 0.35f, 0.9f);
+                    if (Mathf.Abs(dx) < size * 0.035f && dy < 0) col = new Color(0.3f, 0.3f, 0.35f, 0.9f);
+                }
+
+                colors[y * size + x] = col;
+            }
+        }
+
+        tex.SetPixels(colors);
+        tex.Apply();
+        return tex;
+    }
+
+    private static Texture2D GeneratePedalTexture(Color baseColor, string label)
+    {
+        int w = 120, h = 200;
+        Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        Color[] colors = new Color[w * h];
+        Color border = new Color(0.85f, 0.88f, 0.92f, 1f);
+        Color dark = new Color(0.12f, 0.12f, 0.15f, 0.95f);
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                Color col = dark;
+                if (x < 4 || x >= w - 4 || y < 4 || y >= h - 4)
+                {
+                    col = border;
+                }
+                else if (y % 16 < 4)
+                {
+                    col = baseColor;
+                }
+                colors[y * w + x] = col;
+            }
+        }
+
+        tex.SetPixels(colors);
+        tex.Apply();
+        return tex;
     }
 
     private bool isBlockedForward = false;

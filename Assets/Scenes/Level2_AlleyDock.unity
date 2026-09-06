@@ -279,6 +279,23 @@ MonoBehaviour:
   minZoom: 3.5
   maxZoom: 120
   defaultZoom: 16
+--- !u!1 &619394800
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 619394802}
+  - component: {fileID: 619394801}
+  m_Layer: 0
+  m_Name: Global Light 2D
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
 --- !u!114 &619394801
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2656,7 +2673,6 @@ GameObject:
   m_Component:
   - component: {fileID: 710000002}
   - component: {fileID: 710000003}
-  
   m_Layer: 0
   m_Name: AsphaltGround
   m_TagString: Untagged
@@ -3445,7 +3461,6 @@ GameObject:
   - component: {fileID: 710000025}
   - component: {fileID: 710000026}
   - component: {fileID: 710000300}
-  
   m_Layer: 0
   m_Name: HazardBorder_Top
   m_TagString: Untagged
@@ -3584,7 +3599,6 @@ GameObject:
   - component: {fileID: 710000028}
   - component: {fileID: 710000029}
   - component: {fileID: 710000301}
-  
   m_Layer: 0
   m_Name: HazardBorder_Bottom
   m_TagString: Untagged
@@ -3723,7 +3737,6 @@ GameObject:
   m_Component:
   - component: {fileID: 710000031}
   - component: {fileID: 710000032}
-  
   m_Layer: 0
   m_Name: DockChevronArrows
   m_TagString: Untagged
@@ -3816,7 +3829,6 @@ GameObject:
   m_Component:
   - component: {fileID: 710000034}
   - component: {fileID: 710000035}
-  
   m_Layer: 0
   m_Name: DrivewayDashes_Top
   m_TagString: Untagged
@@ -3909,7 +3921,6 @@ GameObject:
   m_Component:
   - component: {fileID: 710000037}
   - component: {fileID: 710000038}
-  
   m_Layer: 0
   m_Name: DrivewayDashes_Bottom
   m_TagString: Untagged
@@ -4002,7 +4013,6 @@ GameObject:
   m_Component:
   - component: {fileID: 710000040}
   - component: {fileID: 710000041}
-  
   m_Layer: 0
   m_Name: DrivewayDashes_Mid
   m_TagString: Untagged

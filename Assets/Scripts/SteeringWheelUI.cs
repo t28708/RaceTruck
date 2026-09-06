@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 #if ENABLE_INPUT_SYSTEM
@@ -46,6 +46,10 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
         if (wheelRectTransform == null)
         {
             wheelRectTransform = GetComponent<RectTransform>();
+        }
+        if (wheelRectTransform != null && wheelRectTransform.localScale.sqrMagnitude < 0.001f)
+        {
+            wheelRectTransform.localScale = Vector3.one;
         }
     }
 

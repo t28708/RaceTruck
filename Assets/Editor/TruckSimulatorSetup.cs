@@ -35,6 +35,42 @@ public static class TruckSimulatorSetup
         }
     }
 
+    [MenuItem("Tools/Rebuild Controls Canvas in Active Scene")]
+    public static void RebuildControlsCanvasInActiveScene()
+    {
+        EnsureEventSystem();
+        EnsureSpriteAssets(false);
+        Sprite steeringWheelSprite = LoadSpriteSafe($"{SpritesDir}/SteeringWheelRealistic.png");
+        if (steeringWheelSprite == null) steeringWheelSprite = LoadSpriteSafe($"{SpritesDir}/SteeringWheel.png");
+        Sprite pedalGasSprite = LoadSpriteSafe($"{SpritesDir}/PedalGas.png");
+        Sprite pedalBrakeSprite = LoadSpriteSafe($"{SpritesDir}/PedalBrake.png");
+
+        GameObject oldCanvas = GameObject.Find("TruckControlsCanvas");
+        if (oldCanvas != null) Object.DestroyImmediate(oldCanvas);
+
+        GameObject canvasGo = CreateControlsCanvas(steeringWheelSprite, pedalGasSprite, pedalBrakeSprite);
+        if (!EditorApplication.isPlaying)
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene());
+        }
+        Debug.Log("[TruckSimulatorSetup] Rebuilt mobile controls canvas in active scene!");
+    }
+
+    [MenuItem("Tools/Setup Map 2 (Alley Dock)")]
+    public static void SetupMap2()
+    {
+        if (!EditorApplication.isPlaying)
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.OpenScene("Assets/Scenes/Level2_AlleyDock.unity");
+        }
+        RebuildControlsCanvasInActiveScene();
+        if (!EditorApplication.isPlaying)
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes();
+        }
+        Debug.Log("[TruckSimulatorSetup] Setup Map 2 (Alley Dock) completed successfully!");
+    }
+
     [MenuItem("Tools/Setup Truck Physics")]
     public static void SetupTruckPhysics()
     {

@@ -41,6 +41,15 @@ public class PedalUI : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IP
         if (rectTransform != null)
         {
             originalScale = rectTransform.localScale;
+            if (originalScale.sqrMagnitude < 0.001f)
+            {
+                originalScale = Vector3.one;
+                rectTransform.localScale = Vector3.one;
+            }
+        }
+        else
+        {
+            originalScale = Vector3.one;
         }
         UpdateVisuals();
     }
