@@ -48,6 +48,28 @@ public class CameraFollow : MonoBehaviour
     public float CurrentZoom => cam != null ? cam.orthographicSize : targetZoom;
     public float CurrentShift => currentShift;
 
+    /// <summary>
+    /// Converts zoom level (1..5) to actual zoom scale factor:
+    /// Level 1 -> 1.0x (16m orthographic size)
+    /// Level 2 -> 1.5x (24m)
+    /// Level 3 -> 2.0x (32m)
+    /// Level 4 -> 2.5x (40m)
+    /// Level 5 -> 3.0x (48m)
+    /// </summary>
+    public static float GetActualZoomScale(int mult)
+    {
+        return 1.0f + (Mathf.Clamp(mult, 1, 5) - 1) * 0.5f;
+    }
+
+    public float ActualZoomScale => GetActualZoomScale(zoomMultiplier);
+
+    private float GetCameraShiftForMultiplier(int mult)
+    {
+        float scale = GetActualZoomScale(mult);
+        float zoomScale = 1f + 0.35f * (scale - 1f);
+        return cameraShift * zoomScale;
+    }
+
     private void Awake()
     {
         Instance = this;
@@ -56,7 +78,7 @@ public class CameraFollow : MonoBehaviour
         if (minZoom > 3.5f) minZoom = 3.5f;
 
         zoomMultiplier = Mathf.Clamp(zoomMultiplier, 1, 5);
-        targetZoom = defaultZoom * zoomMultiplier;
+        targetZoom = defaultZoom * GetActualZoomScale(zoomMultiplier);
         if (cam != null)
         {
             cam.orthographic = true;
@@ -66,8 +88,7 @@ public class CameraFollow : MonoBehaviour
         // Unconditionally ensure camera is strictly locked to tractor with fixed reverse framing
         rotateWithTruck = true;
         offset = new Vector3(0f, 0f, -10f);
-        float zoomScale = 1f + 0.25f * (zoomMultiplier - 1);
-        currentShift = cameraShift * zoomScale;
+        currentShift = GetCameraShiftForMultiplier(zoomMultiplier);
 
         FindTargetsIfNull();
         SnapToTarget();
@@ -76,7 +97,7 @@ public class CameraFollow : MonoBehaviour
     public void SetZoomMultiplier(int mult)
     {
         zoomMultiplier = Mathf.Clamp(mult, 1, 5);
-        targetZoom = defaultZoom * zoomMultiplier;
+        targetZoom = defaultZoom * GetActualZoomScale(zoomMultiplier);
         OnZoomMultiplierChanged?.Invoke(zoomMultiplier);
     }
 
@@ -87,7 +108,8 @@ public class CameraFollow : MonoBehaviour
 
     private void SyncMultiplierFromTarget()
     {
-        int mult = Mathf.Clamp(Mathf.RoundToInt(targetZoom / defaultZoom), 1, 5);
+        float actualScale = targetZoom / defaultZoom;
+        int mult = Mathf.Clamp(Mathf.RoundToInt(1f + (actualScale - 1f) * 2f), 1, 5);
         if (mult != zoomMultiplier)
         {
             zoomMultiplier = mult;
@@ -147,8 +169,7 @@ public class CameraFollow : MonoBehaviour
         if (tractorTarget == null) FindTargetsIfNull();
         if (tractorTarget == null) return;
 
-        float zoomScale = 1f + 0.25f * (zoomMultiplier - 1);
-        currentShift = cameraShift * zoomScale;
+        currentShift = GetCameraShiftForMultiplier(zoomMultiplier);
         Vector3 targetPos = new Vector3(tractorTarget.position.x, tractorTarget.position.y, -10f) + (Vector3)(tractorTarget.up * currentShift);
         transform.position = targetPos;
         transform.rotation = Quaternion.Euler(0f, 0f, tractorTarget.eulerAngles.z);
@@ -256,8 +277,7 @@ public class CameraFollow : MonoBehaviour
         }
 
         // Fixed reverse-style framing (-6.5f offset along tractor axis), no shifting while driving
-        float zoomScale = 1f + 0.25f * (zoomMultiplier - 1);
-        currentShift = cameraShift * zoomScale;
+        currentShift = GetCameraShiftForMultiplier(zoomMultiplier);
 
         Vector3 shiftVector = (Vector3)(tractorTarget.up * currentShift);
         Vector3 targetPos = new Vector3(tractorTarget.position.x, tractorTarget.position.y, -10f) + shiftVector;
