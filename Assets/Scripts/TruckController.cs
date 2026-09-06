@@ -361,6 +361,13 @@ public class TruckController : MonoBehaviour
                 hudText = hudGo.GetComponent<Text>();
             }
         }
+
+        // 4. Camera Zoom Multiplier Widget (Top-Right: "< 1x >")
+        Transform zoomTrans = canvasGo.transform.Find("CameraZoomWidget");
+        if (zoomTrans == null)
+        {
+            CameraZoomUI.CreateZoomWidget(canvasGo);
+        }
     }
 
     private static Sprite GetOrCreateSprite(string resourceName, System.Func<Texture2D> generator)
@@ -858,9 +865,10 @@ public class TruckController : MonoBehaviour
             articulation = Mathf.DeltaAngle(tractorRb.rotation, trailerRb.rotation);
         }
 
-        string camMode = "ЗА ТРАКОМ";
-        CameraFollow cf = Camera.main != null ? Camera.main.GetComponent<CameraFollow>() : null;
-        if (cf != null && cf.CurrentZoom > 20f) camMode = "ОБЗОР";
+        string camZoom = "1x";
+        CameraFollow cf = CameraFollow.Instance;
+        if (cf == null && Camera.main != null) cf = Camera.main.GetComponent<CameraFollow>();
+        if (cf != null) camZoom = $"{cf.ZoomMultiplier}x";
 
         string warning = "";
         if (isJackknifed)
@@ -883,7 +891,7 @@ public class TruckController : MonoBehaviour
         TruckGuideLines gl = GetComponent<TruckGuideLines>();
         string linesStatus = (gl != null && gl.ShowGuideLines) ? "ВКЛ" : "ВЫКЛ";
 
-        hudText.text = $"SPEED: {kmh:0.0} km/h [{gear}:{mode}] | РУЛЬ: {steerStr} | СЦЕПКА: {Mathf.Abs(articulation):0.0}° | [L] ЛИНИИ: {linesStatus} | КАМЕРА: {camMode}{warning}";
+        hudText.text = $"SPEED: {kmh:0.0} km/h [{gear}:{mode}] | РУЛЬ: {steerStr} | СЦЕПКА: {Mathf.Abs(articulation):0.0}° | [L] ЛИНИИ: {linesStatus} | МАСШТАБ: {camZoom}{warning}";
     }
 
     private void FixedUpdate()

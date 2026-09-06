@@ -594,6 +594,9 @@ public static class TruckSimulatorSetup
         // Crash effect manager
         canvasGo.AddComponent<TruckCrashEffect>();
 
+        // Camera Zoom Multiplier Widget (top-right: "< 1x >")
+        CameraZoomUI.CreateZoomWidget(canvasGo);
+
         return canvasGo;
     }
 

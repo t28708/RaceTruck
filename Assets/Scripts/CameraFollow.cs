@@ -23,6 +23,14 @@ public class CameraFollow : MonoBehaviour
     [Tooltip("Default initial camera zoom")]
     [SerializeField] private float defaultZoom = 16f;
 
+    [Header("Zoom Multiplier (1x - 5x)")]
+    [SerializeField] private int zoomMultiplier = 1;
+
+    public static CameraFollow Instance { get; private set; }
+
+    public int ZoomMultiplier => zoomMultiplier;
+    public event System.Action<int> OnZoomMultiplierChanged;
+
     private Camera cam;
     private float targetZoom;
     private Vector3 shakeOffset = Vector3.zero;
@@ -33,15 +41,17 @@ public class CameraFollow : MonoBehaviour
 
     private void Awake()
     {
+        Instance = this;
         cam = GetComponent<Camera>();
         if (maxZoom < 120f) maxZoom = 120f;
         if (minZoom > 3.5f) minZoom = 3.5f;
 
-        targetZoom = defaultZoom;
+        zoomMultiplier = Mathf.Clamp(zoomMultiplier, 1, 5);
+        targetZoom = defaultZoom * zoomMultiplier;
         if (cam != null)
         {
             cam.orthographic = true;
-            cam.orthographicSize = defaultZoom;
+            cam.orthographicSize = targetZoom;
         }
 
         // Unconditionally ensure camera is strictly locked to tractor at dead center
@@ -50,6 +60,28 @@ public class CameraFollow : MonoBehaviour
 
         FindTargetsIfNull();
         SnapToTarget();
+    }
+
+    public void SetZoomMultiplier(int mult)
+    {
+        zoomMultiplier = Mathf.Clamp(mult, 1, 5);
+        targetZoom = defaultZoom * zoomMultiplier;
+        OnZoomMultiplierChanged?.Invoke(zoomMultiplier);
+    }
+
+    public void StepZoom(int direction)
+    {
+        SetZoomMultiplier(zoomMultiplier + direction);
+    }
+
+    private void SyncMultiplierFromTarget()
+    {
+        int mult = Mathf.Clamp(Mathf.RoundToInt(targetZoom / defaultZoom), 1, 5);
+        if (mult != zoomMultiplier)
+        {
+            zoomMultiplier = mult;
+            OnZoomMultiplierChanged?.Invoke(zoomMultiplier);
+        }
     }
 
     private void OnValidate()
@@ -122,10 +154,10 @@ public class CameraFollow : MonoBehaviour
         var kb = Keyboard.current;
         if (kb != null)
         {
-            // Toggle quick zoom between normal (16) and wide overview (30)
+            // Toggle quick zoom between normal (1x) and wide overview (2x)
             if (kb.cKey.wasPressedThisFrame)
             {
-                targetZoom = (Mathf.Abs(targetZoom - defaultZoom) < 2f) ? 30f : defaultZoom;
+                SetZoomMultiplier(zoomMultiplier == 1 ? 2 : 1);
             }
 
             // Keyboard zoom controls (+ / - / PageUp / PageDown)
@@ -143,6 +175,7 @@ public class CameraFollow : MonoBehaviour
             {
                 float step = Mathf.Max(4f, targetZoom * 0.5f) * Time.deltaTime * 2.5f;
                 targetZoom = Mathf.Clamp(targetZoom + kbZoom * step, minZoom, maxZoom);
+                SyncMultiplierFromTarget();
             }
         }
 
@@ -157,12 +190,13 @@ public class CameraFollow : MonoBehaviour
                 // Proportional zoom step: fine when close, fast when high up
                 float step = Mathf.Max(1.5f, targetZoom * 0.22f);
                 targetZoom = Mathf.Clamp(targetZoom - notches * step, minZoom, maxZoom);
+                SyncMultiplierFromTarget();
             }
         }
 #else
         if (Input.GetKeyDown(KeyCode.C))
         {
-            targetZoom = (Mathf.Abs(targetZoom - defaultZoom) < 2f) ? 30f : defaultZoom;
+            SetZoomMultiplier(zoomMultiplier == 1 ? 2 : 1);
         }
 
         float kbZoom = 0f;
@@ -179,6 +213,7 @@ public class CameraFollow : MonoBehaviour
         {
             float step = Mathf.Max(4f, targetZoom * 0.5f) * Time.deltaTime * 2.5f;
             targetZoom = Mathf.Clamp(targetZoom + kbZoom * step, minZoom, maxZoom);
+            SyncMultiplierFromTarget();
         }
 
         float scroll = Input.mouseScrollDelta.y;
@@ -187,6 +222,7 @@ public class CameraFollow : MonoBehaviour
             float notches = Mathf.Sign(scroll) * Mathf.Max(1f, Mathf.Abs(scroll));
             float step = Mathf.Max(1.5f, targetZoom * 0.22f);
             targetZoom = Mathf.Clamp(targetZoom - notches * step, minZoom, maxZoom);
+            SyncMultiplierFromTarget();
         }
 #endif
     }
