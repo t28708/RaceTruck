@@ -31,8 +31,12 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private float forwardShift = 5.0f;
     [Tooltip("Camera reverse shift (along tractor forward) when backing up to reveal trailer")]
     [SerializeField] private float reverseShift = -6.5f;
-    [Tooltip("Smooth transition speed between forward and reverse shifts")]
-    [SerializeField] private float shiftTransitionSpeed = 3.5f;
+    [Tooltip("Time in seconds reverse input/motion must be held before camera starts shifting backward (filters accidental taps)")]
+    [SerializeField] private float reverseActivationDelay = 0.40f;
+    [Tooltip("Smooth damping time for shifting camera backward when reversing (higher = smoother)")]
+    [SerializeField] private float reverseSmoothTime = 0.80f;
+    [Tooltip("Smooth damping time for shifting camera forward")]
+    [SerializeField] private float forwardSmoothTime = 0.55f;
 
     public static CameraFollow Instance { get; private set; }
 
@@ -44,6 +48,8 @@ public class CameraFollow : MonoBehaviour
     private Vector3 shakeOffset = Vector3.zero;
     private Coroutine shakeRoutine;
     private float currentShift = 5.0f;
+    private float shiftVelocity = 0f;
+    private float reverseInputDuration = 0f;
     private bool isReversing = false;
 
     public bool RotateWithTruck => rotateWithTruck;
@@ -70,6 +76,8 @@ public class CameraFollow : MonoBehaviour
         rotateWithTruck = true;
         offset = new Vector3(0f, 0f, -10f);
         currentShift = forwardShift;
+        shiftVelocity = 0f;
+        reverseInputDuration = 0f;
 
         FindTargetsIfNull();
         SnapToTarget();
@@ -150,6 +158,7 @@ public class CameraFollow : MonoBehaviour
         if (tractorTarget == null) return;
 
         // Rigid lock: tractor points UP, with default forward view
+        shiftVelocity = 0f;
         float zoomScale = 1f + 0.25f * (zoomMultiplier - 1);
         currentShift = (isReversing ? reverseShift : forwardShift) * zoomScale;
         Vector3 targetPos = new Vector3(tractorTarget.position.x, tractorTarget.position.y, -10f) + (Vector3)(tractorTarget.up * currentShift);
@@ -258,26 +267,46 @@ public class CameraFollow : MonoBehaviour
             if (tractorTarget == null) return;
         }
 
-        // Determine driving direction: forward by default, reverse when backing up
+        // Determine driving direction: forward by default, reverse only after deliberate hold/movement
         TruckController tc = TruckController.Instance;
         if (tc == null) tc = Object.FindFirstObjectByType<TruckController>();
 
         if (tc != null)
         {
-            if (tc.CurrentSpeed > 0.05f || tc.IsForwardInputActive)
+            bool reverseActive = (tc.CurrentSpeed < -0.05f) || tc.IsReverseInputActive;
+            bool forwardActive = (tc.CurrentSpeed > 0.05f) || tc.IsForwardInputActive;
+
+            if (forwardActive)
             {
+                reverseInputDuration = 0f;
                 isReversing = false;
             }
-            else if (tc.CurrentSpeed < -0.05f || tc.IsReverseInputActive)
+            else if (reverseActive)
             {
-                isReversing = true;
+                reverseInputDuration += Time.deltaTime;
+                // Only start shifting camera backward after a small pause to ignore accidental taps
+                if (reverseInputDuration >= reverseActivationDelay)
+                {
+                    isReversing = true;
+                }
+            }
+            else
+            {
+                // Stopped: if reverse was just an accidental tap that ended before the delay, reset it
+                if (reverseInputDuration < reverseActivationDelay)
+                {
+                    reverseInputDuration = 0f;
+                }
             }
         }
 
         // Target shift: forwardShift (+5) by default, reverseShift (-6.5) when reversing
         float zoomScale = 1f + 0.25f * (zoomMultiplier - 1);
         float targetShift = (isReversing ? reverseShift : forwardShift) * zoomScale;
-        currentShift = Mathf.Lerp(currentShift, targetShift, shiftTransitionSpeed * Time.deltaTime);
+
+        // Extra-smooth critical damping (smoothly ease-in and ease-out without abrupt jerk)
+        float smoothTime = isReversing ? reverseSmoothTime : forwardSmoothTime;
+        currentShift = Mathf.SmoothDamp(currentShift, targetShift, ref shiftVelocity, smoothTime);
 
         // Position camera: tractor is locked to heading (points UP), with dynamic forward/backward shift along tractor axis
         Vector3 shiftVector = (Vector3)(tractorTarget.up * currentShift);
