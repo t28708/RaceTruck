@@ -95,16 +95,17 @@ public class TruckController : MonoBehaviour
         tractorRb.bodyType = RigidbodyType2D.Kinematic;
         tractorRb.useFullKinematicContacts = true;
 
-        if (maxArticulationAngle <= 0f) maxArticulationAngle = 70f;
+        maxArticulationAngle = 107.3f;
     }
 
     private void OnValidate()
     {
-        if (maxArticulationAngle <= 0f) maxArticulationAngle = 70f;
+        maxArticulationAngle = 107.3f;
     }
 
     private void Start()
     {
+        maxArticulationAngle = 107.3f;
         FindReferences();
         InitializePositions();
         EnsureLevelSwitcher();
