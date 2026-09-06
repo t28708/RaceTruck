@@ -63,6 +63,7 @@ public static class TruckSimulatorSetup
         Sprite coneSprite = LoadSpriteSafe($"{SpritesDir}/TrafficCone.png");
         Sprite barrierSprite = LoadSpriteSafe($"{SpritesDir}/ConcreteBarrier.png");
         Sprite barrelSprite = LoadSpriteSafe($"{SpritesDir}/Barrel.png");
+        Sprite wheelSprite = LoadSpriteSafe($"{SpritesDir}/Tire.png");
 
         // 2. Build 100m x 80m CDL Training Yard & Obstacle Course
         BuildTrainingYard(groundSprite, barrierSprite, coneSprite, barrelSprite, tractorSprite, trailerSprite);

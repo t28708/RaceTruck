@@ -136,11 +136,26 @@ public class TruckController : MonoBehaviour
         FindReferences();
         InitializePositions();
         EnsureLevelSwitcher();
+        EnsureEventSystem();
+    }
+
+    private void EnsureEventSystem()
+    {
+        if (Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
+        {
+            GameObject es = new GameObject("EventSystem");
+            es.AddComponent<UnityEngine.EventSystems.EventSystem>();
+#if ENABLE_INPUT_SYSTEM
+            es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+#else
+            es.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+#endif
+        }
     }
 
     private void EnsureLevelSwitcher()
     {
-        if (FindObjectOfType<LevelSwitcher>() == null)
+        if (Object.FindFirstObjectByType<LevelSwitcher>() == null)
         {
             gameObject.AddComponent<LevelSwitcher>();
         }
