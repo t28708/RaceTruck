@@ -94,6 +94,11 @@ public class TruckController : MonoBehaviour
         tractorRb = GetComponent<Rigidbody2D>();
         tractorRb.bodyType = RigidbodyType2D.Kinematic;
         tractorRb.useFullKinematicContacts = true;
+        tractorRb.interpolation = RigidbodyInterpolation2D.Interpolate;
+        if (trailerRb != null)
+        {
+            trailerRb.interpolation = RigidbodyInterpolation2D.Interpolate;
+        }
 
         maxArticulationAngle = 107.3f;
     }
@@ -333,9 +338,9 @@ public class TruckController : MonoBehaviour
             articulation = Mathf.DeltaAngle(tractorRb.rotation, trailerRb.rotation);
         }
 
-        string camMode = "СВЕРХУ";
+        string camMode = "ЗА ТРАКОМ";
         CameraFollow cf = Camera.main != null ? Camera.main.GetComponent<CameraFollow>() : null;
-        if (cf != null && cf.RotateWithTruck) camMode = "ЗА ТРАКОМ";
+        if (cf != null && cf.CurrentZoom > 20f) camMode = "ОБЗОР";
 
         string warning = "";
         if (isJackknifed)
@@ -350,7 +355,7 @@ public class TruckController : MonoBehaviour
         TruckGuideLines gl = GetComponent<TruckGuideLines>();
         string linesStatus = (gl != null && gl.ShowGuideLines) ? "ВКЛ" : "ВЫКЛ";
 
-        hudText.text = $"SPEED: {kmh:0.0} km/h [{gear}:{mode}] | РУЛЬ: {steerStr} | СЦЕПКА: {Mathf.Abs(articulation):0.0}° | [L] ЛИНИИ: {linesStatus} | [C] КАМЕРА: {camMode}{warning}";
+        hudText.text = $"SPEED: {kmh:0.0} km/h [{gear}:{mode}] | РУЛЬ: {steerStr} | СЦЕПКА: {Mathf.Abs(articulation):0.0}° | [L] ЛИНИИ: {linesStatus} | КАМЕРА: {camMode}{warning}";
     }
 
     private void FixedUpdate()

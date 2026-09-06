@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -6,49 +6,27 @@ using UnityEngine.InputSystem;
 
 public class CameraFollow : MonoBehaviour
 {
-    [Header("Targets (Tractor & Trailer)")]
+    [Header("Targets (Tractor and Trailer)")]
     [SerializeField] private Transform tractorTarget;
     [SerializeField] private Transform trailerTarget;
 
-    [Header("Tracking Dynamics")]
-    [Tooltip("Base tracking speed. Dynamically increases if vehicle moves fast")]
-    [SerializeField] private float smoothSpeed = 10f;
+    [Header("Camera Tracking")]
+    [Tooltip("If true, camera rigidly locks to tractor and rotates with it. Tractor is strictly centered and points UP.")]
+    [SerializeField] private bool rotateWithTruck = true;
     [SerializeField] private Vector3 offset = new Vector3(0f, 0f, -10f);
 
-    [Header("Camera Modes")]
-    [Tooltip("If true, camera rigidly locks to tractor (truck points strictly UP). Press 'C' to toggle")]
-    [SerializeField] private bool rotateWithTruck = true;
-    [Tooltip("Local Y offset of camera relative to tractor (negative shifts camera backward so tractor is higher on screen)")]
-    [SerializeField] private float tractorLocalYOffset = -4.0f;
-    [SerializeField] private float rotationSmoothSpeed = 6f;
-
-    [Header("Zoom Settings (Extended Range)")]
-    [Tooltip("Closest zoom level (close inspection of wheels, hitch, dock clearance)")]
+    [Header("Zoom Settings")]
+    [Tooltip("Closest zoom level")]
     [SerializeField] private float minZoom = 3.5f;
-    [Tooltip("Furthest zoom level (high birds-eye view of the entire yard and surroundings)")]
+    [Tooltip("Furthest zoom level")]
     [SerializeField] private float maxZoom = 120f;
     [Tooltip("Default initial camera zoom")]
     [SerializeField] private float defaultZoom = 16f;
-
-    [Header("Dynamic Look-Ahead / Look-Behind (Reversing)")]
-    [Tooltip("Delay in seconds of continuous reverse before camera glides backward")]
-    [SerializeField] private float reversePanDelay = 0.85f;
-    [Tooltip("Speed of transition between forward and reverse camera positions")]
-    [SerializeField] private float panTransitionSpeed = 2.0f;
-    [Tooltip("Forward camera bias in meters (shows space ahead of cab)")]
-    [SerializeField] private float forwardShift = 2.2f;
-    [Tooltip("Backward camera bias in meters (shows space behind trailer while keeping tractor wheels in view)")]
-    [SerializeField] private float reverseShift = 3.5f;
 
     private Camera cam;
     private float targetZoom;
     private Vector3 shakeOffset = Vector3.zero;
     private Coroutine shakeRoutine;
-
-    // Dynamic reverse backing tracking state
-    private float reverseTimer = 0f;
-    private bool isBackingView = false;
-    private float backingWeight = 0f; // 0 = forward look-ahead, 1 = reverse trailer look-behind
 
     public bool RotateWithTruck => rotateWithTruck;
     public float CurrentZoom => cam != null ? cam.orthographicSize : targetZoom;
@@ -65,12 +43,20 @@ public class CameraFollow : MonoBehaviour
             cam.orthographic = true;
             cam.orthographicSize = defaultZoom;
         }
+
+        // Unconditionally ensure camera is strictly locked to tractor at dead center
+        rotateWithTruck = true;
+        offset = new Vector3(0f, 0f, -10f);
+
+        FindTargetsIfNull();
+        SnapToTarget();
     }
 
     private void OnValidate()
     {
         if (maxZoom < 120f) maxZoom = 120f;
         if (minZoom > 3.5f) minZoom = 3.5f;
+        rotateWithTruck = true;
     }
 
     private void Start()
@@ -92,39 +78,40 @@ public class CameraFollow : MonoBehaviour
         {
             GameObject tractor = GameObject.Find("Tractor");
             if (tractor != null) tractorTarget = tractor.transform;
+            if (tractorTarget == null)
+            {
+                TruckController tc = FindObjectOfType<TruckController>();
+                if (tc != null) tractorTarget = tc.transform;
+            }
         }
 
         if (trailerTarget == null)
         {
             GameObject trailer = GameObject.Find("Trailer");
             if (trailer != null) trailerTarget = trailer.transform;
+            if (trailerTarget == null)
+            {
+                TruckController tc = FindObjectOfType<TruckController>();
+                if (tc != null && tc.TrailerRb != null) trailerTarget = tc.TrailerRb.transform;
+            }
         }
     }
 
     public void SnapToTarget()
     {
-        if (rotateWithTruck && tractorTarget != null)
-        {
-            Vector3 targetPos = tractorTarget.TransformPoint(new Vector3(offset.x, tractorLocalYOffset + offset.y, 0f));
-            targetPos.z = -10f;
-            transform.position = targetPos;
-            transform.rotation = Quaternion.Euler(0f, 0f, tractorTarget.eulerAngles.z);
-        }
-        else
-        {
-            Vector3 center = CalculateRigCenter();
-            Vector3 targetPos = center + offset;
-            targetPos.z = -10f;
-            transform.position = targetPos;
-            transform.rotation = Quaternion.identity;
-        }
+        if (tractorTarget == null) FindTargetsIfNull();
+        if (tractorTarget == null) return;
+
+        // Rigid lock: tractor is ALWAYS strictly in the center of the frame and looks strictly UP (90 degrees to bottom line of screen)
+        Vector3 targetPos = new Vector3(tractorTarget.position.x, tractorTarget.position.y, -10f);
+        transform.position = targetPos;
+        transform.rotation = Quaternion.Euler(0f, 0f, tractorTarget.eulerAngles.z);
     }
 
     private void Update()
     {
         HandleInput();
         HandleZoom();
-        UpdateBackingState();
     }
 
     private void HandleInput()
@@ -133,10 +120,10 @@ public class CameraFollow : MonoBehaviour
         var kb = Keyboard.current;
         if (kb != null)
         {
+            // Toggle quick zoom between normal (16) and wide overview (30)
             if (kb.cKey.wasPressedThisFrame)
             {
-                rotateWithTruck = !rotateWithTruck;
-                if (rotateWithTruck) SnapToTarget();
+                targetZoom = (Mathf.Abs(targetZoom - defaultZoom) < 2f) ? 30f : defaultZoom;
             }
 
             // Keyboard zoom controls (+ / - / PageUp / PageDown)
@@ -173,8 +160,7 @@ public class CameraFollow : MonoBehaviour
 #else
         if (Input.GetKeyDown(KeyCode.C))
         {
-            rotateWithTruck = !rotateWithTruck;
-            if (rotateWithTruck) SnapToTarget();
+            targetZoom = (Mathf.Abs(targetZoom - defaultZoom) < 2f) ? 30f : defaultZoom;
         }
 
         float kbZoom = 0f;
@@ -211,94 +197,18 @@ public class CameraFollow : MonoBehaviour
         }
     }
 
-    private void UpdateBackingState()
-    {
-        float speed = 0f;
-        if (TruckController.Instance != null)
-        {
-            speed = TruckController.Instance.CurrentSpeed;
-        }
-
-        // Detect reverse vs forward driving
-        if (speed < -0.15f) // Reversing
-        {
-            reverseTimer += Time.deltaTime;
-            if (reverseTimer >= reversePanDelay)
-            {
-                isBackingView = true;
-            }
-        }
-        else if (speed > 0.15f) // Driving forward
-        {
-            reverseTimer = 0f;
-            isBackingView = false;
-        }
-        else // Neutral / stopped
-        {
-            // If stopped, keep current view for a moment then slowly reset
-            if (reverseTimer > 0f)
-            {
-                reverseTimer = Mathf.Max(0f, reverseTimer - Time.deltaTime * 0.4f);
-                if (reverseTimer <= 0.01f)
-                {
-                    isBackingView = false;
-                }
-            }
-        }
-
-        // Smoothly interpolate camera view weighting between forward (0) and reverse backing (1)
-        float targetWeight = isBackingView ? 1f : 0f;
-        backingWeight = Mathf.MoveTowards(backingWeight, targetWeight, panTransitionSpeed * Time.deltaTime);
-    }
-
-    private Vector3 CalculateRigCenter()
-    {
-        if (tractorTarget == null && trailerTarget == null) return transform.position;
-        if (tractorTarget != null && trailerTarget == null) return tractorTarget.position;
-        if (tractorTarget == null && trailerTarget != null) return trailerTarget.position;
-
-        // Front steer axle point on tractor (where wheels turn)
-        Vector3 frontAxle = tractorTarget.position + tractorTarget.up * 2.8f;
-        // Trailer rear bumper point
-        Vector3 trailerRear = trailerTarget.position - trailerTarget.up * 7.8f;
-
-        // Geometric midpoint between front steer wheels and trailer rear bumper
-        Vector3 rigMidpoint = (frontAxle + trailerRear) * 0.5f;
-
-        // 1. Forward Mode: slight forward bias to show room ahead of the cab
-        Vector3 forwardTargetPoint = rigMidpoint + tractorTarget.up * forwardShift;
-
-        // 2. Reverse Mode: moderate shift towards trailer rear, keeping front wheels & tractor 100% in view
-        Vector3 reverseTargetPoint = rigMidpoint - trailerTarget.up * reverseShift;
-
-        // 3. Smooth blend between forward view and backing view
-        return Vector3.Lerp(forwardTargetPoint, reverseTargetPoint, backingWeight);
-    }
-
     private void LateUpdate()
     {
-        if (rotateWithTruck && tractorTarget != null)
+        if (tractorTarget == null)
         {
-            // Rigid follow: tractor is rigidly locked on screen and points strictly UP (12 o'clock)
-            Vector3 targetPos = tractorTarget.TransformPoint(new Vector3(offset.x, tractorLocalYOffset + offset.y, 0f));
-            targetPos.z = -10f;
-            transform.position = targetPos + shakeOffset;
-            transform.rotation = Quaternion.Euler(0f, 0f, tractorTarget.eulerAngles.z);
+            FindTargetsIfNull();
+            if (tractorTarget == null) return;
         }
-        else
-        {
-            // Overview North-aligned mode (toggled via 'C')
-            Vector3 rigCenter = CalculateRigCenter();
-            Vector3 desiredPosition = rigCenter + offset + shakeOffset;
-            desiredPosition.z = -10f;
 
-            // Dynamic catch-up speed: if camera falls behind, it accelerates smoothly
-            float distanceToTarget = Vector2.Distance(transform.position, desiredPosition);
-            float dynamicSpeed = Mathf.Max(smoothSpeed, distanceToTarget * 4.0f);
-
-            transform.position = Vector3.Lerp(transform.position, desiredPosition, dynamicSpeed * Time.deltaTime);
-            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.identity, rotationSmoothSpeed * Time.deltaTime);
-        }
+        // Rigid lock: tractor is ALWAYS strictly in the center of the frame and looks strictly UP (90 degrees to bottom line of screen)
+        Vector3 targetPos = new Vector3(tractorTarget.position.x, tractorTarget.position.y, -10f);
+        transform.position = targetPos + shakeOffset;
+        transform.rotation = Quaternion.Euler(0f, 0f, tractorTarget.eulerAngles.z);
     }
 
     public void Shake(float duration, float magnitude)

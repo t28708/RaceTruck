@@ -146,8 +146,8 @@ public static class TruckSimulatorSetup
             Camera.main.orthographic = true;
             Camera.main.orthographicSize = 16.0f;
 
-            // Position camera directly over the center of the 22-meter rig
-            Camera.main.transform.position = new Vector3(0f, -28f, -10f);
+            // Position camera directly over tractor center
+            Camera.main.transform.position = new Vector3(0f, -24f, -10f);
             Camera.main.transform.rotation = Quaternion.identity;
 
             CameraFollow camFollow = Camera.main.GetComponent<CameraFollow>();
