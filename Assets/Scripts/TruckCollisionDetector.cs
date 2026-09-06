@@ -94,42 +94,55 @@ public class TruckCollisionDetector : MonoBehaviour
     {
         if (col == null) return true;
 
-        if (col.isTrigger)
-        {
-            string n = col.gameObject.name;
-            // Never ignore actual physical obstacles that happen to use triggers
-            if (n.IndexOf("Bumper", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Truck", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Trailer", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Tractor", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Bus", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Tree", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Wall", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Barrier", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Pole", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Barrel", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Cone", System.StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return false;
-            }
+        string n = col.gameObject.name;
+        Transform p = col.transform.parent;
+        string pn = (p != null) ? p.name : "";
 
-            // Ground markings, guide lines, hazard stripes, chevrons, dashes, and parking triggers
-            if (n.IndexOf("Hazard", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Stripe", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Line", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Dashes", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Chevron", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Arrow", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Trigger", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Guide", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Marking", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                n.IndexOf("Border", System.StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return true;
-            }
+        // Never ignore actual physical obstacles
+        if (IsPhysicalObstacleName(n) || IsPhysicalObstacleName(pn))
+        {
+            return false;
+        }
+
+        // Ground markings, guide lines, hazard stripes, chevrons, dashes, and parking triggers
+        if (IsMarkingName(n) || IsMarkingName(pn))
+        {
+            return true;
         }
 
         return false;
+    }
+
+    private static bool IsPhysicalObstacleName(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return false;
+        return name.IndexOf("Bumper", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Truck", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Trailer", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Tractor", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Bus", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Tree", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Wall", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Barrier", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Pole", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Barrel", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Cone", System.StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool IsMarkingName(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return false;
+        return name.IndexOf("Hazard", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Stripe", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Line", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Dashes", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Chevron", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Arrow", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Trigger", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Guide", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Marking", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Border", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Target", System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private bool IsPlayerVehicle(GameObject other)

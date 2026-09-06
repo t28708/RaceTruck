@@ -709,6 +709,8 @@ public class TruckController : MonoBehaviour
     private bool IsObstacle(Collider2D col)
     {
         if (col == null || !col.enabled) return false;
+        if (TruckCollisionDetector.IsIgnoredObstacle(col)) return false;
+
         GameObject go = col.gameObject;
 
         // Ignore player tractor and all its children (visual wheels, guide lines)
