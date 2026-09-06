@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
@@ -21,7 +21,8 @@ public static class RegisterScenesInBuild
         string[] requiredScenes = new string[]
         {
             "Assets/Scenes/SampleScene.unity",
-            "Assets/Scenes/Level2_AlleyDock.unity"
+            "Assets/Scenes/Level2_AlleyDock.unity",
+            "Assets/Scenes/Level3_GasStation.unity"
         };
 
         // 1. Update global EditorBuildSettings.scenes

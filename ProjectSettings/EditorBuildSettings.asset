@@ -11,6 +11,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Level2_AlleyDock.unity
     guid: 9a30252ba1f84d81809fdce0299dfda7
+  - enabled: 1
+    path: Assets/Scenes/Level3_GasStation.unity
+    guid: b45f1873e1c9448db59a34d8ef71c39a
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0

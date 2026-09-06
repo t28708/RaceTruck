@@ -35,6 +35,19 @@ public static class TruckSimulatorSetup
         }
     }
 
+    [MenuItem("Tools/Open Map 3 (Gas Station)")]
+    public static void OpenMap3()
+    {
+        if (EditorApplication.isPlaying)
+        {
+            UnityEngine.SceneManagement.SceneManager.LoadScene("Level3_GasStation");
+        }
+        else
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.OpenScene("Assets/Scenes/Level3_GasStation.unity");
+        }
+    }
+
     [MenuItem("Tools/Rebuild Controls Canvas in Active Scene")]
     public static void RebuildControlsCanvasInActiveScene()
     {
@@ -69,6 +82,137 @@ public static class TruckSimulatorSetup
             UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes();
         }
         Debug.Log("[TruckSimulatorSetup] Setup Map 2 (Alley Dock) completed successfully!");
+    }
+
+    [MenuItem("Tools/Setup Map 3 (Gas Station)")]
+    public static void SetupMap3()
+    {
+        string scenePath = "Assets/Scenes/Level3_GasStation.unity";
+        UnityEngine.SceneManagement.Scene gasScene;
+        if (File.Exists(Path.Combine(Application.dataPath, "Scenes/Level3_GasStation.unity")))
+        {
+            gasScene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(scenePath);
+        }
+        else
+        {
+            gasScene = UnityEditor.SceneManagement.EditorSceneManager.NewScene(UnityEditor.SceneManagement.NewSceneSetup.DefaultGameObjects, UnityEditor.SceneManagement.NewSceneMode.Single);
+        }
+
+        Physics2D.gravity = Vector2.zero;
+        Selection.activeObject = null;
+
+        CleanExistingObjects();
+        EnsureEventSystem();
+        EnsureSpriteAssets(false);
+
+        Sprite tractorSprite = LoadSpriteSafe($"{SpritesDir}/Tractor.png");
+        Sprite trailerSprite = LoadSpriteSafe($"{SpritesDir}/Trailer.png");
+        Sprite steeringWheelSprite = LoadSpriteSafe($"{SpritesDir}/SteeringWheelRealistic.png");
+        if (steeringWheelSprite == null) steeringWheelSprite = LoadSpriteSafe($"{SpritesDir}/SteeringWheel.png");
+        Sprite pedalGasSprite = LoadSpriteSafe($"{SpritesDir}/PedalGas.png");
+        Sprite pedalBrakeSprite = LoadSpriteSafe($"{SpritesDir}/PedalBrake.png");
+        Sprite groundSprite = LoadSpriteSafe($"{SpritesDir}/GasStationMap_Flipped.png");
+        Sprite coneSprite = LoadSpriteSafe($"{SpritesDir}/TrafficCone.png");
+        Sprite barrierSprite = LoadSpriteSafe($"{SpritesDir}/ConcreteBarrier.png");
+        Sprite wheelSprite = LoadSpriteSafe($"{SpritesDir}/Tire.png");
+
+        // Build Gas Station Environment
+        BuildGasStationYard(groundSprite, barrierSprite, coneSprite, tractorSprite, trailerSprite);
+
+        // Build Mobile Touch Controls Canvas
+        GameObject canvasGo = CreateControlsCanvas(steeringWheelSprite, pedalGasSprite, pedalBrakeSprite);
+
+        // 4. Create 'Tractor' GameObject (Class 8 Conventional Semi)
+        GameObject tractor = new GameObject("Tractor");
+        tractor.transform.position = new Vector3(-3.25f, -17.8f, 0f);
+        tractor.transform.rotation = Quaternion.identity;
+        tractor.transform.localScale = Vector3.one;
+
+        SpriteRenderer tractorSr = tractor.AddComponent<SpriteRenderer>();
+        tractorSr.sprite = tractorSprite;
+        tractorSr.sortingOrder = 8;
+
+        BoxCollider2D tractorCollider = tractor.AddComponent<BoxCollider2D>();
+        tractorCollider.size = new Vector2(2.55f, 8.2f);
+
+        Rigidbody2D tractorRb = tractor.AddComponent<Rigidbody2D>();
+        tractorRb.bodyType = RigidbodyType2D.Kinematic;
+        tractorRb.useFullKinematicContacts = true;
+
+        GameObject frontLeftWheel = CreateWheelChild("FrontLeftWheel", tractor.transform, new Vector3(-1.08f, 2.8f, 0f), wheelSprite);
+        GameObject frontRightWheel = CreateWheelChild("FrontRightWheel", tractor.transform, new Vector3(1.08f, 2.8f, 0f), wheelSprite);
+        CreateWheelChild("RearLeftWheel1", tractor.transform, new Vector3(-1.08f, -2.25f, 0f), wheelSprite);
+        CreateWheelChild("RearRightWheel1", tractor.transform, new Vector3(1.08f, -2.25f, 0f), wheelSprite);
+        CreateWheelChild("RearLeftWheel2", tractor.transform, new Vector3(-1.08f, -3.35f, 0f), wheelSprite);
+        CreateWheelChild("RearRightWheel2", tractor.transform, new Vector3(1.08f, -3.35f, 0f), wheelSprite);
+
+        tractor.AddComponent<TruckCollisionDetector>();
+        TruckController truckController = tractor.AddComponent<TruckController>();
+        truckController.SetupWheelReferences(frontLeftWheel.transform, frontRightWheel.transform);
+
+        // 5. Create 'Trailer' GameObject (53-ft Semi-Trailer)
+        GameObject trailer = new GameObject("Trailer");
+        trailer.transform.position = new Vector3(-3.25f, -27.5f, 0f);
+        trailer.transform.rotation = Quaternion.identity;
+        trailer.transform.localScale = Vector3.one;
+
+        SpriteRenderer trailerSr = trailer.AddComponent<SpriteRenderer>();
+        trailerSr.sprite = trailerSprite;
+        trailerSr.sortingOrder = 10;
+
+        BoxCollider2D trailerCollider = trailer.AddComponent<BoxCollider2D>();
+        trailerCollider.size = new Vector2(2.58f, 15.9f);
+
+        Rigidbody2D trailerRb = trailer.AddComponent<Rigidbody2D>();
+        trailerRb.bodyType = RigidbodyType2D.Kinematic;
+        trailerRb.useFullKinematicContacts = true;
+
+        CreateWheelChild("TrailerRearLeft1", trailer.transform, new Vector3(-1.08f, -5.05f, 0f), wheelSprite);
+        CreateWheelChild("TrailerRearRight1", trailer.transform, new Vector3(1.08f, -5.05f, 0f), wheelSprite);
+        CreateWheelChild("TrailerRearLeft2", trailer.transform, new Vector3(-1.08f, -6.15f, 0f), wheelSprite);
+        CreateWheelChild("TrailerRearRight2", trailer.transform, new Vector3(1.08f, -6.15f, 0f), wheelSprite);
+
+        trailer.AddComponent<TruckCollisionDetector>();
+        truckController.SetupTrailer(trailerRb);
+        tractor.AddComponent<TruckGuideLines>();
+
+        HingeJoint2D hinge = tractor.AddComponent<HingeJoint2D>();
+        hinge.connectedBody = trailerRb;
+        hinge.anchor = new Vector2(0f, -2.8f);
+        hinge.autoConfigureConnectedAnchor = false;
+        hinge.connectedAnchor = new Vector2(0f, 6.9f);
+        hinge.enableCollision = true;
+        hinge.useLimits = false;
+
+        // 6. Setup Main Camera Follow & Snap Directly to Truck
+        if (Camera.main != null)
+        {
+            Camera.main.orthographic = true;
+            Camera.main.orthographicSize = 16.0f;
+            Camera.main.transform.position = new Vector3(-3.25f, -17.8f, -10f);
+            Camera.main.transform.rotation = Quaternion.identity;
+
+            CameraFollow camFollow = Camera.main.GetComponent<CameraFollow>();
+            if (camFollow == null)
+            {
+                camFollow = Camera.main.gameObject.AddComponent<CameraFollow>();
+            }
+            camFollow.SetupTargets(tractor.transform, trailer.transform);
+        }
+
+        Undo.RegisterCreatedObjectUndo(canvasGo, "Setup Truck Canvas");
+        Undo.RegisterCreatedObjectUndo(tractor, "Setup Truck Physics");
+        Undo.RegisterCreatedObjectUndo(trailer, "Setup Truck Physics");
+        Selection.activeGameObject = tractor;
+
+        if (!Application.isPlaying)
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.SaveScene(gasScene, scenePath);
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gasScene);
+            UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes();
+        }
+
+        Debug.Log("[TruckSimulatorSetup] Setup Map 3 (Gas Station) completed and saved successfully!");
     }
 
     [MenuItem("Tools/Setup Truck Physics")]
@@ -348,7 +492,144 @@ public static class TruckSimulatorSetup
         col.isTrigger = true;
     }
 
-    private static void CreateParkedTruck(string name, Transform parent, Vector2 pos, float rotAngleDeg, Sprite tractorSprite, Sprite trailerSprite)
+    private static void BuildGasStationYard(Sprite groundSprite, Sprite barrierSprite, Sprite coneSprite, Sprite tractorSprite, Sprite trailerSprite)
+    {
+        GameObject envParent = new GameObject("GasStationEnvironment");
+
+        // 1. Ground Sprite (96m x 52.4m at PPU 20)
+        GameObject ground = new GameObject("GasStationGround");
+        ground.transform.SetParent(envParent.transform, false);
+        ground.transform.position = Vector3.zero;
+        SpriteRenderer groundSr = ground.AddComponent<SpriteRenderer>();
+        groundSr.sprite = groundSprite;
+        groundSr.sortingOrder = -10;
+
+        // 2. Perimeter Boundary Walls
+        GameObject wallsParent = new GameObject("PerimeterWalls");
+        wallsParent.transform.SetParent(envParent.transform, false);
+
+        // North Wall: (0f, 26.2f), size = (96f, 2.5f)
+        CreateWall("Wall_North", wallsParent.transform, new Vector2(0f, 26.2f), new Vector2(96f, 2.5f), barrierSprite);
+
+        // South Wall Left & Right (Leaving opening at X = [-5f, 3f] for Entrance):
+        CreateWall("Wall_South_Left", wallsParent.transform, new Vector2(-26.5f, -26.2f), new Vector2(43f, 2.5f), barrierSprite);
+        CreateWall("Wall_South_Right", wallsParent.transform, new Vector2(25.5f, -26.2f), new Vector2(45f, 2.5f), barrierSprite);
+
+        // East Wall (48f, 0f)
+        CreateWall("Wall_East", wallsParent.transform, new Vector2(48f, 0f), new Vector2(2.5f, 52.4f), barrierSprite);
+
+        // West Wall Bottom & Top (Leaving opening around Y = [4f, 12f] for Exit Road):
+        CreateWall("Wall_West_Bottom", wallsParent.transform, new Vector2(-48f, -14f), new Vector2(2.5f, 24f), barrierSprite);
+        CreateWall("Wall_West_Top", wallsParent.transform, new Vector2(-48f, 18.5f), new Vector2(2.5f, 15f), barrierSprite);
+
+        // 3. Store / Cafe Building Collider
+        GameObject buildingParent = new GameObject("StationBuildings");
+        buildingParent.transform.SetParent(envParent.transform, false);
+        CreateObstacle("Store_Cafe_Building", buildingParent.transform, new Vector2(-34.5f, 1.35f), new Vector2(20f, 20f), barrierSprite);
+
+        // 4. Fuel Canopy: 7 Columns dividing 6 drivable lanes
+        GameObject canopyParent = new GameObject("FuelCanopy_Columns");
+        canopyParent.transform.SetParent(envParent.transform, false);
+
+        float[] colX = new float[] { -26.1f, -16.4f, -6.7f, 3.0f, 12.7f, 22.4f, 32.1f };
+        for (int i = 0; i < colX.Length; i++)
+        {
+            Vector2 colPos = new Vector2(colX[i], -4.65f);
+            Vector2 colSize = new Vector2(1.6f, 14.0f); // 1.6m wide, 14m long pump island
+            CreateObstacle($"PumpColumn_{i + 1}", canopyParent.transform, colPos, colSize, barrierSprite);
+
+            // Safety cones at both ends of each pump island
+            CreateCone($"PumpCone_S_{i + 1}", canopyParent.transform, new Vector2(colX[i], -4.65f - 7.5f), coneSprite);
+            CreateCone($"PumpCone_N_{i + 1}", canopyParent.transform, new Vector2(colX[i], -4.65f + 7.5f), coneSprite);
+        }
+
+        // 5. Parked Trucks on Parking Bays (REAL OBJECTS with COLLIDERS!)
+        GameObject parkingParent = new GameObject("ParkedTrucks");
+        parkingParent.transform.SetParent(envParent.transform, false);
+
+        Color[] colors = new Color[]
+        {
+            new Color(0.95f, 0.25f, 0.25f), // Red
+            new Color(0.18f, 0.45f, 0.85f), // Blue
+            new Color(0.95f, 0.85f, 0.15f), // Yellow
+            new Color(0.92f, 0.92f, 0.94f), // White
+            new Color(0.95f, 0.50f, 0.12f), // Orange
+            new Color(0.20f, 0.75f, 0.35f)  // Green
+        };
+
+        // Outer Right Parking Row (Bays 1..10, angled ~215°)
+        // Bay 1 is EMPTY for parking practice!
+        Vector2[] outerRightSpots = new Vector2[]
+        {
+            new Vector2(34.0f, -11.8f), // Bay 1 (Empty)
+            new Vector2(32.56f, -8.69f),
+            new Vector2(31.11f, -5.58f),
+            new Vector2(29.67f, -2.47f),
+            new Vector2(28.22f, 0.64f),
+            new Vector2(26.78f, 3.76f),
+            new Vector2(25.33f, 6.87f),
+            new Vector2(23.89f, 9.98f),
+            new Vector2(22.44f, 13.09f),
+            new Vector2(21.0f, 16.2f)
+        };
+        for (int i = 1; i < outerRightSpots.Length; i++)
+        {
+            CreateParkedTruck($"ParkedTruck_Outer_{i + 1}", parkingParent.transform, outerRightSpots[i], 215f, tractorSprite, trailerSprite, colors[i % colors.Length]);
+        }
+
+        // Inner Right Parking Row (Bays 11..19, angled ~35°)
+        // Bay 19 is EMPTY!
+        Vector2[] innerRightSpots = new Vector2[]
+        {
+            new Vector2(25.0f, -11.3f),
+            new Vector2(23.38f, -7.92f),
+            new Vector2(21.75f, -4.55f),
+            new Vector2(20.12f, -1.18f),
+            new Vector2(18.5f, 2.2f),
+            new Vector2(16.88f, 5.58f),
+            new Vector2(15.25f, 8.95f),
+            new Vector2(13.62f, 12.32f),
+            new Vector2(12.0f, 15.7f) // Bay 19 (Empty)
+        };
+        for (int i = 0; i < innerRightSpots.Length - 1; i++)
+        {
+            CreateParkedTruck($"ParkedTruck_Inner_{i + 11}", parkingParent.transform, innerRightSpots[i], 35f, tractorSprite, trailerSprite, colors[(i + 2) % colors.Length]);
+        }
+
+        // Top Parking Row (Bays 1..20, angled ~215°)
+        // Bays 4, 9, 12, 17 are EMPTY for parking practice!
+        Vector2[] topSpots = new Vector2[]
+        {
+            new Vector2(13.0f, 19.2f),
+            new Vector2(10.63f, 19.2f),
+            new Vector2(8.26f, 19.2f),
+            new Vector2(5.89f, 19.2f),   // Bay 4 (Empty)
+            new Vector2(3.53f, 19.2f),
+            new Vector2(1.16f, 19.2f),
+            new Vector2(-1.21f, 19.2f),
+            new Vector2(-3.58f, 19.2f),
+            new Vector2(-5.95f, 19.2f),  // Bay 9 (Empty)
+            new Vector2(-8.32f, 19.2f),
+            new Vector2(-10.68f, 19.2f),
+            new Vector2(-13.05f, 19.2f), // Bay 12 (Empty)
+            new Vector2(-15.42f, 19.2f),
+            new Vector2(-17.79f, 19.2f),
+            new Vector2(-20.16f, 19.2f),
+            new Vector2(-22.53f, 19.2f),
+            new Vector2(-24.89f, 19.2f), // Bay 17 (Empty)
+            new Vector2(-27.26f, 19.2f),
+            new Vector2(-29.63f, 19.2f),
+            new Vector2(-32.0f, 19.2f)
+        };
+        int[] emptyTopBays = new int[] { 3, 8, 11, 16 };
+        for (int i = 0; i < topSpots.Length; i++)
+        {
+            if (System.Array.IndexOf(emptyTopBays, i) >= 0) continue;
+            CreateParkedTruck($"ParkedTruck_Top_{i + 1}", parkingParent.transform, topSpots[i], 215f, tractorSprite, trailerSprite, colors[(i + 4) % colors.Length]);
+        }
+    }
+
+    private static void CreateParkedTruck(string name, Transform parent, Vector2 pos, float rotAngleDeg, Sprite tractorSprite, Sprite trailerSprite, Color? cabColor = null)
     {
         GameObject rig = new GameObject(name);
         rig.transform.SetParent(parent, false);
@@ -376,8 +657,8 @@ public static class TruckSimulatorSetup
 
         SpriteRenderer tSr = tractorGo.AddComponent<SpriteRenderer>();
         tSr.sprite = tractorSprite;
-        // Parked truck color: classic red semi cab
-        tSr.color = new Color(0.95f, 0.28f, 0.28f, 1f);
+        // Parked truck color: classic red semi cab or custom color
+        tSr.color = cabColor ?? new Color(0.95f, 0.28f, 0.28f, 1f);
         tSr.sortingOrder = 8;
 
         BoxCollider2D tCol = tractorGo.AddComponent<BoxCollider2D>();
@@ -387,7 +668,7 @@ public static class TruckSimulatorSetup
 
     private static void CleanExistingObjects()
     {
-        string[] targetNames = { "Tractor", "Trailer", "TruckControlsCanvas", "SteeringWheelCanvas", "TrainingYard" };
+        string[] targetNames = { "Tractor", "Trailer", "TruckControlsCanvas", "SteeringWheelCanvas", "TrainingYard", "GasStationEnvironment" };
         var rootObjects = UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects();
 
         foreach (var root in rootObjects)

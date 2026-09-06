@@ -19,10 +19,7 @@ public class LevelSwitcher : MonoBehaviour
     private void Awake()
     {
         string currentScene = SceneManager.GetActiveScene().name;
-        if (string.IsNullOrEmpty(targetSceneName) || targetSceneName == currentScene)
-        {
-            targetSceneName = currentScene.Contains("Level2") ? "SampleScene" : "Level2_AlleyDock";
-        }
+        targetSceneName = GetNextSceneName(currentScene);
     }
 
     private void Update()
@@ -61,9 +58,9 @@ public class LevelSwitcher : MonoBehaviour
         style.alignment = TextAnchor.MiddleCenter;
 
         string currentScene = SceneManager.GetActiveScene().name;
-        string label = currentScene.Contains("Level2") ? "КАРТА 1 (ПОЛИГОН) [M]" : "КАРТА 2 (БОКС) [M]";
+        string label = GetButtonLabel(currentScene);
 
-        if (GUI.Button(new Rect(25, 25, 235, 48), label, style))
+        if (GUI.Button(new Rect(25, 25, 245, 48), label, style))
         {
             SwitchLevel();
         }
@@ -72,14 +69,42 @@ public class LevelSwitcher : MonoBehaviour
         GUI.contentColor = origColor;
     }
 
+    public static string GetNextSceneName(string currentScene)
+    {
+        if (currentScene.Contains("Level3") || currentScene.Contains("GasStation"))
+        {
+            return "SampleScene";
+        }
+        else if (currentScene.Contains("Level2") || currentScene.Contains("AlleyDock"))
+        {
+            return "Level3_GasStation";
+        }
+        else
+        {
+            return "Level2_AlleyDock";
+        }
+    }
+
+    public static string GetButtonLabel(string currentScene)
+    {
+        if (currentScene.Contains("Level3") || currentScene.Contains("GasStation"))
+        {
+            return "КАРТА 1 (ПОЛИГОН) [M]";
+        }
+        else if (currentScene.Contains("Level2") || currentScene.Contains("AlleyDock"))
+        {
+            return "КАРТА 3 (ЗАПРАВКА) [M]";
+        }
+        else
+        {
+            return "КАРТА 2 (БОКС) [M]";
+        }
+    }
+
     public void SwitchLevel()
     {
         string currentScene = SceneManager.GetActiveScene().name;
-        string target = currentScene.Contains("Level2") ? "SampleScene" : "Level2_AlleyDock";
-        if (!string.IsNullOrEmpty(targetSceneName) && targetSceneName != currentScene)
-        {
-            target = targetSceneName;
-        }
+        string target = GetNextSceneName(currentScene);
 
         Debug.Log($"[LevelSwitcher] Switching scene from {currentScene} to: {target}");
         SceneManager.LoadScene(target);
@@ -93,5 +118,10 @@ public class LevelSwitcher : MonoBehaviour
     public void LoadMap2()
     {
         SceneManager.LoadScene("Level2_AlleyDock");
+    }
+
+    public void LoadMap3()
+    {
+        SceneManager.LoadScene("Level3_GasStation");
     }
 }
