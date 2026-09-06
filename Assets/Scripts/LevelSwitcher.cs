@@ -71,13 +71,13 @@ public class LevelSwitcher : MonoBehaviour
 
     public static string GetNextSceneName(string currentScene)
     {
-        if (currentScene.Contains("Level3") || currentScene.Contains("GasStation"))
+        if (currentScene.Contains("Level3") || currentScene.Contains("RestArea") || currentScene.Contains("GasStation"))
         {
             return "SampleScene";
         }
         else if (currentScene.Contains("Level2") || currentScene.Contains("AlleyDock"))
         {
-            return "Level3_GasStation";
+            return "Level3_RestArea";
         }
         else
         {
@@ -87,13 +87,13 @@ public class LevelSwitcher : MonoBehaviour
 
     public static string GetButtonLabel(string currentScene)
     {
-        if (currentScene.Contains("Level3") || currentScene.Contains("GasStation"))
+        if (currentScene.Contains("Level3") || currentScene.Contains("RestArea") || currentScene.Contains("GasStation"))
         {
             return "КАРТА 1 (ПОЛИГОН) [M]";
         }
         else if (currentScene.Contains("Level2") || currentScene.Contains("AlleyDock"))
         {
-            return "КАРТА 3 (ЗАПРАВКА) [M]";
+            return "КАРТА 3 (РЕСТ ЭРИЯ) [M]";
         }
         else
         {
@@ -122,7 +122,7 @@ public class LevelSwitcher : MonoBehaviour
 
     public void LoadMap3()
     {
-        LoadSceneByName("Level3_GasStation");
+        LoadSceneByName("Level3_RestArea");
     }
 
     private void LoadSceneByName(string target)
