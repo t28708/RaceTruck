@@ -282,6 +282,7 @@ public class TruckController : MonoBehaviour
     private bool CheckCandidateCollision(Vector2 candTractorPos, float candTractorAngle, Vector2 candTrailerPos, float candTrailerAngle, out Collider2D hitObstacle)
     {
         hitObstacle = null;
+        bool isMovingForward = (currentSpeed > 0f);
 
         // 1. Check Tractor box at candidate destination
         if (tractorCollider != null)
@@ -291,27 +292,57 @@ public class TruckController : MonoBehaviour
             for (int i = 0; i < count; i++)
             {
                 Collider2D col = candidateHits[i];
-                if (IsObstacle(col))
+                if (!IsObstacle(col)) continue;
+
+                // Relative position to tractor: local Y > 0 is front, local Y < 0 is rear
+                Vector2 localObstaclePos = transform.InverseTransformPoint(col.bounds.center);
+
+                // If reversing (speed < 0) and obstacle is in front of tractor, the tractor is moving AWAY!
+                // Do not block reverse!
+                if (!isMovingForward && localObstaclePos.y > -0.5f)
                 {
-                    hitObstacle = col;
-                    return true;
+                    continue;
                 }
+
+                // If moving forward and obstacle is behind tractor (hitch area), ignore
+                if (isMovingForward && localObstaclePos.y < -3.5f)
+                {
+                    continue;
+                }
+
+                hitObstacle = col;
+                return true;
             }
         }
 
         // 2. Check Trailer box at candidate destination
-        if (trailerCollider != null)
+        if (trailerCollider != null && trailerRb != null)
         {
             Vector2 trailerSize = trailerCollider.size - new Vector2(0.04f, 0.04f);
             int count = Physics2D.OverlapBox(candTrailerPos, trailerSize, candTrailerAngle, obstacleFilter, candidateHits);
             for (int i = 0; i < count; i++)
             {
                 Collider2D col = candidateHits[i];
-                if (IsObstacle(col))
+                if (!IsObstacle(col)) continue;
+
+                // For trailer: local Y < 0 is rear bumper
+                Vector2 localObstaclePos = trailerRb.transform.InverseTransformPoint(col.bounds.center);
+
+                // If moving forward and obstacle is behind trailer rear, the trailer is pulling AWAY!
+                // Do not block forward!
+                if (isMovingForward && localObstaclePos.y < 0f)
                 {
-                    hitObstacle = col;
-                    return true;
+                    continue;
                 }
+
+                // If reversing and obstacle is near front/hitch, ignore
+                if (!isMovingForward && localObstaclePos.y > 6.0f)
+                {
+                    continue;
+                }
+
+                hitObstacle = col;
+                return true;
             }
         }
 

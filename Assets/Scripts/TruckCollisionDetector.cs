@@ -151,44 +151,52 @@ public class TruckCollisionDetector : MonoBehaviour
     {
         if (IsPlayerVehicle(other)) return;
 
-        string obstacleName = FormatObstacleNameStatic(other.name, other.transform);
+        // Relative position to this vehicle part (Tractor or Trailer)
+        Vector2 localObstaclePos = transform.InverseTransformPoint(other.transform.position);
+        bool isFrontObstacle = (localObstaclePos.y >= 0f);
 
-        // Determine whether impact was while moving forward or backward
-        bool forwardImpact = true;
         if (TruckController.Instance != null)
         {
             float speed = TruckController.Instance.CurrentSpeed;
+
+            // CRITICAL: If moving AWAY from this obstacle, DO NOT crash or block!
+            // If obstacle is in FRONT (isFrontObstacle == true) and vehicle is reversing (speed < -0.01f):
+            // The vehicle is backing away/escaping! Allow it to reverse!
+            if (isFrontObstacle && speed < -0.01f)
+            {
+                return;
+            }
+
+            // If obstacle is in REAR (isFrontObstacle == false) and vehicle is moving forward (speed > 0.01f):
+            // The vehicle is pulling away! Allow it to pull forward!
+            if (!isFrontObstacle && speed > 0.01f)
+            {
+                return;
+            }
+
+            string obstacleName = FormatObstacleNameStatic(other.name, other.transform);
+            bool forwardImpact;
+
             if (Mathf.Abs(speed) > 0.01f)
             {
                 forwardImpact = (speed > 0f);
             }
-            else if (TruckController.Instance.IsBlockedForward)
-            {
-                // Already blocked forward: maintain forward block so reverse can escape
-                forwardImpact = true;
-            }
-            else if (TruckController.Instance.IsBlockedReverse)
-            {
-                // Already blocked reverse: maintain reverse block so forward can escape
-                forwardImpact = false;
-            }
             else
             {
-                // Determine by relative local position of the obstacle
-                Vector2 localObstaclePos = transform.InverseTransformPoint(other.transform.position);
-                forwardImpact = (localObstaclePos.y >= 0f);
+                // Stopped: direction is defined by where the obstacle is relative to vehicle
+                forwardImpact = isFrontObstacle;
             }
 
             TruckController.Instance.OnCrash(obstacleName, forwardImpact);
-        }
 
-        // Trigger visual screen shake, metal impact sound, spark burst, and "БУХ!" UI banner
-        if (Time.time - lastCrashTime >= CrashCooldown)
-        {
-            lastCrashTime = Time.time;
-            if (TruckCrashEffect.Instance != null)
+            // Trigger visual screen shake, metal impact sound, spark burst, and "БУХ!" UI banner
+            if (Time.time - lastCrashTime >= CrashCooldown)
             {
-                TruckCrashEffect.Instance.TriggerCrash(obstacleName, transform.position);
+                lastCrashTime = Time.time;
+                if (TruckCrashEffect.Instance != null)
+                {
+                    TruckCrashEffect.Instance.TriggerCrash(obstacleName, transform.position);
+                }
             }
         }
     }
