@@ -201,8 +201,9 @@ public class TruckController : MonoBehaviour
         CanvasScaler scaler = canvasGo.GetComponent<CanvasScaler>();
         if (scaler == null) scaler = canvasGo.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920, 1080);
-        scaler.matchWidthOrHeight = 0f;
+        bool isPortrait = Screen.width < Screen.height;
+        scaler.referenceResolution = isPortrait ? new Vector2(1080, 1920) : new Vector2(1920, 1080);
+        scaler.matchWidthOrHeight = 0.5f;
 
         if (canvasGo.GetComponent<GraphicRaycaster>() == null)
         {
@@ -240,8 +241,8 @@ public class TruckController : MonoBehaviour
         wheelRect.anchorMin = new Vector2(1f, 0f);
         wheelRect.anchorMax = new Vector2(1f, 0f);
         wheelRect.pivot = new Vector2(0.5f, 0.5f);
-        wheelRect.anchoredPosition = new Vector2(-240f, 240f);
-        wheelRect.sizeDelta = new Vector2(400f, 400f);
+        wheelRect.anchoredPosition = new Vector2(-270f, 270f);
+        wheelRect.sizeDelta = new Vector2(480f, 480f);
         wheelRect.localScale = Vector3.one;
 
         Image wheelImg = wheelGo.GetComponent<Image>();
@@ -254,7 +255,7 @@ public class TruckController : MonoBehaviour
 
         steeringWheel = wheel;
 
-        // 2. Gas & Brake Pedals (Strictly on bottom-left, identical across all maps)
+        // 2. Gas & Brake Pedals (Large, comfortable, strictly on bottom-left, matching MTS reference)
         PedalUI[] allPedals = Object.FindObjectsByType<PedalUI>(FindObjectsSortMode.None);
         PedalUI gasPedal = null;
         PedalUI brakePedal = null;
@@ -269,7 +270,7 @@ public class TruckController : MonoBehaviour
             }
         }
 
-        // Configure Gas Pedal (Top-Left)
+        // Configure Gas Pedal (Upper-Left: 180 x 340)
         if (gasPedal == null)
         {
             Transform gasTrans = canvasGo.transform.Find("Pedal_Gas");
@@ -290,17 +291,18 @@ public class TruckController : MonoBehaviour
         gasRect.anchorMin = new Vector2(0f, 0f);
         gasRect.anchorMax = new Vector2(0f, 0f);
         gasRect.pivot = new Vector2(0.5f, 0.5f);
-        gasRect.anchoredPosition = new Vector2(130f, 380f);
-        gasRect.sizeDelta = new Vector2(120f, 240f);
+        gasRect.anchoredPosition = new Vector2(170f, 490f);
+        gasRect.sizeDelta = new Vector2(180f, 340f);
         gasRect.localScale = Vector3.one;
 
         Image gasImg = gasPedal.GetComponent<Image>();
         if (gasImg == null) gasImg = gasPedal.gameObject.AddComponent<Image>();
         gasImg.raycastTarget = true;
-        gasImg.color = new Color(1f, 1f, 1f, 0.85f);
+        gasImg.preserveAspect = true;
+        gasImg.color = new Color(1f, 1f, 1f, 0.90f);
         gasImg.sprite = GetOrCreateSprite("PedalGas", () => GeneratePedalTexture(new Color(0.15f, 0.55f, 0.25f, 0.95f), "GAS"));
 
-        // Configure Brake Pedal (Bottom-Left)
+        // Configure Brake Pedal (Lower-Left: 340 x 240, wide horizontal)
         if (brakePedal == null)
         {
             Transform brakeTrans = canvasGo.transform.Find("Pedal_Brake");
@@ -321,14 +323,15 @@ public class TruckController : MonoBehaviour
         brakeRect.anchorMin = new Vector2(0f, 0f);
         brakeRect.anchorMax = new Vector2(0f, 0f);
         brakeRect.pivot = new Vector2(0.5f, 0.5f);
-        brakeRect.anchoredPosition = new Vector2(130f, 160f);
-        brakeRect.sizeDelta = new Vector2(150f, 150f);
+        brakeRect.anchoredPosition = new Vector2(190f, 170f);
+        brakeRect.sizeDelta = new Vector2(340f, 240f);
         brakeRect.localScale = Vector3.one;
 
         Image brakeImg = brakePedal.GetComponent<Image>();
         if (brakeImg == null) brakeImg = brakePedal.gameObject.AddComponent<Image>();
         brakeImg.raycastTarget = true;
-        brakeImg.color = new Color(1f, 1f, 1f, 0.85f);
+        brakeImg.preserveAspect = true;
+        brakeImg.color = new Color(1f, 1f, 1f, 0.90f);
         brakeImg.sprite = GetOrCreateSprite("PedalBrake", () => GeneratePedalTexture(new Color(0.65f, 0.15f, 0.15f, 0.95f), "BRAKE"));
 
         // 3. HUD Text

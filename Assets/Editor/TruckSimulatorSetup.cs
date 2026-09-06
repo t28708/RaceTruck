@@ -464,17 +464,18 @@ public static class TruckSimulatorSetup
         wheelRt.anchorMin = new Vector2(1f, 0f);
         wheelRt.anchorMax = new Vector2(1f, 0f);
         wheelRt.pivot = new Vector2(0.5f, 0.5f);
-        wheelRt.anchoredPosition = new Vector2(-240f, 240f);
-        wheelRt.sizeDelta = new Vector2(400f, 400f);
+        wheelRt.anchoredPosition = new Vector2(-270f, 270f);
+        wheelRt.sizeDelta = new Vector2(480f, 480f);
 
         Image wheelImg = wheelGo.AddComponent<Image>();
         wheelImg.sprite = steeringWheelSprite;
         wheelImg.raycastTarget = true;
+        wheelImg.preserveAspect = true;
 
         wheelGo.AddComponent<SteeringWheelUI>();
 
         // Pedals (bottom-left corner)
-        // 1. Gas Pedal (Upper Left)
+        // 1. Gas Pedal (Upper Left: 180 x 340)
         GameObject gasGo = new GameObject("Pedal_Gas");
         gasGo.transform.SetParent(canvasGo.transform, false);
 
@@ -482,18 +483,19 @@ public static class TruckSimulatorSetup
         gasRt.anchorMin = new Vector2(0f, 0f);
         gasRt.anchorMax = new Vector2(0f, 0f);
         gasRt.pivot = new Vector2(0.5f, 0.5f);
-        gasRt.anchoredPosition = new Vector2(130f, 380f);
-        gasRt.sizeDelta = new Vector2(120f, 240f);
+        gasRt.anchoredPosition = new Vector2(170f, 490f);
+        gasRt.sizeDelta = new Vector2(180f, 340f);
 
         Image gasImg = gasGo.AddComponent<Image>();
         gasImg.sprite = pedalGasSprite;
         gasImg.raycastTarget = true;
-        gasImg.color = new Color(1f, 1f, 1f, 0.8f);
+        gasImg.preserveAspect = true;
+        gasImg.color = new Color(1f, 1f, 1f, 0.9f);
 
         PedalUI gasPedal = gasGo.AddComponent<PedalUI>();
         gasPedal.SetPedalType(PedalUI.PedalType.Gas);
 
-        // 2. Brake / Reverse Pedal (Lower Left)
+        // 2. Brake / Reverse Pedal (Lower Left: 340 x 240, wide horizontal)
         GameObject brakeGo = new GameObject("Pedal_Brake");
         brakeGo.transform.SetParent(canvasGo.transform, false);
 
@@ -501,13 +503,14 @@ public static class TruckSimulatorSetup
         brakeRt.anchorMin = new Vector2(0f, 0f);
         brakeRt.anchorMax = new Vector2(0f, 0f);
         brakeRt.pivot = new Vector2(0.5f, 0.5f);
-        brakeRt.anchoredPosition = new Vector2(130f, 160f);
-        brakeRt.sizeDelta = new Vector2(150f, 150f);
+        brakeRt.anchoredPosition = new Vector2(190f, 170f);
+        brakeRt.sizeDelta = new Vector2(340f, 240f);
 
         Image brakeImg = brakeGo.AddComponent<Image>();
         brakeImg.sprite = pedalBrakeSprite;
         brakeImg.raycastTarget = true;
-        brakeImg.color = new Color(1f, 1f, 1f, 0.8f);
+        brakeImg.preserveAspect = true;
+        brakeImg.color = new Color(1f, 1f, 1f, 0.9f);
 
         PedalUI brakePedal = brakeGo.AddComponent<PedalUI>();
         brakePedal.SetPedalType(PedalUI.PedalType.BrakeReverse);
