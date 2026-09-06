@@ -3,11 +3,58 @@ using UnityEngine;
 
 public class TruckCollisionDetector : MonoBehaviour
 {
+    private Collider2D myCollider;
+    private ContactFilter2D contactFilter;
+    private readonly List<Collider2D> overlapResults = new List<Collider2D>(16);
     private float lastCrashTime = -1f;
     private const float CrashCooldown = 0.35f;
 
     // Track active colliders touching this part so block is not cleared prematurely
     private readonly HashSet<Collider2D> touchingColliders = new HashSet<Collider2D>();
+
+    private void Awake()
+    {
+        myCollider = GetComponent<Collider2D>();
+        contactFilter = new ContactFilter2D();
+        contactFilter.useTriggers = true; // Crucial: detects static triggers (parked trucks, cones, dock borders)
+        contactFilter.useLayerMask = false; // detects all layers
+    }
+
+    private void FixedUpdate()
+    {
+        if (myCollider == null || !myCollider.enabled) return;
+
+        overlapResults.Clear();
+        int count = myCollider.Overlap(contactFilter, overlapResults);
+
+        bool hasObstacle = false;
+        Collider2D firstObstacle = null;
+        HashSet<Collider2D> currentObstacles = new HashSet<Collider2D>();
+
+        for (int i = 0; i < count; i++)
+        {
+            Collider2D other = overlapResults[i];
+            if (other == null || !other.enabled) continue;
+            if (IsPlayerVehicle(other.gameObject)) continue;
+
+            hasObstacle = true;
+            if (firstObstacle == null) firstObstacle = other;
+            currentObstacles.Add(other);
+            touchingColliders.Add(other);
+        }
+
+        // Clean up colliders no longer overlapping
+        touchingColliders.RemoveWhere(col => col == null || !col.enabled || !currentObstacles.Contains(col));
+
+        if (hasObstacle && firstObstacle != null)
+        {
+            HandleCollision(firstObstacle.gameObject);
+        }
+        else if (touchingColliders.Count == 0 && TruckController.Instance != null)
+        {
+            TruckController.Instance.ClearBlock();
+        }
+    }
 
     private void OnTriggerEnter2D(Collider2D other)
     {
@@ -104,28 +151,32 @@ public class TruckCollisionDetector : MonoBehaviour
     {
         if (IsPlayerVehicle(other)) return;
 
-        string obstacleName = FormatObstacleName(other.name, other.transform);
+        string obstacleName = FormatObstacleNameStatic(other.name, other.transform);
 
         // Determine whether impact was while moving forward or backward
         bool forwardImpact = true;
         if (TruckController.Instance != null)
         {
             float speed = TruckController.Instance.CurrentSpeed;
-            if (Mathf.Abs(speed) > 0.02f)
+            if (Mathf.Abs(speed) > 0.01f)
             {
                 forwardImpact = (speed > 0f);
             }
-            else if (TruckController.Instance.IsBrakePedalPressed)
+            else if (TruckController.Instance.IsBlockedForward)
             {
-                forwardImpact = false;
-            }
-            else if (TruckController.Instance.IsGasPedalPressed)
-            {
+                // Already blocked forward: maintain forward block so reverse can escape
                 forwardImpact = true;
+            }
+            else if (TruckController.Instance.IsBlockedReverse)
+            {
+                // Already blocked reverse: maintain reverse block so forward can escape
+                forwardImpact = false;
             }
             else
             {
-                forwardImpact = (gameObject == TruckController.Instance.gameObject);
+                // Determine by relative local position of the obstacle
+                Vector2 localObstaclePos = transform.InverseTransformPoint(other.transform.position);
+                forwardImpact = (localObstaclePos.y >= 0f);
             }
 
             TruckController.Instance.OnCrash(obstacleName, forwardImpact);
@@ -142,7 +193,7 @@ public class TruckCollisionDetector : MonoBehaviour
         }
     }
 
-    private string FormatObstacleName(string rawName, Transform otherTransform)
+    public static string FormatObstacleNameStatic(string rawName, Transform otherTransform)
     {
         string combinedName = rawName;
         if (otherTransform != null && otherTransform.parent != null)

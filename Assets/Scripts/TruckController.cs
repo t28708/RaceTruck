@@ -167,7 +167,14 @@ public class TruckController : MonoBehaviour
     private float lastJackknifeCrashTime = -1f;
     private const float JackknifeCrashCooldown = 0.5f;
 
+    private BoxCollider2D tractorCollider;
+    private BoxCollider2D trailerCollider;
+    private ContactFilter2D obstacleFilter;
+    private readonly Collider2D[] candidateHits = new Collider2D[16];
+
     public bool IsJackknifed => isJackknifed;
+    public bool IsBlockedForward => isBlockedForward;
+    public bool IsBlockedReverse => isBlockedReverse;
 
     public void OnCrash(string obstacleName, bool forwardImpact)
     {
@@ -256,6 +263,76 @@ public class TruckController : MonoBehaviour
             GameObject hudGo = GameObject.Find("TruckHUDText");
             if (hudGo != null) hudText = hudGo.GetComponent<Text>();
         }
+
+        if (tractorCollider == null)
+        {
+            tractorCollider = GetComponent<BoxCollider2D>();
+        }
+
+        if (trailerCollider == null && trailerRb != null)
+        {
+            trailerCollider = trailerRb.GetComponent<BoxCollider2D>();
+        }
+
+        obstacleFilter = new ContactFilter2D();
+        obstacleFilter.useTriggers = true;
+        obstacleFilter.useLayerMask = false;
+    }
+
+    private bool CheckCandidateCollision(Vector2 candTractorPos, float candTractorAngle, Vector2 candTrailerPos, float candTrailerAngle, out Collider2D hitObstacle)
+    {
+        hitObstacle = null;
+
+        // 1. Check Tractor box at candidate destination
+        if (tractorCollider != null)
+        {
+            Vector2 tractorSize = tractorCollider.size - new Vector2(0.04f, 0.04f);
+            int count = Physics2D.OverlapBox(candTractorPos, tractorSize, candTractorAngle, obstacleFilter, candidateHits);
+            for (int i = 0; i < count; i++)
+            {
+                Collider2D col = candidateHits[i];
+                if (IsObstacle(col))
+                {
+                    hitObstacle = col;
+                    return true;
+                }
+            }
+        }
+
+        // 2. Check Trailer box at candidate destination
+        if (trailerCollider != null)
+        {
+            Vector2 trailerSize = trailerCollider.size - new Vector2(0.04f, 0.04f);
+            int count = Physics2D.OverlapBox(candTrailerPos, trailerSize, candTrailerAngle, obstacleFilter, candidateHits);
+            for (int i = 0; i < count; i++)
+            {
+                Collider2D col = candidateHits[i];
+                if (IsObstacle(col))
+                {
+                    hitObstacle = col;
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsObstacle(Collider2D col)
+    {
+        if (col == null || !col.enabled) return false;
+        GameObject go = col.gameObject;
+
+        // Ignore player tractor and all its children (visual wheels, guide lines)
+        if (go == gameObject || go.transform.IsChildOf(transform)) return false;
+
+        // Ignore player trailer and all its children (wheels)
+        if (trailerRb != null)
+        {
+            if (go == trailerRb.gameObject || go.transform.IsChildOf(trailerRb.transform)) return false;
+        }
+
+        return true;
     }
 
     private void InitializePositions()
@@ -509,12 +586,52 @@ public class TruckController : MonoBehaviour
             // Geometric lock: Trailer kingpin is locked exactly to 5th wheel hitch
             Vector2 newTrailerCenter = newHitchPos - finalTrailerForward * kingpinLocalOffset;
 
+            // Predictive collision check before applying movement
+            if (Mathf.Abs(currentSpeed) > 0.01f)
+            {
+                if (CheckCandidateCollision(newTractorCenter, newTractorAngleDeg, newTrailerCenter, newTrailerAngleDeg, out Collider2D hitObstacle))
+                {
+                    bool forwardImpact = (currentSpeed > 0f);
+                    string obstacleName = TruckCollisionDetector.FormatObstacleNameStatic(hitObstacle.name, hitObstacle.transform);
+                    OnCrash(obstacleName, forwardImpact);
+
+                    if (TruckCrashEffect.Instance != null)
+                    {
+                        TruckCrashEffect.Instance.TriggerCrash(obstacleName, hitObstacle.transform.position);
+                    }
+
+                    currentSpeed = 0f;
+                    return; // Refuse penetration! Keep current position.
+                }
+            }
+
             // Store for next step
             prevTrailerRearAxlePos = newTrailerCenter + finalTrailerForward * trailerAxleLocalOffset;
 
             // Apply movement to trailer
             trailerRb.MoveRotation(newTrailerAngleDeg);
             trailerRb.MovePosition(newTrailerCenter);
+        }
+        else
+        {
+            // Solo tractor candidate check
+            if (Mathf.Abs(currentSpeed) > 0.01f)
+            {
+                if (CheckCandidateCollision(newTractorCenter, newTractorAngleDeg, Vector2.zero, 0f, out Collider2D hitObstacle))
+                {
+                    bool forwardImpact = (currentSpeed > 0f);
+                    string obstacleName = TruckCollisionDetector.FormatObstacleNameStatic(hitObstacle.name, hitObstacle.transform);
+                    OnCrash(obstacleName, forwardImpact);
+
+                    if (TruckCrashEffect.Instance != null)
+                    {
+                        TruckCrashEffect.Instance.TriggerCrash(obstacleName, hitObstacle.transform.position);
+                    }
+
+                    currentSpeed = 0f;
+                    return;
+                }
+            }
         }
 
         // Apply movement to tractor
@@ -613,6 +730,7 @@ public class TruckController : MonoBehaviour
         {
             trailerRb.bodyType = RigidbodyType2D.Kinematic;
             trailerRb.useFullKinematicContacts = true;
+            trailerCollider = trailerRb.GetComponent<BoxCollider2D>();
         }
         InitializePositions();
     }
