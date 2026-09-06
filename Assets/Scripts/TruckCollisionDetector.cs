@@ -36,6 +36,7 @@ public class TruckCollisionDetector : MonoBehaviour
             Collider2D other = overlapResults[i];
             if (other == null || !other.enabled) continue;
             if (IsPlayerVehicle(other.gameObject)) continue;
+            if (IsIgnoredObstacle(other)) continue;
 
             hasObstacle = true;
             if (firstObstacle == null) firstObstacle = other;
@@ -53,14 +54,14 @@ public class TruckCollisionDetector : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (IsPlayerVehicle(other.gameObject)) return;
+        if (IsPlayerVehicle(other.gameObject) || IsIgnoredObstacle(other)) return;
         touchingColliders.Add(other);
         HandleCollision(other.gameObject, other);
     }
 
     private void OnTriggerStay2D(Collider2D other)
     {
-        if (IsPlayerVehicle(other.gameObject)) return;
+        if (IsPlayerVehicle(other.gameObject) || IsIgnoredObstacle(other)) return;
         touchingColliders.Add(other);
         HandleCollision(other.gameObject, other);
     }
@@ -72,14 +73,14 @@ public class TruckCollisionDetector : MonoBehaviour
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        if (IsPlayerVehicle(collision.gameObject)) return;
+        if (IsPlayerVehicle(collision.gameObject) || IsIgnoredObstacle(collision.collider)) return;
         touchingColliders.Add(collision.collider);
         HandleCollision(collision.gameObject, collision.collider);
     }
 
     private void OnCollisionStay2D(Collision2D collision)
     {
-        if (IsPlayerVehicle(collision.gameObject)) return;
+        if (IsPlayerVehicle(collision.gameObject) || IsIgnoredObstacle(collision.collider)) return;
         touchingColliders.Add(collision.collider);
         HandleCollision(collision.gameObject, collision.collider);
     }
@@ -87,6 +88,48 @@ public class TruckCollisionDetector : MonoBehaviour
     private void OnCollisionExit2D(Collision2D collision)
     {
         touchingColliders.Remove(collision.collider);
+    }
+
+    public static bool IsIgnoredObstacle(Collider2D col)
+    {
+        if (col == null) return true;
+
+        if (col.isTrigger)
+        {
+            string n = col.gameObject.name;
+            // Never ignore actual physical obstacles that happen to use triggers
+            if (n.IndexOf("Bumper", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Truck", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Trailer", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Tractor", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Bus", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Tree", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Wall", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Barrier", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Pole", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Barrel", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Cone", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return false;
+            }
+
+            // Ground markings, guide lines, hazard stripes, chevrons, dashes, and parking triggers
+            if (n.IndexOf("Hazard", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Stripe", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Line", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Dashes", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Chevron", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Arrow", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Trigger", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Guide", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Marking", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                n.IndexOf("Border", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private bool IsPlayerVehicle(GameObject other)
@@ -132,6 +175,7 @@ public class TruckCollisionDetector : MonoBehaviour
     private void HandleCollision(GameObject other, Collider2D hitCol = null)
     {
         if (IsPlayerVehicle(other)) return;
+        if (hitCol != null && IsIgnoredObstacle(hitCol)) return;
         if (TruckController.Instance == null) return;
 
         float speed = TruckController.Instance.CurrentSpeed;
