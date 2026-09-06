@@ -1271,7 +1271,7 @@ MonoBehaviour:
   trailerTransform: {fileID: 1334634929}
   frontLeftWheel: {fileID: 1350062243}
   frontRightWheel: {fileID: 937875423}
---- !u!232 &297739237
+--- !u!233 &297739237
 HingeJoint2D:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
