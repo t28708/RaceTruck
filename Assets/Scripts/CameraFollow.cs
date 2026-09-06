@@ -203,6 +203,7 @@ public class CameraFollow : MonoBehaviour
                 StepZoom(+1); // Zoom out wider
             }
         }
+#endif
 
         float scroll = 0f;
 #if ENABLE_INPUT_SYSTEM

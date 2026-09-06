@@ -128,9 +128,9 @@ public class LevelSwitcher : MonoBehaviour
     private void LoadSceneByName(string target)
     {
 #if UNITY_EDITOR
-        if (!Application.CanStreamedLevelBeLoaded(target))
+        string scenePath = $"Assets/Scenes/{target}.unity";
+        if (System.IO.File.Exists(scenePath))
         {
-            string scenePath = $"Assets/Scenes/{target}.unity";
             var loadParams = new UnityEngine.SceneManagement.LoadSceneParameters(UnityEngine.SceneManagement.LoadSceneMode.Single);
             UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(scenePath, loadParams);
             return;

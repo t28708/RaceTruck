@@ -14,7 +14,7 @@ public static class TruckSimulatorSetup
     {
         if (EditorApplication.isPlaying)
         {
-            UnityEngine.SceneManagement.SceneManager.LoadScene("SampleScene");
+            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode("Assets/Scenes/SampleScene.unity", new UnityEngine.SceneManagement.LoadSceneParameters(UnityEngine.SceneManagement.LoadSceneMode.Single));
         }
         else
         {
@@ -27,7 +27,7 @@ public static class TruckSimulatorSetup
     {
         if (EditorApplication.isPlaying)
         {
-            UnityEngine.SceneManagement.SceneManager.LoadScene("Level2_AlleyDock");
+            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode("Assets/Scenes/Level2_AlleyDock.unity", new UnityEngine.SceneManagement.LoadSceneParameters(UnityEngine.SceneManagement.LoadSceneMode.Single));
         }
         else
         {
@@ -40,7 +40,7 @@ public static class TruckSimulatorSetup
     {
         if (EditorApplication.isPlaying)
         {
-            UnityEngine.SceneManagement.SceneManager.LoadScene("Level3_GasStation");
+            UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode("Assets/Scenes/Level3_GasStation.unity", new UnityEngine.SceneManagement.LoadSceneParameters(UnityEngine.SceneManagement.LoadSceneMode.Single));
         }
         else
         {
