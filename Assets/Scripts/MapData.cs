@@ -20,6 +20,11 @@ public class MapData : MonoBehaviour
     {
         Instance = this;
         DetectDimensions();
+
+        if (GetComponent<ParkedTruckVisuals>() == null)
+        {
+            gameObject.AddComponent<ParkedTruckVisuals>();
+        }
     }
 
     private void OnValidate()
