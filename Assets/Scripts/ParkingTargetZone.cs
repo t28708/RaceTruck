@@ -8,6 +8,7 @@ using UnityEngine.SceneManagement;
 /// Target Parking Slot Zone.
 /// Highlights the target spot with bold yellow markings and detects when the truck is successfully parked.
 /// </summary>
+[ExecuteAlways]
 public class ParkingTargetZone : MonoBehaviour
 {
     public static ParkingTargetZone Instance { get; private set; }
@@ -31,12 +32,19 @@ public class ParkingTargetZone : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+        targetSlotSize = new Vector2(4.5f, targetSlotSize.y < 25.0f ? 26.0f : targetSlotSize.y);
+        UpdateVisualStripes();
+    }
+
+    private void OnValidate()
+    {
+        targetSlotSize = new Vector2(4.5f, targetSlotSize.y < 25.0f ? 26.0f : targetSlotSize.y);
+        UpdateVisualStripes();
     }
 
     private void Start()
     {
         targetSlotSize = new Vector2(4.5f, targetSlotSize.y < 25.0f ? 26.0f : targetSlotSize.y);
-
         UpdateVisualStripes();
         FindTruckComponents();
     }
