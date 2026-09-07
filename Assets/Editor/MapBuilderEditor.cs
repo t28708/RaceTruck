@@ -1332,7 +1332,7 @@ public class MapBuilderEditor : EditorWindow
 
         Handles.EndGUI();
 
-        float slotWidth = (currentObjectType == ObjectType.TargetParking) ? 5.2f : SlotWidth;
+        float slotWidth = SlotWidth;
         float slotLength = (currentObjectType == ObjectType.TargetParking) ? 26.0f : SlotLength;
         Vector3 size = new Vector3(slotWidth, slotLength, 0f);
         
@@ -1752,7 +1752,7 @@ public class MapBuilderEditor : EditorWindow
     private void BuildObjectHierarchy(Transform parent, ObjectType type, bool isPreview)
     {
         bool isTargetParking = (type == ObjectType.TargetParking);
-        float width = isTargetParking ? 5.2f : SlotWidth;
+        float width = SlotWidth;
         float length = isTargetParking ? 26.0f : SlotLength;
         float halfWidth = width * 0.5f;
         float stripeThickness = 0.18f;
@@ -1785,8 +1785,6 @@ public class MapBuilderEditor : EditorWindow
             srTractor.sortingOrder = truckSortOrder + 1;
             return;
         }
-
-        bool isTargetParking = (type == ObjectType.TargetParking);
 
         if (isTargetParking)
         {

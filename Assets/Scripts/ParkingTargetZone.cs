@@ -13,7 +13,7 @@ public class ParkingTargetZone : MonoBehaviour
     public static ParkingTargetZone Instance { get; private set; }
 
     [Header("Detection Parameters")]
-    [SerializeField] private Vector2 targetSlotSize = new Vector2(5.2f, 26.0f);
+    [SerializeField] private Vector2 targetSlotSize = new Vector2(4.5f, 26.0f);
     [SerializeField] private float requiredStayTime = 0.5f; // seconds stationary inside slot
 
     private Transform tractorTr;
@@ -35,10 +35,7 @@ public class ParkingTargetZone : MonoBehaviour
 
     private void Start()
     {
-        if (targetSlotSize.y < 25.0f || targetSlotSize.x < 5.0f)
-        {
-            targetSlotSize = new Vector2(5.2f, 26.0f);
-        }
+        targetSlotSize = new Vector2(4.5f, targetSlotSize.y < 25.0f ? 26.0f : targetSlotSize.y);
 
         UpdateVisualStripes();
         FindTruckComponents();
@@ -122,7 +119,7 @@ public class ParkingTargetZone : MonoBehaviour
     {
         if (tractorTr == null || trailerTr == null) return false;
 
-        float width = targetSlotSize.x > 0.1f ? targetSlotSize.x : 5.2f;
+        float width = 4.5f;
         float length = targetSlotSize.y > 0.1f ? targetSlotSize.y : 26.0f;
 
         float halfW = width * 0.5f;
