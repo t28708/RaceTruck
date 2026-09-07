@@ -183,33 +183,73 @@ public class ParkingTargetZone : MonoBehaviour
         float halfW = width * 0.5f;   // 2.25m
         float halfL = length * 0.5f;  // 13.0m
 
-        // Key points of Trailer in local slot space
-        Vector3 localTrailerCenter = transform.InverseTransformPoint(trailerTr.position);
-        Vector3 localTrailerFront = transform.InverseTransformPoint(trailerTr.position + trailerTr.up * 8.0f);
-        Vector3 localTrailerRear = transform.InverseTransformPoint(trailerTr.position - trailerTr.up * 8.0f);
+        // Yellow stripe thickness is 0.36m.
+        // Usable inner parking boundary (strictly inside the lines, not touching or standing on them):
+        float stripeThickness = 0.36f;
+        float maxInnerX = halfW - (stripeThickness * 0.5f); // 2.25 - 0.18 = 2.07m
+        float minInnerX = -maxInnerX;                       // -2.07m
+        float maxInnerY = halfL - (stripeThickness * 0.5f); // 13.0 - 0.18 = 12.82m (back cap line)
+        float minInnerY = -halfL;                           // -13.0m (front entrance threshold)
 
-        // Key points of Tractor in local slot space
-        Vector3 localTractorCenter = transform.InverseTransformPoint(tractorTr.position);
-        Vector3 localTractorFront = transform.InverseTransformPoint(tractorTr.position + tractorTr.up * 4.0f);
-        Vector3 localTractorRear = transform.InverseTransformPoint(tractorTr.position - tractorTr.up * 3.8f);
+        // 1. Check Tractor (all 4 corners of tractor body must be strictly inside the inner boundaries)
+        Vector2 tractorSize = new Vector2(2.55f, 8.2f);
+        Vector2 tractorOffset = Vector2.zero;
+        if (tractorTr.TryGetComponent<BoxCollider2D>(out var trCol))
+        {
+            tractorSize = trCol.size;
+            tractorOffset = trCol.offset;
+        }
 
-        // Allowed bounds: strict full vehicle bounding inside the 26m x 4.5m yellow box
-        float maxAllowedX = halfW + 0.4f; // max width 2.65m from centerline
-        float maxAllowedY = halfL + 0.5f; // max length 13.5m from center (entire rig within 26m slot)
+        float trHalfW = tractorSize.x * 0.5f;
+        float trHalfL = tractorSize.y * 0.5f;
 
-        // 1. Trailer must be fully inside the parking slot box
-        bool trailerCenterIn = Mathf.Abs(localTrailerCenter.x) <= maxAllowedX && Mathf.Abs(localTrailerCenter.y) <= maxAllowedY;
-        bool trailerRearIn = Mathf.Abs(localTrailerRear.x) <= maxAllowedX && Mathf.Abs(localTrailerRear.y) <= maxAllowedY;
-        bool trailerFrontIn = Mathf.Abs(localTrailerFront.x) <= maxAllowedX && Mathf.Abs(localTrailerFront.y) <= maxAllowedY;
-        bool trailerIn = trailerCenterIn && trailerRearIn && trailerFrontIn;
+        Vector3[] tractorCorners = new Vector3[]
+        {
+            tractorTr.TransformPoint(tractorOffset + new Vector2(-trHalfW, -trHalfL)),
+            tractorTr.TransformPoint(tractorOffset + new Vector2(trHalfW, -trHalfL)),
+            tractorTr.TransformPoint(tractorOffset + new Vector2(-trHalfW, trHalfL)),
+            tractorTr.TransformPoint(tractorOffset + new Vector2(trHalfW, trHalfL))
+        };
 
-        // 2. Tractor must be fully inside the parking slot box (front bumper, center, and rear within slot)
-        bool tractorCenterIn = Mathf.Abs(localTractorCenter.x) <= maxAllowedX && Mathf.Abs(localTractorCenter.y) <= maxAllowedY;
-        bool tractorFrontIn = Mathf.Abs(localTractorFront.x) <= maxAllowedX && Mathf.Abs(localTractorFront.y) <= maxAllowedY;
-        bool tractorRearIn = Mathf.Abs(localTractorRear.x) <= maxAllowedX && Mathf.Abs(localTractorRear.y) <= maxAllowedY;
-        bool tractorIn = tractorCenterIn && tractorFrontIn && tractorRearIn;
+        foreach (var worldCorner in tractorCorners)
+        {
+            Vector3 localP = transform.InverseTransformPoint(worldCorner);
+            if (localP.x < minInnerX || localP.x > maxInnerX || localP.y < minInnerY || localP.y > maxInnerY)
+            {
+                return false; // Part of the tractor is on or past the yellow lines / entrance
+            }
+        }
 
-        return trailerIn && tractorIn;
+        // 2. Check Trailer (all 4 corners of trailer body must be strictly inside the inner boundaries)
+        Vector2 trailerSize = new Vector2(2.58f, 15.9f);
+        Vector2 trailerOffset = Vector2.zero;
+        if (trailerTr.TryGetComponent<BoxCollider2D>(out var tlCol))
+        {
+            trailerSize = tlCol.size;
+            trailerOffset = tlCol.offset;
+        }
+
+        float tlHalfW = trailerSize.x * 0.5f;
+        float tlHalfL = trailerSize.y * 0.5f;
+
+        Vector3[] trailerCorners = new Vector3[]
+        {
+            trailerTr.TransformPoint(trailerOffset + new Vector2(-tlHalfW, -tlHalfL)),
+            trailerTr.TransformPoint(trailerOffset + new Vector2(tlHalfW, -tlHalfL)),
+            trailerTr.TransformPoint(trailerOffset + new Vector2(-tlHalfW, tlHalfL)),
+            trailerTr.TransformPoint(trailerOffset + new Vector2(tlHalfW, tlHalfL))
+        };
+
+        foreach (var worldCorner in trailerCorners)
+        {
+            Vector3 localP = transform.InverseTransformPoint(worldCorner);
+            if (localP.x < minInnerX || localP.x > maxInnerX || localP.y < minInnerY || localP.y > maxInnerY)
+            {
+                return false; // Part of the trailer is on or past the yellow lines / entrance
+            }
+        }
+
+        return true;
     }
 
     private bool IsTruckStopped()
