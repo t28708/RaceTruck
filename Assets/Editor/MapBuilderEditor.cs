@@ -249,7 +249,8 @@ public class MapBuilderEditor : EditorWindow
         Transform container = workspace.transform.Find(SlotsContainerName);
         if (container == null) return rawPos;
 
-        float bestDist = 2.4f; // magnetic snap distance threshold in meters
+        // Subtle, gentle magnetic snap threshold: 0.75 meters (gives 3.0m+ of smooth free movement between slots)
+        float bestDist = 0.75f;
         Vector2 bestSnapPos = rawPos;
         bool snapped = false;
 
@@ -269,16 +270,13 @@ public class MapBuilderEditor : EditorWindow
             Vector2 childRight = new Vector2(child.right.x, child.right.y);
             Vector2 childUp = new Vector2(child.up.x, child.up.y);
 
-            // Candidate snap points relative to existing slot:
-            // Side-by-side neighbors (1 to 3 slots away) and end-to-end connections
+            // Candidate snap points: only direct adjacent neighbor slots (+/- 4.5m side or +/- 26m end)
             Vector2[] candidateSnapPoints = new Vector2[]
             {
-                childPos + childRight * SlotWidth,        // +1 slot right (4.5m)
-                childPos - childRight * SlotWidth,        // -1 slot left (4.5m)
-                childPos + childRight * (SlotWidth * 2f), // +2 slots right (9.0m)
-                childPos - childRight * (SlotWidth * 2f), // -2 slots left (9.0m)
-                childPos + childUp * SlotLength,          // end-to-end forward (26.0m)
-                childPos - childUp * SlotLength           // end-to-end backward (26.0m)
+                childPos + childRight * SlotWidth, // +1 slot right (4.5m)
+                childPos - childRight * SlotWidth, // -1 slot left (4.5m)
+                childPos + childUp * SlotLength,   // end-to-end forward (26.0m)
+                childPos - childUp * SlotLength    // end-to-end backward (26.0m)
             };
 
             foreach (var cand in candidateSnapPoints)
