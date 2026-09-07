@@ -992,25 +992,20 @@ public class MapBuilderEditor : EditorWindow
             DrawWorldGrid(width, length);
         }
 
-        // Interactive 2D Handles (Position & Rotation) for ANY object in Scene View (Free Mouse Movement)
+        // Interactive 2D Handles (Position & Rotation) for ANY object in Scene View (Free Mouse Movement & Rotation)
         EditorGUI.BeginChangeCheck();
         Vector3 curPos3 = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
         Quaternion curRotQ = Quaternion.Euler(0f, 0f, currentRotation);
 
         Vector3 newPos = Handles.PositionHandle(curPos3, curRotQ);
-        Quaternion newRotQ = (currentObjectType == ObjectType.TruckStartPoint) 
-            ? Handles.RotationHandle(curRotQ, curPos3) 
-            : curRotQ;
+        Quaternion newRotQ = Handles.RotationHandle(curRotQ, curPos3);
 
         if (EditorGUI.EndChangeCheck())
         {
             cursorPosition = new Vector2(newPos.x, newPos.y);
-            if (currentObjectType == ObjectType.TruckStartPoint)
-            {
-                float zAngle = newRotQ.eulerAngles.z;
-                if (zAngle < 0f) zAngle += 360f;
-                currentRotation = zAngle;
-            }
+            float zAngle = newRotQ.eulerAngles.z;
+            if (zAngle < 0f) zAngle += 360f;
+            currentRotation = zAngle;
             UpdateGhostPreview();
             Repaint();
         }
@@ -1108,35 +1103,47 @@ public class MapBuilderEditor : EditorWindow
             }
             else
             {
-                float stepX = isRotatedHorizontal ? length : width;
-                float stepY = isRotatedHorizontal ? width : length;
+                Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
+                Vector3 forwardDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.up;
+
+                float stepSide = SlotWidth; // 4.5m across slots
+                float stepLen = (currentObjectType == ObjectType.TargetParking) ? 26.0f : SlotLength;
 
                 if (e.shift)
                 {
-                    stepX *= 2f;
-                    stepY *= 2f;
+                    stepSide *= 2f;
+                    stepLen *= 2f;
+                }
+                else if (e.alt || e.control)
+                {
+                    stepSide = 0.5f;
+                    stepLen = 0.5f;
                 }
 
                 switch (e.keyCode)
                 {
                     case KeyCode.W:
                     case KeyCode.UpArrow:
-                        MoveCursor(new Vector2(0f, stepY));
+                        cursorPosition += new Vector2(forwardDir.x, forwardDir.y) * stepLen;
+                        UpdateGhostPreview();
                         handled = true;
                         break;
                     case KeyCode.S:
                     case KeyCode.DownArrow:
-                        MoveCursor(new Vector2(0f, -stepY));
+                        cursorPosition -= new Vector2(forwardDir.x, forwardDir.y) * stepLen;
+                        UpdateGhostPreview();
                         handled = true;
                         break;
                     case KeyCode.A:
                     case KeyCode.LeftArrow:
-                        MoveCursor(new Vector2(-stepX, 0f));
+                        cursorPosition -= new Vector2(rightDir.x, rightDir.y) * stepSide;
+                        UpdateGhostPreview();
                         handled = true;
                         break;
                     case KeyCode.D:
                     case KeyCode.RightArrow:
-                        MoveCursor(new Vector2(stepX, 0f));
+                        cursorPosition += new Vector2(rightDir.x, rightDir.y) * stepSide;
+                        UpdateGhostPreview();
                         handled = true;
                         break;
 
@@ -1146,7 +1153,7 @@ public class MapBuilderEditor : EditorWindow
                         break;
 
                     case KeyCode.R:
-                        RotateCursor(90f);
+                        RotateCursor(e.shift ? 15f : (e.alt || e.control ? 5f : 45f));
                         handled = true;
                         break;
 
@@ -1236,10 +1243,6 @@ public class MapBuilderEditor : EditorWindow
     {
         currentRotation = (currentRotation + angleDelta) % 360f;
         if (currentRotation < 0f) currentRotation += 360f;
-        if (currentObjectType != ObjectType.TruckStartPoint)
-        {
-            SnapCursorToGrid();
-        }
         UpdateGhostPreview();
     }
 
@@ -1292,8 +1295,8 @@ public class MapBuilderEditor : EditorWindow
 
             GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
             helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
-            GUI.Label(new Rect(24, 104, 330, 18), "[WASD/Стрелки] Шаг 4.5м | [Мышь] Свободно / Стрелки гизмо", helpStyle);
-            GUI.Label(new Rect(24, 122, 330, 18), "[R] Поворот 90° | [G] Привязать к 4.5м | [Enter] Поставить", helpStyle);
+            GUI.Label(new Rect(24, 104, 330, 18), "[WASD/Стрелки] Шаг 4.5м по диагонали | [Мышь] Свободно", helpStyle);
+            GUI.Label(new Rect(24, 122, 330, 18), "[R] Поворот 45° (Shift: 15°) | [G] Сетка 4.5м | [Enter] Ставить", helpStyle);
             GUI.Label(new Rect(24, 140, 330, 18), "[Del] Удалить под курсором | [C] Сменить объект", helpStyle);
         }
 
@@ -1359,9 +1362,9 @@ public class MapBuilderEditor : EditorWindow
         }
 
         GUI.backgroundColor = new Color(1f, 0.85f, 0.2f, 0.9f);
-        if (GUI.Button(new Rect(startX + 403, btnY, 78, btnH), currentObjectType == ObjectType.TruckStartPoint ? "⟳ 15°" : "⟳ 90°"))
+        if (GUI.Button(new Rect(startX + 403, btnY, 78, btnH), "⟳ 45°"))
         {
-            RotateCursor(currentObjectType == ObjectType.TruckStartPoint ? 15f : 90f);
+            RotateCursor(45f);
         }
 
         GUI.backgroundColor = new Color(0.2f, 0.9f, 0.3f, 0.95f);
