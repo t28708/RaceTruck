@@ -992,38 +992,36 @@ public class MapBuilderEditor : EditorWindow
             DrawWorldGrid(width, length);
         }
 
-        // Interactive 2D Handles (Position & Rotation) for TruckStartPoint in Scene View
-        if (currentObjectType == ObjectType.TruckStartPoint)
+        // Interactive 2D Handles (Position & Rotation) for ANY object in Scene View (Free Mouse Movement)
+        EditorGUI.BeginChangeCheck();
+        Vector3 curPos3 = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
+        Quaternion curRotQ = Quaternion.Euler(0f, 0f, currentRotation);
+
+        Vector3 newPos = Handles.PositionHandle(curPos3, curRotQ);
+        Quaternion newRotQ = (currentObjectType == ObjectType.TruckStartPoint) 
+            ? Handles.RotationHandle(curRotQ, curPos3) 
+            : curRotQ;
+
+        if (EditorGUI.EndChangeCheck())
         {
-            EditorGUI.BeginChangeCheck();
-            Vector3 curPos3 = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
-            Quaternion curRotQ = Quaternion.Euler(0f, 0f, currentRotation);
-
-            Vector3 newPos = Handles.PositionHandle(curPos3, curRotQ);
-            Quaternion newRotQ = Handles.RotationHandle(curRotQ, curPos3);
-
-            if (EditorGUI.EndChangeCheck())
+            cursorPosition = new Vector2(newPos.x, newPos.y);
+            if (currentObjectType == ObjectType.TruckStartPoint)
             {
-                cursorPosition = new Vector2(newPos.x, newPos.y);
                 float zAngle = newRotQ.eulerAngles.z;
                 if (zAngle < 0f) zAngle += 360f;
                 currentRotation = zAngle;
-                UpdateGhostPreview();
-                Repaint();
             }
+            UpdateGhostPreview();
+            Repaint();
         }
 
-        // Handle Mouse Click in Scene View (Strict Grid Snap for stalls, Free Click for Truck Start)
-        if (snapMouseClick && e.type == EventType.MouseDown && e.button == 0 && !e.alt && !e.control && GUIUtility.hotControl == 0)
+        // Handle Mouse Click in Scene View (Free Mouse Click without grid snapping)
+        if (e.type == EventType.MouseDown && e.button == 0 && !e.alt && !e.control && GUIUtility.hotControl == 0)
         {
             Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
             Vector3 clickPos = ray.origin;
             
             cursorPosition = new Vector2(clickPos.x, clickPos.y);
-            if (currentObjectType != ObjectType.TruckStartPoint)
-            {
-                SnapCursorToGrid();
-            }
 
             UpdateGhostPreview();
             Repaint();
@@ -1070,6 +1068,12 @@ public class MapBuilderEditor : EditorWindow
 
                     case KeyCode.R:
                         RotateCursor(e.shift ? 45f : 15f);
+                        handled = true;
+                        break;
+
+                    case KeyCode.G:
+                        SnapCursorToGrid();
+                        UpdateGhostPreview();
                         handled = true;
                         break;
 
@@ -1143,6 +1147,12 @@ public class MapBuilderEditor : EditorWindow
 
                     case KeyCode.R:
                         RotateCursor(90f);
+                        handled = true;
+                        break;
+
+                    case KeyCode.G:
+                        SnapCursorToGrid();
+                        UpdateGhostPreview();
                         handled = true;
                         break;
 
@@ -1276,15 +1286,15 @@ public class MapBuilderEditor : EditorWindow
         }
         else
         {
-            GUI.Label(new Rect(24, 40, 330, 20), "Сетка: <color=#55ffff>4.5м (Стандартная)</color>", textStyle);
+            GUI.Label(new Rect(24, 40, 330, 20), "Мышь: <color=#55ff55>Свободное перемещение</color> | Клавиши: <color=#55ffff>4.5м</color>", textStyle);
             GUI.Label(new Rect(24, 60, 330, 20), "Объект: " + ObjectTypeNames[(int)currentObjectType], textStyle);
-            GUI.Label(new Rect(24, 80, 330, 20), "Ячейка: X: " + cursorPosition.x.ToString("F1") + " | Y: " + cursorPosition.y.ToString("F1") + " | " + currentRotation.ToString("F0") + "°", textStyle);
+            GUI.Label(new Rect(24, 80, 330, 20), "Позиция: X: " + cursorPosition.x.ToString("F2") + "м | Y: " + cursorPosition.y.ToString("F2") + "м | " + currentRotation.ToString("F0") + "°", textStyle);
 
             GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
             helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
-            GUI.Label(new Rect(24, 104, 330, 18), "[WASD / Стрелки] Шаг по сетке | [C] Сменить объект", helpStyle);
-            GUI.Label(new Rect(24, 122, 330, 18), "[R] Поворот 90° | [Enter/Space] Поставить", helpStyle);
-            GUI.Label(new Rect(24, 140, 330, 18), "[Del] Удалить | [Клик] Выбрать ячейку на карте", helpStyle);
+            GUI.Label(new Rect(24, 104, 330, 18), "[WASD/Стрелки] Шаг 4.5м | [Мышь] Свободно / Стрелки гизмо", helpStyle);
+            GUI.Label(new Rect(24, 122, 330, 18), "[R] Поворот 90° | [G] Привязать к 4.5м | [Enter] Поставить", helpStyle);
+            GUI.Label(new Rect(24, 140, 330, 18), "[Del] Удалить под курсором | [C] Сменить объект", helpStyle);
         }
 
         GUI.backgroundColor = new Color(0.2f, 0.7f, 1f, 0.95f);
@@ -1530,7 +1540,6 @@ public class MapBuilderEditor : EditorWindow
         {
             Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
             cursorPosition += new Vector2(rightDir.x, rightDir.y) * SlotWidth;
-            SnapCursorToGrid();
             UpdateGhostPreview();
         }
 
@@ -1588,7 +1597,6 @@ public class MapBuilderEditor : EditorWindow
         {
             Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
             cursorPosition += new Vector2(rightDir.x, rightDir.y) * SlotWidth;
-            SnapCursorToGrid();
             UpdateGhostPreview();
         }
 
