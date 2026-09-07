@@ -15,7 +15,7 @@ public class ParkingTargetZone : MonoBehaviour
 
     [Header("Detection Parameters")]
     [SerializeField] private Vector2 targetSlotSize = new Vector2(4.5f, 26.0f);
-    [SerializeField] private float requiredStayTime = 0.5f; // seconds stationary inside slot
+    [SerializeField] private float requiredStayTime = 0.15f; // seconds stationary inside slot
 
     private Transform tractorTr;
     private Transform trailerTr;
@@ -32,18 +32,21 @@ public class ParkingTargetZone : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+        requiredStayTime = 0.15f;
         targetSlotSize = new Vector2(4.5f, targetSlotSize.y < 25.0f ? 26.0f : targetSlotSize.y);
         UpdateVisualStripes();
     }
 
     private void OnValidate()
     {
+        requiredStayTime = 0.15f;
         targetSlotSize = new Vector2(4.5f, targetSlotSize.y < 25.0f ? 26.0f : targetSlotSize.y);
         UpdateVisualStripes();
     }
 
     private void Start()
     {
+        requiredStayTime = 0.15f;
         targetSlotSize = new Vector2(4.5f, targetSlotSize.y < 25.0f ? 26.0f : targetSlotSize.y);
         UpdateVisualStripes();
         FindTruckComponents();
@@ -119,7 +122,7 @@ public class ParkingTargetZone : MonoBehaviour
         }
         else
         {
-            parkTimer = Mathf.Max(0f, parkTimer - Time.deltaTime * 2f);
+            parkTimer = 0f;
         }
     }
 
@@ -141,36 +144,23 @@ public class ParkingTargetZone : MonoBehaviour
         // Key points of Tractor in local slot space
         Vector3 localTractorCenter = transform.InverseTransformPoint(tractorTr.position);
         Vector3 localTractorFront = transform.InverseTransformPoint(tractorTr.position + tractorTr.up * 4.1f);
+        Vector3 localTractorRear = transform.InverseTransformPoint(tractorTr.position - tractorTr.up * 4.1f);
 
-        // Tolerances:
-        // Lateral (X): allow trailer within stall lane (halfW + 0.8m)
-        float maxAllowedX_Trailer = halfW + 0.8f;
-        float maxAllowedX_Tractor = halfW + 1.2f;
+        // Allowed bounds with comfortable tolerance
+        float maxAllowedX = halfW + 1.0f;
+        float maxAllowedY = halfL + 3.0f;
 
-        // Longitudinal (Y): generous tolerance along slot length so backing in or pulling in triggers smoothly
-        float maxAllowedY = halfL + 2.8f;
+        // Check if Trailer is inside the parking box
+        bool trailerIn = Mathf.Abs(localTrailerCenter.x) <= maxAllowedX && Mathf.Abs(localTrailerCenter.y) <= maxAllowedY &&
+                         Mathf.Abs(localTrailerFront.x) <= maxAllowedX && Mathf.Abs(localTrailerFront.y) <= maxAllowedY &&
+                         Mathf.Abs(localTrailerRear.x) <= maxAllowedX && Mathf.Abs(localTrailerRear.y) <= maxAllowedY;
 
-        // Check if trailer is well aligned within the parking stall lane
-        bool trailerXIn = Mathf.Abs(localTrailerCenter.x) <= maxAllowedX_Trailer &&
-                          Mathf.Abs(localTrailerFront.x) <= maxAllowedX_Trailer &&
-                          Mathf.Abs(localTrailerRear.x) <= maxAllowedX_Trailer;
+        // Check if Tractor is inside the parking box
+        bool tractorIn = Mathf.Abs(localTractorCenter.x) <= maxAllowedX && Mathf.Abs(localTractorCenter.y) <= maxAllowedY &&
+                         Mathf.Abs(localTractorFront.x) <= maxAllowedX && Mathf.Abs(localTractorFront.y) <= maxAllowedY &&
+                         Mathf.Abs(localTractorRear.x) <= maxAllowedX && Mathf.Abs(localTractorRear.y) <= maxAllowedY;
 
-        bool trailerYIn = Mathf.Abs(localTrailerCenter.y) <= maxAllowedY &&
-                          Mathf.Abs(localTrailerFront.y) <= maxAllowedY &&
-                          Mathf.Abs(localTrailerRear.y) <= maxAllowedY;
-
-        // Check if tractor cab is also in or aligned in front of slot
-        bool tractorXIn = Mathf.Abs(localTractorCenter.x) <= maxAllowedX_Tractor &&
-                          Mathf.Abs(localTractorFront.x) <= maxAllowedX_Tractor;
-
-        bool tractorYIn = Mathf.Abs(localTractorCenter.y) <= (halfL + 4.5f) &&
-                          Mathf.Abs(localTractorFront.y) <= (halfL + 4.5f);
-
-        // Check angular alignment (trailer should be oriented along the slot axis, <= 25 degrees)
-        float angleDiff = Vector3.Angle(trailerTr.up, transform.up);
-        bool angleAligned = (angleDiff <= 25f || angleDiff >= 155f);
-
-        return trailerXIn && trailerYIn && tractorXIn && tractorYIn && angleAligned;
+        return trailerIn && tractorIn;
     }
 
     private bool IsTruckStopped()
@@ -184,7 +174,7 @@ public class ParkingTargetZone : MonoBehaviour
         {
             speed = tractorRb.linearVelocity.magnitude;
         }
-        return speed < 0.35f;
+        return speed < 0.4f;
     }
 
     private void TriggerSuccess()
