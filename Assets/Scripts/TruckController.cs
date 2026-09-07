@@ -369,31 +369,56 @@ public class TruckController : MonoBehaviour
         brakeImg.color = new Color(1f, 1f, 1f, 0.90f);
         brakeImg.sprite = GetOrCreateSprite("PedalBrake", () => GeneratePedalTexture(new Color(0.65f, 0.15f, 0.15f, 0.95f), "BRAKE"));
 
-        // 3. HUD Text
-        if (hudText == null)
+        // 3. HUD Plashka (Telemetry Panel with Speed, Steer, Articulation Angle)
+        Transform hudPanelTrans = canvasGo.transform.Find("HUD_Panel");
+        GameObject hudPanelGo = (hudPanelTrans != null) ? hudPanelTrans.gameObject : null;
+        if (hudPanelGo == null)
         {
-            Transform hudTrans = canvasGo.transform.Find("TruckHUDText");
-            GameObject hudGo = (hudTrans != null) ? hudTrans.gameObject : null;
-            if (hudGo == null)
+            Transform oldHud = canvasGo.transform.Find("TruckHUDText");
+            if (oldHud != null) Destroy(oldHud.gameObject);
+
+            hudPanelGo = new GameObject("HUD_Panel");
+            hudPanelGo.transform.SetParent(canvasGo.transform, false);
+            
+            RectTransform panelRt = hudPanelGo.AddComponent<RectTransform>();
+            panelRt.anchorMin = new Vector2(0.5f, 1f);
+            panelRt.anchorMax = new Vector2(0.5f, 1f);
+            panelRt.pivot = new Vector2(0.5f, 1f);
+            panelRt.anchoredPosition = new Vector2(0f, -20f);
+            panelRt.sizeDelta = new Vector2(1050f, 54f);
+
+            Image panelImg = hudPanelGo.AddComponent<Image>();
+            panelImg.color = new Color(0.08f, 0.09f, 0.13f, 0.85f);
+            panelImg.raycastTarget = false;
+
+            GameObject hudTextGo = new GameObject("TruckHUDText");
+            hudTextGo.transform.SetParent(hudPanelGo.transform, false);
+            RectTransform textRt = hudTextGo.AddComponent<RectTransform>();
+            textRt.anchorMin = Vector2.zero;
+            textRt.anchorMax = Vector2.one;
+            textRt.offsetMin = new Vector2(15f, 4f);
+            textRt.offsetMax = new Vector2(-15f, -4f);
+
+            Text t = hudTextGo.AddComponent<Text>();
+            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            if (font != null) t.font = font;
+            t.alignment = TextAnchor.MiddleCenter;
+            t.fontSize = 20;
+            t.fontStyle = FontStyle.Bold;
+            t.color = new Color(1f, 0.95f, 0.8f, 1f);
+            t.supportRichText = true;
+            t.raycastTarget = false;
+            hudText = t;
+        }
+        else
+        {
+            hudText = hudPanelGo.GetComponentInChildren<Text>();
+            if (hudText != null && hudText.font == null)
             {
-                hudGo = new GameObject("TruckHUDText");
-                hudGo.transform.SetParent(canvasGo.transform, false);
-                RectTransform hudRect = hudGo.AddComponent<RectTransform>();
-                hudRect.anchorMin = new Vector2(0.5f, 1f);
-                hudRect.anchorMax = new Vector2(0.5f, 1f);
-                hudRect.pivot = new Vector2(0.5f, 1f);
-                hudRect.anchoredPosition = new Vector2(0f, -25f);
-                hudRect.sizeDelta = new Vector2(650f, 160f);
-                Text t = hudGo.AddComponent<Text>();
-                t.alignment = TextAnchor.UpperCenter;
-                t.fontSize = 24;
-                t.fontStyle = FontStyle.Bold;
-                t.color = Color.white;
-                hudText = t;
-            }
-            else
-            {
-                hudText = hudGo.GetComponent<Text>();
+                Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+                if (font != null) hudText.font = font;
             }
         }
 
@@ -970,7 +995,20 @@ public class TruckController : MonoBehaviour
 
     private void UpdateHUD()
     {
+        if (hudText == null)
+        {
+            GameObject hudGo = GameObject.Find("TruckHUDText");
+            if (hudGo != null) hudText = hudGo.GetComponent<Text>();
+        }
+
         if (hudText == null) return;
+
+        if (hudText.font == null)
+        {
+            Font f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (f == null) f = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            if (f != null) hudText.font = f;
+        }
 
         float kmh = Mathf.Abs(currentSpeed) * 3.6f;
         string gear = "N";
@@ -982,16 +1020,16 @@ public class TruckController : MonoBehaviour
         if (currentSpeed > 0.05f)
         {
             gear = "D";
-            if (reverseInput) mode = "МГНОВЕННЫЙ ТОРМОЗ";
+            if (reverseInput) mode = "ТОРМОЗ";
             else if (forwardInput) mode = "ГАЗ (10 км/ч)";
-            else mode = "ПЛАВНЫЙ НАКАТ";
+            else mode = "НАКАТ";
         }
         else if (currentSpeed < -0.05f)
         {
             gear = "R";
-            if (forwardInput) mode = "МГНОВЕННЫЙ ТОРМОЗ";
+            if (forwardInput) mode = "ТОРМОЗ";
             else if (reverseInput) mode = "НАЗАД (10 км/ч)";
-            else mode = "ПЛАВНЫЙ НАКАТ";
+            else mode = "НАКАТ";
         }
         else
         {
@@ -1017,25 +1055,22 @@ public class TruckController : MonoBehaviour
         string warning = "";
         if (isJackknifed)
         {
-            warning = " | <color=#FF1111>💥 СКЛАДЫВАНИЕ! НАЖМИТЕ [ГАЗ / W] ДЛЯ ВЫРАВНИВАНИЯ 💥</color>";
+            warning = " | <color=#FF2222>💥 СКЛАДЫВАНИЕ! НАЖМИТЕ [ГАЗ / W] 💥</color>";
         }
         else if (isBlockedReverse)
         {
-            warning = " | <color=#FF3333>⚠️ УДАР СЗАДИ! НАЖМИТЕ [ГАЗ / W], ЧТОБЫ ОТЪЕХАТЬ ⚠️</color>";
+            warning = " | <color=#FF4444>⚠️ УДАР СЗАДИ! НАЖМИТЕ [ГАЗ / W] ⚠️</color>";
         }
         else if (isBlockedForward)
         {
-            warning = " | <color=#FF3333>⚠️ УДАР СПЕРЕДИ! НАЖМИТЕ [ТОРМОЗ / S], ЧТОБЫ СДАТЬ НАЗАД ⚠️</color>";
+            warning = " | <color=#FF4444>⚠️ УДАР СПЕРЕДИ! НАЖМИТЕ [ТОРМОЗ / S] ⚠️</color>";
         }
         else if (Mathf.Abs(articulation) > maxArticulationAngle * 0.8f)
         {
             warning = $" | <color=#FFAA00>⚠️ ОПАСНОСТЬ СКЛАДЫВАНИЯ ({Mathf.Abs(articulation):0}°/{maxArticulationAngle:0}°)</color>";
         }
 
-        TruckGuideLines gl = GetComponent<TruckGuideLines>();
-        string linesStatus = (gl != null && gl.ShowGuideLines) ? "ВКЛ" : "ВЫКЛ";
-
-        hudText.text = $"SPEED: {kmh:0.0} km/h [{gear}:{mode}] | РУЛЬ: {steerStr} | СЦЕПКА: {Mathf.Abs(articulation):0.0}° | [L] ЛИНИИ: {linesStatus} | МАСШТАБ: {camZoom}{warning}";
+        hudText.text = $"СКОРОСТЬ: <color=#55FFFF>{kmh:0.0} км/ч</color> [{gear}:{mode}] | РУЛЬ: <color=#FFFF55>{steerStr}</color> | СЦЕПКА: <color=#55FF55>{Mathf.Abs(articulation):0.0}°</color> | ЗУМ: <color=#FFAA55>{camZoom}</color>{warning}";
     }
 
     private void FixedUpdate()

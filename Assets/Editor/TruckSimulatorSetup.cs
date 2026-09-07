@@ -138,25 +138,41 @@ public static class TruckSimulatorSetup
         PedalUI brakePedal = brakeGo.AddComponent<PedalUI>();
         brakePedal.SetPedalType(PedalUI.PedalType.BrakeReverse);
 
-        // Dashboard HUD Text
+        // Dashboard HUD Panel & Text
+        GameObject hudPanelGo = new GameObject("HUD_Panel");
+        hudPanelGo.transform.SetParent(canvasGo.transform, false);
+
+        RectTransform panelRt = hudPanelGo.AddComponent<RectTransform>();
+        panelRt.anchorMin = new Vector2(0.5f, 1f);
+        panelRt.anchorMax = new Vector2(0.5f, 1f);
+        panelRt.pivot = new Vector2(0.5f, 1f);
+        panelRt.anchoredPosition = new Vector2(0f, -20f);
+        panelRt.sizeDelta = new Vector2(1050f, 54f);
+
+        Image panelImg = hudPanelGo.AddComponent<Image>();
+        panelImg.color = new Color(0.08f, 0.09f, 0.13f, 0.85f);
+        panelImg.raycastTarget = false;
+
         GameObject hudGo = new GameObject("TruckHUDText");
-        hudGo.transform.SetParent(canvasGo.transform, false);
+        hudGo.transform.SetParent(hudPanelGo.transform, false);
 
         RectTransform hudRt = hudGo.AddComponent<RectTransform>();
-        hudRt.anchorMin = new Vector2(0.5f, 0.94f);
-        hudRt.anchorMax = new Vector2(0.5f, 0.94f);
-        hudRt.pivot = new Vector2(0.5f, 0.5f);
-        hudRt.anchoredPosition = Vector2.zero;
-        hudRt.sizeDelta = new Vector2(1200, 50);
+        hudRt.anchorMin = Vector2.zero;
+        hudRt.anchorMax = Vector2.one;
+        hudRt.offsetMin = new Vector2(15f, 4f);
+        hudRt.offsetMax = new Vector2(-15f, -4f);
 
         Text hudText = hudGo.AddComponent<Text>();
         Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
         if (font != null) hudText.font = font;
-        hudText.fontSize = 22;
+        hudText.fontSize = 20;
+        hudText.fontStyle = FontStyle.Bold;
         hudText.alignment = TextAnchor.MiddleCenter;
-        hudText.color = new Color(1f, 0.92f, 0.3f, 1f);
-        hudText.text = "SPEED: 0 km/h | GEAR: [N] | РУЛЬ: 0° | СЦЕПКА: 0° | [C] КАМЕРА: СВЕРХУ";
+        hudText.color = new Color(1f, 0.95f, 0.8f, 1f);
+        hudText.supportRichText = true;
+        hudText.raycastTarget = false;
+        hudText.text = "СКОРОСТЬ: 0.0 км/ч [N:СТОП] | РУЛЬ: 0° | СЦЕПКА: 0.0° | ЗУМ: 1x";
 
         // Big Crash Banner Text
         GameObject crashTextGo = new GameObject("CrashBannerText");
