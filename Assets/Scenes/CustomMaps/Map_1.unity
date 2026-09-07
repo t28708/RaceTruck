@@ -12068,7 +12068,7 @@ GameObject:
   m_Component:
   - component: {fileID: 732319540}
   m_Layer: 0
-  m_Name: Stall_Standard_Empty
+  m_Name: Stall_Standard_Parked
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -12083,7 +12083,7 @@ Transform:
   m_GameObject: {fileID: 732319539}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 6.75, y: 13, z: 0}
+  m_LocalPosition: {x: 2.25, y: 13, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -21181,7 +21181,7 @@ Transform:
   m_GameObject: {fileID: 1324730326}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 2.25, y: 13, z: 0}
+  m_LocalPosition: {x: 6.75, y: 13, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -31088,12 +31088,12 @@ GameObject:
   - component: {fileID: 2019148818}
   - component: {fileID: 2019148819}
   m_Layer: 0
-  m_Name: TargetStall_Arrow
+  m_Name: TargetStall_Arrow_Inactive
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &2019148818
 Transform:
   m_ObjectHideFlags: 0

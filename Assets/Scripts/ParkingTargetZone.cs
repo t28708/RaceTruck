@@ -11,16 +11,18 @@ using UnityEngine.SceneManagement;
 [ExecuteAlways]
 public class ParkingTargetZone : MonoBehaviour
 {
+    public static List<ParkingTargetZone> AllZones { get; private set; } = new List<ParkingTargetZone>();
     public static ParkingTargetZone Instance { get; private set; }
 
     [Header("Detection Parameters")]
     [SerializeField] private Vector2 targetSlotSize = new Vector2(4.5f, 26.0f);
-    [SerializeField] private float requiredStayTime = 0.15f; // seconds stationary inside slot
+    [SerializeField] private float requiredStayTime = 0.05f; // seconds stationary inside slot
 
     private Transform tractorTr;
     private Transform trailerTr;
     private Rigidbody2D tractorRb;
     private Rigidbody2D trailerRb;
+    private TruckController truckController;
 
     private float parkTimer = 0f;
     private bool isParkedSuccessfully = false;
@@ -29,24 +31,41 @@ public class ParkingTargetZone : MonoBehaviour
 
     public bool IsParkedSuccessfully => isParkedSuccessfully;
 
+    private void OnEnable()
+    {
+        if (!AllZones.Contains(this))
+        {
+            AllZones.Add(this);
+        }
+    }
+
+    private void OnDisable()
+    {
+        AllZones.Remove(this);
+    }
+
     private void Awake()
     {
         Instance = this;
-        requiredStayTime = 0.15f;
+        if (!AllZones.Contains(this))
+        {
+            AllZones.Add(this);
+        }
+        requiredStayTime = 0.05f;
         targetSlotSize = new Vector2(4.5f, targetSlotSize.y < 25.0f ? 26.0f : targetSlotSize.y);
         UpdateVisualStripes();
     }
 
     private void OnValidate()
     {
-        requiredStayTime = 0.15f;
+        requiredStayTime = 0.05f;
         targetSlotSize = new Vector2(4.5f, targetSlotSize.y < 25.0f ? 26.0f : targetSlotSize.y);
         UpdateVisualStripes();
     }
 
     private void Start()
     {
-        requiredStayTime = 0.15f;
+        requiredStayTime = 0.05f;
         targetSlotSize = new Vector2(4.5f, targetSlotSize.y < 25.0f ? 26.0f : targetSlotSize.y);
         UpdateVisualStripes();
         FindTruckComponents();
@@ -84,18 +103,37 @@ public class ParkingTargetZone : MonoBehaviour
 
     private void FindTruckComponents()
     {
-        GameObject tractor = GameObject.Find("Tractor");
-        if (tractor != null)
+        truckController = TruckController.Instance;
+        if (truckController == null)
         {
-            tractorTr = tractor.transform;
-            tractorRb = tractor.GetComponent<Rigidbody2D>();
+            truckController = UnityEngine.Object.FindFirstObjectByType<TruckController>();
         }
 
-        GameObject trailer = GameObject.Find("Trailer");
-        if (trailer != null)
+        if (truckController != null)
         {
-            trailerTr = trailer.transform;
-            trailerRb = trailer.GetComponent<Rigidbody2D>();
+            tractorTr = truckController.transform;
+            tractorRb = truckController.GetComponent<Rigidbody2D>();
+            if (truckController.TrailerRb != null)
+            {
+                trailerTr = truckController.TrailerRb.transform;
+                trailerRb = truckController.TrailerRb;
+            }
+        }
+        else
+        {
+            // Fallback for safety
+            TruckController[] allControllers = UnityEngine.Object.FindObjectsByType<TruckController>(FindObjectsSortMode.None);
+            if (allControllers != null && allControllers.Length > 0)
+            {
+                truckController = allControllers[0];
+                tractorTr = truckController.transform;
+                tractorRb = truckController.GetComponent<Rigidbody2D>();
+                if (truckController.TrailerRb != null)
+                {
+                    trailerTr = truckController.TrailerRb.transform;
+                    trailerRb = truckController.TrailerRb;
+                }
+            }
         }
     }
 
@@ -103,7 +141,7 @@ public class ParkingTargetZone : MonoBehaviour
     {
         if (isParkedSuccessfully) return;
 
-        if (tractorTr == null || trailerTr == null)
+        if (tractorTr == null || trailerTr == null || truckController == null)
         {
             FindTruckComponents();
             if (tractorTr == null || trailerTr == null) return;
@@ -126,6 +164,16 @@ public class ParkingTargetZone : MonoBehaviour
         }
     }
 
+    public bool CheckTruckInsideAndStopped()
+    {
+        if (tractorTr == null || trailerTr == null || truckController == null)
+        {
+            FindTruckComponents();
+            if (tractorTr == null || trailerTr == null) return false;
+        }
+        return IsTruckInsideTarget() && IsTruckStopped();
+    }
+
     private bool IsTruckInsideTarget()
     {
         if (tractorTr == null || trailerTr == null) return false;
@@ -138,27 +186,26 @@ public class ParkingTargetZone : MonoBehaviour
 
         // Key points of Trailer in local slot space
         Vector3 localTrailerCenter = transform.InverseTransformPoint(trailerTr.position);
-        Vector3 localTrailerFront = transform.InverseTransformPoint(trailerTr.position + trailerTr.up * 7.95f);
-        Vector3 localTrailerRear = transform.InverseTransformPoint(trailerTr.position - trailerTr.up * 7.95f);
+        Vector3 localTrailerFront = transform.InverseTransformPoint(trailerTr.position + trailerTr.up * 7.5f);
+        Vector3 localTrailerRear = transform.InverseTransformPoint(trailerTr.position - trailerTr.up * 7.5f);
 
         // Key points of Tractor in local slot space
         Vector3 localTractorCenter = transform.InverseTransformPoint(tractorTr.position);
-        Vector3 localTractorFront = transform.InverseTransformPoint(tractorTr.position + tractorTr.up * 4.1f);
-        Vector3 localTractorRear = transform.InverseTransformPoint(tractorTr.position - tractorTr.up * 4.1f);
+        Vector3 localTractorFront = transform.InverseTransformPoint(tractorTr.position + tractorTr.up * 3.8f);
 
         // Allowed bounds with comfortable tolerance
-        float maxAllowedX = halfW + 1.2f;
-        float maxAllowedY = halfL + 3.5f;
+        float maxAllowedX = halfW + 1.25f; // 3.5m from centerline
+        float maxAllowedY = halfL + 3.0f;  // 16.0m from center
 
-        // Check if Trailer is inside the parking box
-        bool trailerIn = Mathf.Abs(localTrailerCenter.x) <= maxAllowedX && Mathf.Abs(localTrailerCenter.y) <= maxAllowedY &&
-                         Mathf.Abs(localTrailerFront.x) <= maxAllowedX && Mathf.Abs(localTrailerFront.y) <= maxAllowedY &&
-                         Mathf.Abs(localTrailerRear.x) <= maxAllowedX && Mathf.Abs(localTrailerRear.y) <= maxAllowedY;
+        // Check if Trailer is inside the parking slot box
+        bool trailerCenterIn = Mathf.Abs(localTrailerCenter.x) <= maxAllowedX && Mathf.Abs(localTrailerCenter.y) <= maxAllowedY;
+        bool trailerRearIn = Mathf.Abs(localTrailerRear.x) <= maxAllowedX && Mathf.Abs(localTrailerRear.y) <= maxAllowedY;
+        bool trailerFrontIn = Mathf.Abs(localTrailerFront.x) <= maxAllowedX && Mathf.Abs(localTrailerFront.y) <= maxAllowedY;
+        bool trailerIn = trailerCenterIn && (trailerRearIn || trailerFrontIn);
 
-        // Check if Tractor is inside the parking box
-        bool tractorIn = Mathf.Abs(localTractorCenter.x) <= maxAllowedX && Mathf.Abs(localTractorCenter.y) <= maxAllowedY &&
-                         Mathf.Abs(localTractorFront.x) <= maxAllowedX && Mathf.Abs(localTractorFront.y) <= maxAllowedY &&
-                         Mathf.Abs(localTractorRear.x) <= maxAllowedX && Mathf.Abs(localTractorRear.y) <= maxAllowedY;
+        // Check if Tractor is inside the parking slot box
+        bool tractorIn = (Mathf.Abs(localTractorCenter.x) <= maxAllowedX && Mathf.Abs(localTractorCenter.y) <= maxAllowedY) ||
+                         (Mathf.Abs(localTractorFront.x) <= maxAllowedX && Mathf.Abs(localTractorFront.y) <= maxAllowedY);
 
         return trailerIn && tractorIn;
     }
@@ -166,9 +213,9 @@ public class ParkingTargetZone : MonoBehaviour
     private bool IsTruckStopped()
     {
         float speed = 0f;
-        if (TruckController.Instance != null)
+        if (truckController != null)
         {
-            speed = Mathf.Abs(TruckController.Instance.CurrentSpeed);
+            speed = Mathf.Abs(truckController.CurrentSpeed);
         }
         else if (tractorRb != null)
         {
@@ -177,8 +224,9 @@ public class ParkingTargetZone : MonoBehaviour
         return speed < 0.6f;
     }
 
-    private void TriggerSuccess()
+    public void TriggerSuccess()
     {
+        if (isParkedSuccessfully) return;
         isParkedSuccessfully = true;
         Debug.Log("<color=#55ff55>[ParkingTargetZone] 🏆 ЗАДАНИЕ ВЫПОЛНЕНО! Трак и прицеп припаркованы!</color>");
         ShowWinUI();
@@ -271,7 +319,7 @@ public class ParkingTargetZone : MonoBehaviour
         });
 
         // Button 2: Return to Level Select Menu
-        GameObject menuGo = CreateModalButton("MenuButton", boxGo.transform, new Vector2(0.50f, 0.12f), new Vector2(0.94f, 0.36f), new Color(0.18f, 0.48f, 0.88f, 1f), "🗺 ВЕРНУТЬСЯ В ОКНО ВЫБОРА УРОВНЯ", font, 18);
+        GameObject menuGo = CreateModalButton("MenuButton", boxGo.transform, new Vector2(0.50f, 0.12f), new Vector2(0.94f, 0.36f), new Color(0.18f, 0.48f, 0.88f, 1f), "🗺 В ОКНО ВЫБОРА УРОВНЯ", font, 18);
         menuGo.GetComponent<Button>().onClick.AddListener(() =>
         {
             ReturnToLevelSelectMenu();
