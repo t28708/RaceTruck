@@ -1928,7 +1928,7 @@ public class MapBuilderEditor : EditorWindow
             tractor.transform.localPosition = new Vector3(0f, 6.8f, 0f);
             tractor.transform.localRotation = Quaternion.identity;
             SpriteRenderer srTractor = tractor.AddComponent<SpriteRenderer>();
-            srTractor.sprite = tractorHDSprite != null ? tractorHDSprite : tractorSprite;
+            srTractor.sprite = tractorSprite;
             srTractor.color = truckColor;
             srTractor.sortingOrder = truckSortOrder;
 
