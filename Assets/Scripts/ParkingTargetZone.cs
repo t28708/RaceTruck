@@ -13,7 +13,7 @@ public class ParkingTargetZone : MonoBehaviour
     public static ParkingTargetZone Instance { get; private set; }
 
     [Header("Detection Parameters")]
-    [SerializeField] private Vector2 targetSlotSize = new Vector2(4.5f, 22.0f);
+    [SerializeField] private Vector2 targetSlotSize = new Vector2(5.2f, 26.0f);
     [SerializeField] private float requiredStayTime = 0.5f; // seconds stationary inside slot
 
     private Transform tractorTr;
@@ -35,7 +35,43 @@ public class ParkingTargetZone : MonoBehaviour
 
     private void Start()
     {
+        if (targetSlotSize.y < 25.0f || targetSlotSize.x < 5.0f)
+        {
+            targetSlotSize = new Vector2(5.2f, 26.0f);
+        }
+
+        UpdateVisualStripes();
         FindTruckComponents();
+    }
+
+    private void UpdateVisualStripes()
+    {
+        float halfW = targetSlotSize.x * 0.5f;
+        float halfL = targetSlotSize.y * 0.5f;
+
+        Transform leftStripe = transform.Find("StallLine_Left");
+        if (leftStripe != null)
+        {
+            leftStripe.localPosition = new Vector3(-halfW, 0f, 0f);
+            SpriteRenderer sr = leftStripe.GetComponent<SpriteRenderer>();
+            if (sr != null) sr.size = new Vector2(sr.size.x, targetSlotSize.y);
+        }
+
+        Transform rightStripe = transform.Find("StallLine_Right");
+        if (rightStripe != null)
+        {
+            rightStripe.localPosition = new Vector3(halfW, 0f, 0f);
+            SpriteRenderer sr = rightStripe.GetComponent<SpriteRenderer>();
+            if (sr != null) sr.size = new Vector2(sr.size.x, targetSlotSize.y);
+        }
+
+        Transform backStripe = transform.Find("StallLine_Back");
+        if (backStripe != null)
+        {
+            backStripe.localPosition = new Vector3(0f, halfL, 0f);
+            SpriteRenderer sr = backStripe.GetComponent<SpriteRenderer>();
+            if (sr != null) sr.size = new Vector2(sr.size.x, targetSlotSize.x);
+        }
     }
 
     private void FindTruckComponents()
@@ -86,22 +122,25 @@ public class ParkingTargetZone : MonoBehaviour
     {
         if (tractorTr == null || trailerTr == null) return false;
 
-        float halfW = targetSlotSize.x * 0.5f;
-        float halfL = targetSlotSize.y * 0.5f;
+        float width = targetSlotSize.x > 0.1f ? targetSlotSize.x : 5.2f;
+        float length = targetSlotSize.y > 0.1f ? targetSlotSize.y : 26.0f;
 
-        // Tractor corners & key points
+        float halfW = width * 0.5f;
+        float halfL = length * 0.5f;
+
+        // Key points of Tractor: Center, Front bumper (+4.1m), Rear tandem (-4.1m)
         Vector3 localTractorCenter = transform.InverseTransformPoint(tractorTr.position);
         Vector3 localTractorFront = transform.InverseTransformPoint(tractorTr.position + tractorTr.up * 4.1f);
         Vector3 localTractorRear = transform.InverseTransformPoint(tractorTr.position - tractorTr.up * 4.1f);
 
-        // Trailer corners & key points
+        // Key points of Trailer: Center, Front bulkhead (+7.95m), Rear bumper (-7.95m)
         Vector3 localTrailerCenter = transform.InverseTransformPoint(trailerTr.position);
         Vector3 localTrailerFront = transform.InverseTransformPoint(trailerTr.position + trailerTr.up * 7.95f);
         Vector3 localTrailerRear = transform.InverseTransformPoint(trailerTr.position - trailerTr.up * 7.95f);
 
-        // Tolerance of 0.35m to account for small angle alignment in 4.5m slot
-        float maxAllowedX = halfW + 0.35f;
-        float maxAllowedY = halfL + 0.35f;
+        // Generous tolerance so full truck parking triggers reliably and smoothly
+        float maxAllowedX = halfW + 0.6f;
+        float maxAllowedY = halfL + 0.8f;
 
         bool tractorIn = Mathf.Abs(localTractorCenter.x) <= maxAllowedX && Mathf.Abs(localTractorCenter.y) <= maxAllowedY &&
                          Mathf.Abs(localTractorFront.x) <= maxAllowedX && Mathf.Abs(localTractorFront.y) <= maxAllowedY &&

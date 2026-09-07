@@ -1332,8 +1332,8 @@ public class MapBuilderEditor : EditorWindow
 
         Handles.EndGUI();
 
-        float slotWidth = SlotWidth;
-        float slotLength = SlotLength;
+        float slotWidth = (currentObjectType == ObjectType.TargetParking) ? 5.2f : SlotWidth;
+        float slotLength = (currentObjectType == ObjectType.TargetParking) ? 26.0f : SlotLength;
         Vector3 size = new Vector3(slotWidth, slotLength, 0f);
         
         Matrix4x4 origMatrix = Handles.matrix;
@@ -1751,8 +1751,9 @@ public class MapBuilderEditor : EditorWindow
 
     private void BuildObjectHierarchy(Transform parent, ObjectType type, bool isPreview)
     {
-        float width = SlotWidth;
-        float length = SlotLength;
+        bool isTargetParking = (type == ObjectType.TargetParking);
+        float width = isTargetParking ? 5.2f : SlotWidth;
+        float length = isTargetParking ? 26.0f : SlotLength;
         float halfWidth = width * 0.5f;
         float stripeThickness = 0.18f;
 
