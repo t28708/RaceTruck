@@ -1852,12 +1852,12 @@ public class MapBuilderEditor : EditorWindow
             }
         }
 
-        // 5. Parked Truck
+        // 5. Parked Truck (Centered in 26m slot)
         if (type == ObjectType.StandardParked)
         {
             GameObject trailer = new GameObject("Trailer");
             trailer.transform.SetParent(parent, false);
-            trailer.transform.localPosition = new Vector3(0f, -3.7f, 0f);
+            trailer.transform.localPosition = new Vector3(0f, -2.9f, 0f);
             trailer.transform.localRotation = Quaternion.identity;
             SpriteRenderer srTrailer = trailer.AddComponent<SpriteRenderer>();
             srTrailer.sprite = trailerSprite;
@@ -1873,7 +1873,7 @@ public class MapBuilderEditor : EditorWindow
 
             GameObject tractor = new GameObject("Tractor");
             tractor.transform.SetParent(parent, false);
-            tractor.transform.localPosition = new Vector3(0f, 6.0f, 0f);
+            tractor.transform.localPosition = new Vector3(0f, 6.8f, 0f);
             tractor.transform.localRotation = Quaternion.identity;
             SpriteRenderer srTractor = tractor.AddComponent<SpriteRenderer>();
             srTractor.sprite = tractorSprite;
