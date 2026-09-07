@@ -535,6 +535,72 @@ public class MapBuilderEditor : EditorWindow
         }
     }
 
+    public void ShiftAllMapObjects(Vector2 delta)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace != null)
+        {
+            Transform slotsContainer = workspace.transform.Find(SlotsContainerName);
+            if (slotsContainer != null)
+            {
+                if (!EditorApplication.isPlaying)
+                {
+                    Undo.RegisterFullObjectHierarchyUndo(slotsContainer.gameObject, "Shift Placed Slots");
+                }
+                for (int i = 0; i < slotsContainer.childCount; i++)
+                {
+                    Transform child = slotsContainer.GetChild(i);
+                    child.position += (Vector3)delta;
+                }
+            }
+
+            GameObject tractor = FindPlayerTractor();
+            GameObject trailer = FindPlayerTrailer();
+            if (tractor != null)
+            {
+                if (!EditorApplication.isPlaying) Undo.RecordObject(tractor.transform, "Shift Truck");
+                tractor.transform.position += (Vector3)delta;
+                
+                Rigidbody2D trRb = tractor.GetComponent<Rigidbody2D>();
+                if (trRb != null) { trRb.linearVelocity = Vector2.zero; trRb.angularVelocity = 0f; }
+            }
+            if (trailer != null)
+            {
+                if (!EditorApplication.isPlaying) Undo.RecordObject(trailer.transform, "Shift Truck");
+                trailer.transform.position += (Vector3)delta;
+                
+                Rigidbody2D tlRb = trailer.GetComponent<Rigidbody2D>();
+                if (tlRb != null) { tlRb.linearVelocity = Vector2.zero; tlRb.angularVelocity = 0f; }
+            }
+
+            if (tractor != null && trailer != null)
+            {
+                TruckController tc = tractor.GetComponent<TruckController>();
+                if (tc != null)
+                {
+                    tc.SetupTrailer(trailer.GetComponent<Rigidbody2D>());
+                }
+            }
+
+            if (Camera.main != null && tractor != null)
+            {
+                Camera.main.transform.position = new Vector3(tractor.transform.position.x, tractor.transform.position.y, -10f);
+            }
+
+            cursorPosition += delta;
+            UpdateGhostPreview();
+            SafeMarkSceneDirty();
+            Repaint();
+            SceneView.RepaintAll();
+
+            if (SceneView.lastActiveSceneView != null)
+            {
+                string dirStr = delta.x != 0 ? $"X: {delta.x:+0.0;-0.0}м" : $"Y: {delta.y:+0.0;-0.0}м";
+                SceneView.lastActiveSceneView.ShowNotification(new GUIContent($"✥ Все объекты сдвинуты ({dirStr})"));
+            }
+        }
+    }
+
     #endregion
 
     #region Workspace & Compact Rest Area Ground Plane
@@ -930,6 +996,35 @@ public class MapBuilderEditor : EditorWindow
 
         EditorGUILayout.Space(4);
 
+        // Shift All Map Objects Section
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("✥ Сдвиг всех объектов карты (Шаг 4.5м):", EditorStyles.boldLabel);
+        
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("⬅ Влево (-4.5м)", GUILayout.Height(25)))
+        {
+            ShiftAllMapObjects(new Vector2(-SlotWidth, 0f));
+        }
+        if (GUILayout.Button("➡ Вправо (+4.5м)", GUILayout.Height(25)))
+        {
+            ShiftAllMapObjects(new Vector2(SlotWidth, 0f));
+        }
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("⬇ Вниз (-4.5м)", GUILayout.Height(25)))
+        {
+            ShiftAllMapObjects(new Vector2(0f, -SlotWidth));
+        }
+        if (GUILayout.Button("⬆ Вверх (+4.5м)", GUILayout.Height(25)))
+        {
+            ShiftAllMapObjects(new Vector2(0f, SlotWidth));
+        }
+        EditorGUILayout.EndHorizontal();
+        EditorGUILayout.EndVertical();
+
+        EditorGUILayout.Space(4);
+
         // Fixed Grid Info
         EditorGUILayout.LabelField("Сетка (Grid):", EditorStyles.boldLabel);
         EditorGUILayout.LabelField("Широкая сетка (4.5м) — Фиксированная", EditorStyles.miniBoldLabel);
@@ -1169,6 +1264,30 @@ public class MapBuilderEditor : EditorWindow
                         break;
                 }
             }
+            if (e.control && (e.keyCode == KeyCode.UpArrow || e.keyCode == KeyCode.DownArrow || e.keyCode == KeyCode.LeftArrow || e.keyCode == KeyCode.RightArrow))
+            {
+                float shiftStep = SlotWidth; // 4.5m
+                if (e.shift) shiftStep *= 2f;
+                switch (e.keyCode)
+                {
+                    case KeyCode.UpArrow:
+                        ShiftAllMapObjects(new Vector2(0f, shiftStep));
+                        handled = true;
+                        break;
+                    case KeyCode.DownArrow:
+                        ShiftAllMapObjects(new Vector2(0f, -shiftStep));
+                        handled = true;
+                        break;
+                    case KeyCode.LeftArrow:
+                        ShiftAllMapObjects(new Vector2(-shiftStep, 0f));
+                        handled = true;
+                        break;
+                    case KeyCode.RightArrow:
+                        ShiftAllMapObjects(new Vector2(shiftStep, 0f));
+                        handled = true;
+                        break;
+                }
+            }
             else
             {
                 Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
@@ -1362,7 +1481,7 @@ public class MapBuilderEditor : EditorWindow
             helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
             GUI.Label(new Rect(24, 104, 330, 18), "[Мышь] Свободное таскание + авто-прилипание к слотам", helpStyle);
             GUI.Label(new Rect(24, 122, 330, 18), "[R] Поворот 45° (Shift: 15°) | [WASD] Шаг 4.5м | [Enter] Ставить", helpStyle);
-            GUI.Label(new Rect(24, 140, 330, 18), "[Del] Удалить под курсором | [C] Сменить объект", helpStyle);
+            GUI.Label(new Rect(24, 140, 330, 18), "[Ctrl+Стрелки] Сдвиг всей карты 4.5м | [Del] Удалить", helpStyle);
         }
 
         GUI.backgroundColor = new Color(0.2f, 0.7f, 1f, 0.95f);
@@ -1389,6 +1508,25 @@ public class MapBuilderEditor : EditorWindow
         if (GUI.Button(new Rect(startX + 626, btnY, 42, btnH), "[+H]"))
         {
             AdjustMapHeight(+5f);
+        }
+
+        // Shift All Map Objects quick buttons in HUD
+        GUI.backgroundColor = new Color(0.3f, 0.75f, 0.95f, 0.95f);
+        if (GUI.Button(new Rect(startX + 672, btnY, 34, btnH), "⬅"))
+        {
+            ShiftAllMapObjects(new Vector2(-SlotWidth, 0f));
+        }
+        if (GUI.Button(new Rect(startX + 708, btnY, 34, btnH), "➡"))
+        {
+            ShiftAllMapObjects(new Vector2(SlotWidth, 0f));
+        }
+        if (GUI.Button(new Rect(startX + 744, btnY, 34, btnH), "⬇"))
+        {
+            ShiftAllMapObjects(new Vector2(0f, -SlotWidth));
+        }
+        if (GUI.Button(new Rect(startX + 780, btnY, 34, btnH), "⬆"))
+        {
+            ShiftAllMapObjects(new Vector2(0f, SlotWidth));
         }
 
         bool isEmpty = currentObjectType == ObjectType.StandardEmpty;
