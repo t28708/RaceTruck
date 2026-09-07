@@ -237,6 +237,67 @@ public class MapBuilderEditor : EditorWindow
 
     #endregion
 
+    #region Magnetic Snapping Math
+
+    private Vector2 GetMagneticSnappedPosition(Vector2 rawPos, float rot)
+    {
+        // Only apply magnetic snap for parking stalls (StandardEmpty, StandardParked, TargetParking)
+        if (currentObjectType == ObjectType.TruckStartPoint) return rawPos;
+
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null) return rawPos;
+        Transform container = workspace.transform.Find(SlotsContainerName);
+        if (container == null) return rawPos;
+
+        float bestDist = 2.4f; // magnetic snap distance threshold in meters
+        Vector2 bestSnapPos = rawPos;
+        bool snapped = false;
+
+        for (int i = 0; i < container.childCount; i++)
+        {
+            Transform child = container.GetChild(i);
+            bool isCompatibleSlot = child.name.StartsWith("Stall_") || child.name.StartsWith("TargetParking");
+            if (!isCompatibleSlot) continue;
+
+            // Check rotation similarity (parallel slots with same angle)
+            float childAngle = child.eulerAngles.z;
+            float deltaAngle = Mathf.Abs(Mathf.DeltaAngle(childAngle, rot));
+            bool isParallel = deltaAngle < 5.0f || Mathf.Abs(deltaAngle - 180f) < 5.0f;
+            if (!isParallel) continue;
+
+            Vector2 childPos = new Vector2(child.position.x, child.position.y);
+            Vector2 childRight = new Vector2(child.right.x, child.right.y);
+            Vector2 childUp = new Vector2(child.up.x, child.up.y);
+
+            // Candidate snap points relative to existing slot:
+            // Side-by-side neighbors (1 to 3 slots away) and end-to-end connections
+            Vector2[] candidateSnapPoints = new Vector2[]
+            {
+                childPos + childRight * SlotWidth,        // +1 slot right (4.5m)
+                childPos - childRight * SlotWidth,        // -1 slot left (4.5m)
+                childPos + childRight * (SlotWidth * 2f), // +2 slots right (9.0m)
+                childPos - childRight * (SlotWidth * 2f), // -2 slots left (9.0m)
+                childPos + childUp * SlotLength,          // end-to-end forward (26.0m)
+                childPos - childUp * SlotLength           // end-to-end backward (26.0m)
+            };
+
+            foreach (var cand in candidateSnapPoints)
+            {
+                float dist = Vector2.Distance(rawPos, cand);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    bestSnapPos = cand;
+                    snapped = true;
+                }
+            }
+        }
+
+        return snapped ? bestSnapPos : rawPos;
+    }
+
+    #endregion
+
     #region Grid Snapping Math
 
     private void SnapCursorToGrid()
@@ -982,31 +1043,29 @@ public class MapBuilderEditor : EditorWindow
             DrawWorldGrid(width, length);
         }
 
-        // Interactive 2D Handles (Position & Rotation) for ANY object in Scene View (Free Mouse Movement & Rotation)
+        // Interactive 2D Position Handle for Scene View (Free Mouse Movement with Magnetic Snapping)
         EditorGUI.BeginChangeCheck();
         Vector3 curPos3 = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
         Quaternion curRotQ = Quaternion.Euler(0f, 0f, currentRotation);
 
         Vector3 newPos = Handles.PositionHandle(curPos3, curRotQ);
-        Quaternion newRotQ = Handles.RotationHandle(curRotQ, curPos3);
 
         if (EditorGUI.EndChangeCheck())
         {
-            cursorPosition = new Vector2(newPos.x, newPos.y);
-            float zAngle = newRotQ.eulerAngles.z;
-            if (zAngle < 0f) zAngle += 360f;
-            currentRotation = zAngle;
+            Vector2 rawPos = new Vector2(newPos.x, newPos.y);
+            cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
             UpdateGhostPreview();
             Repaint();
         }
 
-        // Handle Mouse Click in Scene View (Free Mouse Click without grid snapping)
-        if (e.type == EventType.MouseDown && e.button == 0 && !e.alt && !e.control && GUIUtility.hotControl == 0)
+        // Handle Mouse Click & Drag in Scene View (Free Mouse Dragging with Magnetic Snapping to same-angle neighbors)
+        if ((e.type == EventType.MouseDown || e.type == EventType.MouseDrag) && e.button == 0 && !e.alt && !e.control && GUIUtility.hotControl == 0)
         {
             Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
             Vector3 clickPos = ray.origin;
             
-            cursorPosition = new Vector2(clickPos.x, clickPos.y);
+            Vector2 rawPos = new Vector2(clickPos.x, clickPos.y);
+            cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
 
             UpdateGhostPreview();
             Repaint();
@@ -1282,8 +1341,8 @@ public class MapBuilderEditor : EditorWindow
 
             GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
             helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
-            GUI.Label(new Rect(24, 104, 330, 18), "[WASD/Стрелки] Шаг 4.5м по диагонали | [Мышь] Свободно", helpStyle);
-            GUI.Label(new Rect(24, 122, 330, 18), "[R] Поворот 45° (Shift: 15°) | [G] Сетка 4.5м | [Enter] Ставить", helpStyle);
+            GUI.Label(new Rect(24, 104, 330, 18), "[Мышь] Свободное таскание + авто-прилипание к слотам", helpStyle);
+            GUI.Label(new Rect(24, 122, 330, 18), "[R] Поворот 45° (Shift: 15°) | [WASD] Шаг 4.5м | [Enter] Ставить", helpStyle);
             GUI.Label(new Rect(24, 140, 330, 18), "[Del] Удалить под курсором | [C] Сменить объект", helpStyle);
         }
 
