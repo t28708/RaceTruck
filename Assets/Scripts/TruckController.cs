@@ -428,6 +428,18 @@ public class TruckController : MonoBehaviour
         {
             CameraZoomUI.CreateZoomWidget(canvasGo);
         }
+
+        // 5. In-Game Menu (Top-Left: "☰ МЕНЮ" -> Restart map, Go to main menu)
+        if (FindFirstObjectByType<MapSelectMenu>() == null)
+        {
+            GameObject msmGo = new GameObject("MapSelectMenuController");
+            msmGo.AddComponent<MapSelectMenu>();
+        }
+        if (FindFirstObjectByType<InGameMenu>() == null)
+        {
+            GameObject igmGo = new GameObject("InGameMenuController");
+            igmGo.AddComponent<InGameMenu>();
+        }
     }
 
     private static Sprite GetOrCreateSprite(string resourceName, System.Func<Texture2D> generator)

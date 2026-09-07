@@ -425,44 +425,6 @@ public class MapSelectMenu : MonoBehaviour
         scrollRect.content = contentRt;
 
         cardContainer = contentGo.transform;
-
-        // 2. In-Game Top-Left Switcher Button (Standalone Canvas)
-        topButtonGo = new GameObject("TopLeftMapButtonCanvas");
-        topButtonGo.transform.SetParent(transform, false);
-
-        Canvas topCanvas = topButtonGo.AddComponent<Canvas>();
-        topCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        topCanvas.sortingOrder = 998;
-
-        CanvasScaler topScaler = topButtonGo.AddComponent<CanvasScaler>();
-        topScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        topScaler.referenceResolution = new Vector2(1920, 1080);
-        topScaler.matchWidthOrHeight = 0.5f;
-
-        topButtonGo.AddComponent<GraphicRaycaster>();
-
-        GameObject topBtnItem = CreateUIObject("MapButton", topButtonGo.transform);
-        RectTransform topRt = topBtnItem.GetComponent<RectTransform>();
-        topRt.anchorMin = new Vector2(0, 1);
-        topRt.anchorMax = new Vector2(0, 1);
-        topRt.pivot = new Vector2(0, 1);
-        topRt.anchoredPosition = new Vector2(30, -30);
-        topRt.sizeDelta = new Vector2(240, 60);
-
-        Image topBtnImg = topBtnItem.AddComponent<Image>();
-        topBtnImg.color = new Color(0.12f, 0.48f, 0.92f, 0.95f);
-        Button topBtn = topBtnItem.AddComponent<Button>();
-        topBtn.onClick.AddListener(ToggleMenu);
-
-        GameObject topBtnTextGo = CreateUIObject("Text", topBtnItem.transform);
-        StretchFull(topBtnTextGo.GetComponent<RectTransform>());
-        Text topBtnText = topBtnTextGo.AddComponent<Text>();
-        if (font != null) topBtnText.font = font;
-        topBtnText.fontSize = 20;
-        topBtnText.fontStyle = FontStyle.Bold;
-        topBtnText.alignment = TextAnchor.MiddleCenter;
-        topBtnText.color = Color.white;
-        topBtnText.text = "🗺 ВЫБОР КАРТ [ESC]";
     }
 
     private void PopulateCards()
