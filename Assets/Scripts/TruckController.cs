@@ -78,8 +78,6 @@ public class TruckController : MonoBehaviour
     private bool wPressed = false;
     private bool sPressed = false;
     private bool spacePressed = false;
-    private bool wIsBraking = false;
-    private bool sIsBraking = false;
     private bool prevWPressed = false;
     private bool prevSPressed = false;
 
@@ -580,8 +578,6 @@ public class TruckController : MonoBehaviour
     {
         // Stop the truck dead in its tracks without bouncing or displacing position
         currentSpeed = 0f;
-        wIsBraking = false;
-        sIsBraking = false;
 
         if (forwardImpact)
         {
@@ -620,8 +616,6 @@ public class TruckController : MonoBehaviour
         currentSpeed = 0f;
         isBlockedReverse = true;
         isJackknifed = true;
-        wIsBraking = false;
-        sIsBraking = false;
 
         if (Time.time - lastJackknifeCrashTime > JackknifeCrashCooldown)
         {
@@ -970,44 +964,6 @@ public class TruckController : MonoBehaviour
         bool prevForwardInput = prevWPressed || prevGasPedalPressed;
         bool prevReverseInput = prevSPressed || prevBrakePedalPressed;
 
-        // Detect leading edge of forward press
-        if (forwardInput && !prevForwardInput)
-        {
-            // If rolling backward, pressing forward acts as INSTANT STOP
-            if (currentSpeed < -0.01f)
-            {
-                currentSpeed = 0f;
-                wIsBraking = true;
-            }
-            else
-            {
-                wIsBraking = false;
-            }
-        }
-        else if (!forwardInput)
-        {
-            wIsBraking = false;
-        }
-
-        // Detect leading edge of reverse press
-        if (reverseInput && !prevReverseInput)
-        {
-            // If rolling forward, pressing reverse acts as INSTANT STOP
-            if (currentSpeed > 0.01f)
-            {
-                currentSpeed = 0f;
-                sIsBraking = true;
-            }
-            else
-            {
-                sIsBraking = false;
-            }
-        }
-        else if (!reverseInput)
-        {
-            sIsBraking = false;
-        }
-
         prevWPressed = wPressed;
         prevSPressed = sPressed;
         prevGasPedalPressed = gasPedalPressed;
@@ -1060,21 +1016,22 @@ public class TruckController : MonoBehaviour
         if (currentSpeed > 0.05f)
         {
             gear = "D";
-            if (reverseInput) mode = "ТОРМОЗ";
+            if (reverseInput) mode = "ТОРМОЖЕНИЕ";
             else if (forwardInput) mode = "ГАЗ (10 км/ч)";
             else mode = "НАКАТ";
         }
         else if (currentSpeed < -0.05f)
         {
             gear = "R";
-            if (forwardInput) mode = "ТОРМОЗ";
+            if (forwardInput) mode = "ТОРМОЖЕНИЕ";
             else if (reverseInput) mode = "НАЗАД (10 км/ч)";
             else mode = "НАКАТ";
         }
         else
         {
             if (spacePressed) mode = "РУЧНИК";
-            else if (wIsBraking || sIsBraking) mode = "ТОРМОЗ [СТОП]";
+            else if (forwardInput) mode = "ВПЕРЕД";
+            else if (reverseInput) mode = "НАЗАД";
             else mode = "СТОП";
         }
 
@@ -1314,71 +1271,47 @@ public class TruckController : MonoBehaviour
             return;
         }
 
-        // 2. Both forward and reverse pressed simultaneously -> instant stop
+        // 2. Both forward and reverse pressed simultaneously -> brake firmly to 0
         if (forwardInput && reverseInput)
         {
-            currentSpeed = 0f;
+            currentSpeed = Mathf.MoveTowards(currentSpeed, 0f, brakePower * dt);
+            if (Mathf.Abs(currentSpeed) < 0.01f) currentSpeed = 0f;
             return;
         }
 
-        // 3. Opposite pedal pressed while in motion -> INSTANT STOP
-        if (forwardInput && currentSpeed < -0.01f)
-        {
-            currentSpeed = 0f;
-            wIsBraking = true;
-            return;
-        }
-
-        if (reverseInput && currentSpeed > 0.01f)
-        {
-            currentSpeed = 0f;
-            sIsBraking = true;
-            return;
-        }
-
-        // 4. Forward Gas Pedal (Accelerates and holds constant 10.0 km/h)
+        // 3. Forward Gas Pedal (Accelerates forward; if rolling backward, brakes to 0 and then moves forward)
         if (forwardInput)
         {
-            if (wIsBraking)
+            if (isBlockedForward)
             {
                 currentSpeed = 0f;
             }
             else
             {
-                if (isBlockedForward)
-                {
-                    currentSpeed = 0f;
-                }
-                else
-                {
-                    currentSpeed = Mathf.MoveTowards(currentSpeed, MaxForwardSpeed, acceleration * dt);
-                }
+                // If moving backward, apply strong braking force towards 0, then smoothly accelerate forward
+                float rate = (currentSpeed < 0f) ? brakePower : acceleration;
+                currentSpeed = Mathf.MoveTowards(currentSpeed, MaxForwardSpeed, rate * dt);
             }
             return;
         }
 
-        // 5. Reverse / Brake Pedal (Accelerates and holds constant -10.0 km/h)
+        // 4. Reverse / Brake Pedal (Accelerates backward; if rolling forward, brakes to 0 and then moves backward)
         if (reverseInput)
         {
-            if (sIsBraking)
+            if (isBlockedReverse)
             {
                 currentSpeed = 0f;
             }
             else
             {
-                if (isBlockedReverse)
-                {
-                    currentSpeed = 0f;
-                }
-                else
-                {
-                    currentSpeed = Mathf.MoveTowards(currentSpeed, -MaxReverseSpeed, reverseAcceleration * dt);
-                }
+                // If moving forward, apply strong braking force towards 0, then smoothly accelerate in reverse
+                float rate = (currentSpeed > 0f) ? brakePower : reverseAcceleration;
+                currentSpeed = Mathf.MoveTowards(currentSpeed, -MaxReverseSpeed, rate * dt);
             }
             return;
         }
 
-        // 6. Neither pedal pressed: smoothly decelerate to complete stop (smooth coasting)
+        // 5. Neither pedal pressed: smoothly decelerate to complete stop (smooth coasting)
         currentSpeed = Mathf.MoveTowards(currentSpeed, 0f, coastDeceleration * dt);
         if (Mathf.Abs(currentSpeed) < 0.01f) currentSpeed = 0f;
     }
