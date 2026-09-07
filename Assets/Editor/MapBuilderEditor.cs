@@ -1096,43 +1096,40 @@ public class MapBuilderEditor : EditorWindow
                 Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
                 Vector3 forwardDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.up;
 
-                float stepSide = SlotWidth; // 4.5m across slots
-                float stepLen = (currentObjectType == ObjectType.TargetParking) ? 26.0f : SlotLength;
+                float step = SlotWidth; // 4.5m step for W, S, A, D
 
                 if (e.shift)
                 {
-                    stepSide *= 2f;
-                    stepLen *= 2f;
+                    step *= 2f; // 9.0m
                 }
                 else if (e.alt || e.control)
                 {
-                    stepSide = 0.5f;
-                    stepLen = 0.5f;
+                    step = 0.5f; // 0.5m fine step
                 }
 
                 switch (e.keyCode)
                 {
                     case KeyCode.W:
                     case KeyCode.UpArrow:
-                        cursorPosition += new Vector2(forwardDir.x, forwardDir.y) * stepLen;
+                        cursorPosition += new Vector2(forwardDir.x, forwardDir.y) * step;
                         UpdateGhostPreview();
                         handled = true;
                         break;
                     case KeyCode.S:
                     case KeyCode.DownArrow:
-                        cursorPosition -= new Vector2(forwardDir.x, forwardDir.y) * stepLen;
+                        cursorPosition -= new Vector2(forwardDir.x, forwardDir.y) * step;
                         UpdateGhostPreview();
                         handled = true;
                         break;
                     case KeyCode.A:
                     case KeyCode.LeftArrow:
-                        cursorPosition -= new Vector2(rightDir.x, rightDir.y) * stepSide;
+                        cursorPosition -= new Vector2(rightDir.x, rightDir.y) * step;
                         UpdateGhostPreview();
                         handled = true;
                         break;
                     case KeyCode.D:
                     case KeyCode.RightArrow:
-                        cursorPosition += new Vector2(rightDir.x, rightDir.y) * stepSide;
+                        cursorPosition += new Vector2(rightDir.x, rightDir.y) * step;
                         UpdateGhostPreview();
                         handled = true;
                         break;
