@@ -814,7 +814,7 @@ MonoBehaviour:
   hudText: {fileID: 0}
   wheelbase: 5.8
   rearAxleLocalOffset: -3
-  hitchLocalOffset: -2.8
+  hitchLocalOffset: -1.8
   kingpinLocalOffset: 6.9
   trailerAxleLocalOffset: -5.6
   trailerWheelbase: 12.5

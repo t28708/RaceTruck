@@ -28,7 +28,7 @@ public class TruckController : MonoBehaviour
     [Tooltip("Local Y offset of tractor rear drive tandem from center")]
     [SerializeField] private float rearAxleLocalOffset = -3.0f;
     [Tooltip("Local Y offset of 5th wheel hitch plate from center (over drive tandem)")]
-    [SerializeField] private float hitchLocalOffset = -2.8f;
+    [SerializeField] private float hitchLocalOffset = -1.8f;
 
     [Header("Trailer Dimensions (Real 53-ft Semi-Trailer)")]
     [Tooltip("Local Y offset of kingpin from trailer center")]

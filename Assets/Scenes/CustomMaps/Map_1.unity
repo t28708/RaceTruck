@@ -292,7 +292,7 @@ Transform:
   m_GameObject: {fileID: 14139763}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 47.25, y: 23.3, z: 0}
+  m_LocalPosition: {x: 47.25, y: 24.3, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -29475,7 +29475,7 @@ MonoBehaviour:
   hudText: {fileID: 0}
   wheelbase: 5.8
   rearAxleLocalOffset: -3
-  hitchLocalOffset: -2.8
+  hitchLocalOffset: -1.8
   kingpinLocalOffset: 6.9
   trailerAxleLocalOffset: -5.6
   trailerWheelbase: 12.5
