@@ -133,29 +133,44 @@ public class ParkingTargetZone : MonoBehaviour
         float halfW = width * 0.5f;
         float halfL = length * 0.5f;
 
-        // Key points of Tractor: Center, Front bumper (+4.1m), Rear tandem (-4.1m)
-        Vector3 localTractorCenter = transform.InverseTransformPoint(tractorTr.position);
-        Vector3 localTractorFront = transform.InverseTransformPoint(tractorTr.position + tractorTr.up * 4.1f);
-        Vector3 localTractorRear = transform.InverseTransformPoint(tractorTr.position - tractorTr.up * 4.1f);
-
-        // Key points of Trailer: Center, Front bulkhead (+7.95m), Rear bumper (-7.95m)
+        // Key points of Trailer in local slot space
         Vector3 localTrailerCenter = transform.InverseTransformPoint(trailerTr.position);
         Vector3 localTrailerFront = transform.InverseTransformPoint(trailerTr.position + trailerTr.up * 7.95f);
         Vector3 localTrailerRear = transform.InverseTransformPoint(trailerTr.position - trailerTr.up * 7.95f);
 
-        // Generous tolerance so full truck parking triggers reliably and smoothly
-        float maxAllowedX = halfW + 0.6f;
-        float maxAllowedY = halfL + 0.8f;
+        // Key points of Tractor in local slot space
+        Vector3 localTractorCenter = transform.InverseTransformPoint(tractorTr.position);
+        Vector3 localTractorFront = transform.InverseTransformPoint(tractorTr.position + tractorTr.up * 4.1f);
 
-        bool tractorIn = Mathf.Abs(localTractorCenter.x) <= maxAllowedX && Mathf.Abs(localTractorCenter.y) <= maxAllowedY &&
-                         Mathf.Abs(localTractorFront.x) <= maxAllowedX && Mathf.Abs(localTractorFront.y) <= maxAllowedY &&
-                         Mathf.Abs(localTractorRear.x) <= maxAllowedX && Mathf.Abs(localTractorRear.y) <= maxAllowedY;
+        // Tolerances:
+        // Lateral (X): allow trailer within stall lane (halfW + 0.8m)
+        float maxAllowedX_Trailer = halfW + 0.8f;
+        float maxAllowedX_Tractor = halfW + 1.2f;
 
-        bool trailerIn = Mathf.Abs(localTrailerCenter.x) <= maxAllowedX && Mathf.Abs(localTrailerCenter.y) <= maxAllowedY &&
-                         Mathf.Abs(localTrailerFront.x) <= maxAllowedX && Mathf.Abs(localTrailerFront.y) <= maxAllowedY &&
-                         Mathf.Abs(localTrailerRear.x) <= maxAllowedX && Mathf.Abs(localTrailerRear.y) <= maxAllowedY;
+        // Longitudinal (Y): generous tolerance along slot length so backing in or pulling in triggers smoothly
+        float maxAllowedY = halfL + 2.8f;
 
-        return tractorIn && trailerIn;
+        // Check if trailer is well aligned within the parking stall lane
+        bool trailerXIn = Mathf.Abs(localTrailerCenter.x) <= maxAllowedX_Trailer &&
+                          Mathf.Abs(localTrailerFront.x) <= maxAllowedX_Trailer &&
+                          Mathf.Abs(localTrailerRear.x) <= maxAllowedX_Trailer;
+
+        bool trailerYIn = Mathf.Abs(localTrailerCenter.y) <= maxAllowedY &&
+                          Mathf.Abs(localTrailerFront.y) <= maxAllowedY &&
+                          Mathf.Abs(localTrailerRear.y) <= maxAllowedY;
+
+        // Check if tractor cab is also in or aligned in front of slot
+        bool tractorXIn = Mathf.Abs(localTractorCenter.x) <= maxAllowedX_Tractor &&
+                          Mathf.Abs(localTractorFront.x) <= maxAllowedX_Tractor;
+
+        bool tractorYIn = Mathf.Abs(localTractorCenter.y) <= (halfL + 4.5f) &&
+                          Mathf.Abs(localTractorFront.y) <= (halfL + 4.5f);
+
+        // Check angular alignment (trailer should be oriented along the slot axis, <= 25 degrees)
+        float angleDiff = Vector3.Angle(trailerTr.up, transform.up);
+        bool angleAligned = (angleDiff <= 25f || angleDiff >= 155f);
+
+        return trailerXIn && trailerYIn && tractorXIn && tractorYIn && angleAligned;
     }
 
     private bool IsTruckStopped()
@@ -169,7 +184,7 @@ public class ParkingTargetZone : MonoBehaviour
         {
             speed = tractorRb.linearVelocity.magnitude;
         }
-        return speed < 0.25f;
+        return speed < 0.35f;
     }
 
     private void TriggerSuccess()
