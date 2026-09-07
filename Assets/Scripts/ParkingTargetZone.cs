@@ -16,7 +16,7 @@ public class ParkingTargetZone : MonoBehaviour
 
     [Header("Detection Parameters")]
     [SerializeField] private Vector2 targetSlotSize = new Vector2(4.5f, 26.0f);
-    [SerializeField] private float requiredStayTime = 0.05f; // seconds stationary inside slot
+    [SerializeField] private float requiredStayTime = 0.2f; // seconds stationary inside slot
 
     private Transform tractorTr;
     private Transform trailerTr;
@@ -51,21 +51,21 @@ public class ParkingTargetZone : MonoBehaviour
         {
             AllZones.Add(this);
         }
-        requiredStayTime = 0.05f;
+        requiredStayTime = 0.2f;
         targetSlotSize = new Vector2(4.5f, targetSlotSize.y < 25.0f ? 26.0f : targetSlotSize.y);
         UpdateVisualStripes();
     }
 
     private void OnValidate()
     {
-        requiredStayTime = 0.05f;
+        requiredStayTime = 0.2f;
         targetSlotSize = new Vector2(4.5f, targetSlotSize.y < 25.0f ? 26.0f : targetSlotSize.y);
         UpdateVisualStripes();
     }
 
     private void Start()
     {
-        requiredStayTime = 0.05f;
+        requiredStayTime = 0.2f;
         targetSlotSize = new Vector2(4.5f, targetSlotSize.y < 25.0f ? 26.0f : targetSlotSize.y);
         UpdateVisualStripes();
         FindTruckComponents();
@@ -121,7 +121,6 @@ public class ParkingTargetZone : MonoBehaviour
         }
         else
         {
-            // Fallback for safety
             TruckController[] allControllers = UnityEngine.Object.FindObjectsByType<TruckController>(FindObjectsSortMode.None);
             if (allControllers != null && allControllers.Length > 0)
             {
@@ -178,34 +177,37 @@ public class ParkingTargetZone : MonoBehaviour
     {
         if (tractorTr == null || trailerTr == null) return false;
 
-        float width = 4.5f;
+        float width = targetSlotSize.x > 0.1f ? targetSlotSize.x : 4.5f;
         float length = targetSlotSize.y > 0.1f ? targetSlotSize.y : 26.0f;
 
-        float halfW = width * 0.5f;
-        float halfL = length * 0.5f;
+        float halfW = width * 0.5f;   // 2.25m
+        float halfL = length * 0.5f;  // 13.0m
 
         // Key points of Trailer in local slot space
         Vector3 localTrailerCenter = transform.InverseTransformPoint(trailerTr.position);
-        Vector3 localTrailerFront = transform.InverseTransformPoint(trailerTr.position + trailerTr.up * 7.5f);
-        Vector3 localTrailerRear = transform.InverseTransformPoint(trailerTr.position - trailerTr.up * 7.5f);
+        Vector3 localTrailerFront = transform.InverseTransformPoint(trailerTr.position + trailerTr.up * 8.0f);
+        Vector3 localTrailerRear = transform.InverseTransformPoint(trailerTr.position - trailerTr.up * 8.0f);
 
         // Key points of Tractor in local slot space
         Vector3 localTractorCenter = transform.InverseTransformPoint(tractorTr.position);
-        Vector3 localTractorFront = transform.InverseTransformPoint(tractorTr.position + tractorTr.up * 3.8f);
+        Vector3 localTractorFront = transform.InverseTransformPoint(tractorTr.position + tractorTr.up * 4.0f);
+        Vector3 localTractorRear = transform.InverseTransformPoint(tractorTr.position - tractorTr.up * 3.8f);
 
-        // Allowed bounds with comfortable tolerance
-        float maxAllowedX = halfW + 1.25f; // 3.5m from centerline
-        float maxAllowedY = halfL + 3.0f;  // 16.0m from center
+        // Allowed bounds: strict full vehicle bounding inside the 26m x 4.5m yellow box
+        float maxAllowedX = halfW + 0.4f; // max width 2.65m from centerline
+        float maxAllowedY = halfL + 0.5f; // max length 13.5m from center (entire rig within 26m slot)
 
-        // Check if Trailer is inside the parking slot box
+        // 1. Trailer must be fully inside the parking slot box
         bool trailerCenterIn = Mathf.Abs(localTrailerCenter.x) <= maxAllowedX && Mathf.Abs(localTrailerCenter.y) <= maxAllowedY;
         bool trailerRearIn = Mathf.Abs(localTrailerRear.x) <= maxAllowedX && Mathf.Abs(localTrailerRear.y) <= maxAllowedY;
         bool trailerFrontIn = Mathf.Abs(localTrailerFront.x) <= maxAllowedX && Mathf.Abs(localTrailerFront.y) <= maxAllowedY;
-        bool trailerIn = trailerCenterIn && (trailerRearIn || trailerFrontIn);
+        bool trailerIn = trailerCenterIn && trailerRearIn && trailerFrontIn;
 
-        // Check if Tractor is inside the parking slot box
-        bool tractorIn = (Mathf.Abs(localTractorCenter.x) <= maxAllowedX && Mathf.Abs(localTractorCenter.y) <= maxAllowedY) ||
-                         (Mathf.Abs(localTractorFront.x) <= maxAllowedX && Mathf.Abs(localTractorFront.y) <= maxAllowedY);
+        // 2. Tractor must be fully inside the parking slot box (front bumper, center, and rear within slot)
+        bool tractorCenterIn = Mathf.Abs(localTractorCenter.x) <= maxAllowedX && Mathf.Abs(localTractorCenter.y) <= maxAllowedY;
+        bool tractorFrontIn = Mathf.Abs(localTractorFront.x) <= maxAllowedX && Mathf.Abs(localTractorFront.y) <= maxAllowedY;
+        bool tractorRearIn = Mathf.Abs(localTractorRear.x) <= maxAllowedX && Mathf.Abs(localTractorRear.y) <= maxAllowedY;
+        bool tractorIn = tractorCenterIn && tractorFrontIn && tractorRearIn;
 
         return trailerIn && tractorIn;
     }
@@ -221,14 +223,14 @@ public class ParkingTargetZone : MonoBehaviour
         {
             speed = tractorRb.linearVelocity.magnitude;
         }
-        return speed < 0.6f;
+        return speed < 0.3f; // genuine complete stop (< 1 km/h)
     }
 
     public void TriggerSuccess()
     {
         if (isParkedSuccessfully) return;
         isParkedSuccessfully = true;
-        Debug.Log("<color=#55ff55>[ParkingTargetZone] 🏆 ЗАДАНИЕ ВЫПОЛНЕНО! Трак и прицеп припаркованы!</color>");
+        Debug.Log("<color=#55ff55>[ParkingTargetZone] 🏆 ЗАДАНИЕ ВЫПОЛНЕНО! Трак и прицеп полностью внутри целевой зоны!</color>");
         ShowWinUI();
     }
 
@@ -311,11 +313,11 @@ public class ParkingTargetZone : MonoBehaviour
         subText.color = new Color(0.85f, 0.92f, 1f, 0.95f);
         subText.text = "Грузовик успешно припаркован в целевую зону!";
 
-        // Button 1: Continue / Next Level
+        // Button 1: Continue Playing on THIS map
         GameObject continueGo = CreateModalButton("ContinueButton", boxGo.transform, new Vector2(0.06f, 0.12f), new Vector2(0.46f, 0.36f), new Color(0.15f, 0.72f, 0.32f, 1f), "▶ ПРОДОЛЖИТЬ", font, 24);
         continueGo.GetComponent<Button>().onClick.AddListener(() =>
         {
-            LoadNextLevel();
+            ContinueCurrentLevel();
         });
 
         // Button 2: Return to Level Select Menu
@@ -326,54 +328,12 @@ public class ParkingTargetZone : MonoBehaviour
         });
     }
 
-    private void LoadNextLevel()
+    private void ContinueCurrentLevel()
     {
-        string currentScene = SceneManager.GetActiveScene().name;
-        List<string> maps = new List<string>();
-
-        // 1. Collect maps from CustomMaps directory
-        string customMapsDir = System.IO.Path.Combine(Application.dataPath, "Scenes/CustomMaps");
-        if (System.IO.Directory.Exists(customMapsDir))
+        // Dismiss the victory modal so player can freely continue driving on the current map
+        if (winCanvasGo != null)
         {
-            string[] files = System.IO.Directory.GetFiles(customMapsDir, "*.unity");
-            foreach (string file in files)
-            {
-                string name = System.IO.Path.GetFileNameWithoutExtension(file);
-                if (!string.IsNullOrEmpty(name) && !maps.Contains(name))
-                {
-                    maps.Add(name);
-                }
-            }
-        }
-
-        // 2. Also check Build Settings
-        int sceneCount = SceneManager.sceneCountInBuildSettings;
-        for (int i = 0; i < sceneCount; i++)
-        {
-            string scenePath = SceneUtility.GetScenePathByBuildIndex(i);
-            string name = System.IO.Path.GetFileNameWithoutExtension(scenePath);
-            if (!string.IsNullOrEmpty(name) && name != "SampleScene" && name != "MainMenu" && !maps.Contains(name))
-            {
-                maps.Add(name);
-            }
-        }
-
-        int currentIndex = maps.IndexOf(currentScene);
-        if (currentIndex >= 0 && currentIndex + 1 < maps.Count)
-        {
-            string nextMap = maps[currentIndex + 1];
-            if (MapSelectMenu.Instance != null)
-            {
-                MapSelectMenu.Instance.LoadMap(nextMap);
-            }
-            else
-            {
-                SceneManager.LoadScene(nextMap);
-            }
-        }
-        else
-        {
-            ReturnToLevelSelectMenu();
+            winCanvasGo.SetActive(false);
         }
     }
 
