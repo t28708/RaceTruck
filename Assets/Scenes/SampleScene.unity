@@ -4962,8 +4962,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SteeringWheelUI
   maxWheelAngle: 450
   maxSteerAngle: 40
-  keyTurnSpeed: 320
-  returnToCenterSpeed: 450
+  keyTurnSpeed: 540
+  returnToCenterSpeed: 675
   wheelRectTransform: {fileID: 0}
 --- !u!114 &1658433042
 MonoBehaviour:

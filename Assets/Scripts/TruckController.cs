@@ -283,11 +283,10 @@ public class TruckController : MonoBehaviour
         if (wheelImg == null) wheelImg = wheelGo.AddComponent<Image>();
         wheelImg.raycastTarget = true;
         wheelImg.preserveAspect = true;
-        wheelImg.color = Color.white;
-        // Always enforce the exact same realistic steering wheel sprite across all maps!
         wheelImg.sprite = GetOrCreateSprite("SteeringWheelRealistic", GenerateSteeringWheelTexture);
 
         wheel.FindComponents();
+        wheel.SetSpeeds(540f, 675f);
         steeringWheel = wheel;
 
         // 2. Gas & Brake Pedals (Large, comfortable, strictly on bottom-left, matching MTS reference)
