@@ -23,7 +23,7 @@ public class MapBuilderEditor : EditorWindow
     private const string GhostPreviewName = "__MapBuilder_GhostPreview__";
 
     public const float SlotWidth = 4.5f;   // Фиксированная ширина стандартного места (4.5м)
-    public const float SlotLength = 22.0f; // Фиксированная длина места (22.0м)
+    public const float SlotLength = 26.0f; // Фиксированная длина места (26.0м)
 
     [SerializeField] private ObjectType currentObjectType = ObjectType.StandardEmpty;
     [SerializeField] private Vector2 cursorPosition = new Vector2(2.25f, 11.0f);
