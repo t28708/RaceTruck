@@ -1030,6 +1030,9 @@ public class MapBuilderEditor : EditorWindow
 
         Event e = Event.current;
 
+        int defaultControlID = GUIUtility.GetControlID(FocusType.Passive);
+        HandleUtility.AddDefaultControl(defaultControlID);
+
         float width = SlotWidth;
         float length = SlotLength;
         bool isRotatedHorizontal = Mathf.Approximately(Mathf.Abs(currentRotation), 90f) || Mathf.Approximately(Mathf.Abs(currentRotation), 270f);
@@ -1055,18 +1058,37 @@ public class MapBuilderEditor : EditorWindow
             Repaint();
         }
 
-        // Handle Mouse Click & Drag in Scene View (Free Mouse Dragging with Magnetic Snapping to same-angle neighbors)
-        if ((e.type == EventType.MouseDown || e.type == EventType.MouseDrag) && e.button == 0 && !e.alt && !e.control && GUIUtility.hotControl == 0)
+        // Handle Mouse Drag & Click anywhere in Scene View without triggering Unity's selection box
+        if (e.button == 0 && !e.alt && !e.control)
         {
-            Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
-            Vector3 clickPos = ray.origin;
-            
-            Vector2 rawPos = new Vector2(clickPos.x, clickPos.y);
-            cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
+            if (e.type == EventType.MouseDown && (GUIUtility.hotControl == 0 || GUIUtility.hotControl == defaultControlID))
+            {
+                GUIUtility.hotControl = defaultControlID;
+                Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
+                Vector2 rawPos = new Vector2(ray.origin.x, ray.origin.y);
+                cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
 
-            UpdateGhostPreview();
-            Repaint();
-            sceneView.Repaint();
+                UpdateGhostPreview();
+                Repaint();
+                sceneView.Repaint();
+                e.Use();
+            }
+            else if (e.type == EventType.MouseDrag && GUIUtility.hotControl == defaultControlID)
+            {
+                Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
+                Vector2 rawPos = new Vector2(ray.origin.x, ray.origin.y);
+                cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
+
+                UpdateGhostPreview();
+                Repaint();
+                sceneView.Repaint();
+                e.Use();
+            }
+            else if (e.type == EventType.MouseUp && GUIUtility.hotControl == defaultControlID)
+            {
+                GUIUtility.hotControl = 0;
+                e.Use();
+            }
         }
 
         // Handle Keyboard Shortcuts
