@@ -18,6 +18,9 @@ EditorBuildSettings:
     path: Assets/Scenes/CustomMaps/Map_3.unity
     guid: 967b977f6fea5e544a95c64592b277a2
   - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_4-rest-area.unity
+    guid: b4b8b566c5b02d2418b1e6f4d52fdbf1
+  - enabled: 1
     path: Assets/Scenes/CustomMaps/Map_5.unity
     guid: 4f5311bb6b51ea34583f782f984f4260
   m_configObjects:
