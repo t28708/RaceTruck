@@ -241,9 +241,12 @@ public class MapBuilderEditor : EditorWindow
 
     private void SnapCursorToGrid()
     {
-        if (currentObjectType == ObjectType.TruckStartPoint)
+        if (currentObjectType == ObjectType.TruckStartPoint) return;
+
+        float rem = Mathf.Abs(currentRotation) % 90f;
+        if (rem > 1.0f && rem < 89.0f)
         {
-            return; // Free placement for truck start position - no grid snapping
+            return; // Diagonal placement (45 deg, etc.): free position preserved without axis snapping
         }
 
         float width = SlotWidth;
@@ -888,31 +891,18 @@ public class MapBuilderEditor : EditorWindow
         }
 
         EditorGUILayout.Space(6);
-        EditorGUILayout.LabelField(currentObjectType == ObjectType.TruckStartPoint ? "Параметры старта трака (Свободно без сетки):" : "Параметры курсора:", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Параметры положения и поворота:", EditorStyles.boldLabel);
         EditorGUI.BeginChangeCheck();
-        cursorPosition = EditorGUILayout.Vector2Field(currentObjectType == ObjectType.TruckStartPoint ? "Координаты старта (м)" : "Координаты курсора", cursorPosition);
-        if (currentObjectType == ObjectType.TruckStartPoint)
-        {
-            currentRotation = EditorGUILayout.Slider("Поворот трака (0-360°)", currentRotation, 0f, 360f);
-        }
-        else
-        {
-            currentRotation = EditorGUILayout.Slider("Поворот (град.)", currentRotation, 0f, 270f);
-            currentRotation = Mathf.Round(currentRotation / 90f) * 90f; // snap to 90 deg for stalls
-        }
+        cursorPosition = EditorGUILayout.Vector2Field("Координаты (м)", cursorPosition);
+        currentRotation = EditorGUILayout.Slider("Поворот (0-360°)", currentRotation, 0f, 360f);
         if (EditorGUI.EndChangeCheck())
         {
-            if (currentObjectType != ObjectType.TruckStartPoint)
-            {
-                SnapCursorToGrid();
-            }
             UpdateGhostPreview();
             SceneView.RepaintAll();
         }
 
         EditorGUILayout.Space(4);
         autoAdvanceAfterPlacement = EditorGUILayout.Toggle("Автосдвиг к следующему краю", autoAdvanceAfterPlacement);
-        snapMouseClick = EditorGUILayout.Toggle("Клик мыши жестко привязывает к сетке", snapMouseClick);
 
         EditorGUILayout.Space(10);
         EditorGUILayout.LabelField("Действия:", EditorStyles.boldLabel);
@@ -922,9 +912,9 @@ public class MapBuilderEditor : EditorWindow
         {
             PlaceCurrentObject();
         }
-        if (GUILayout.Button(currentObjectType == ObjectType.TruckStartPoint ? "Повернуть 15° (R)" : "Повернуть 90° (R)", GUILayout.Height(30)))
+        if (GUILayout.Button("Повернуть 45° (R)", GUILayout.Height(30)))
         {
-            RotateCursor(currentObjectType == ObjectType.TruckStartPoint ? 15f : 90f);
+            RotateCursor(45f);
         }
         EditorGUILayout.EndHorizontal();
 
