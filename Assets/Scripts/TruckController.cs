@@ -439,6 +439,35 @@ public class TruckController : MonoBehaviour
             GameObject igmGo = new GameObject("InGameMenuController");
             igmGo.AddComponent<InGameMenu>();
         }
+
+        // 6. Ensure ParkingTargetZone win detector exists
+        EnsureParkingTargetZone();
+    }
+
+    private void EnsureParkingTargetZone()
+    {
+        if (FindFirstObjectByType<ParkingTargetZone>() != null) return;
+
+        GameObject targetSlot = GameObject.Find("TargetParkingSlot");
+        if (targetSlot != null)
+        {
+            targetSlot.AddComponent<ParkingTargetZone>();
+            return;
+        }
+
+        GameObject arrow = GameObject.Find("TargetParking_YellowArrow");
+        if (arrow == null) arrow = GameObject.Find("TargetStall_Arrow");
+        if (arrow != null && arrow.transform.parent != null)
+        {
+            arrow.transform.parent.gameObject.AddComponent<ParkingTargetZone>();
+            return;
+        }
+
+        GameObject emptyStall = GameObject.Find("Stall_Standard_Empty");
+        if (emptyStall != null)
+        {
+            emptyStall.AddComponent<ParkingTargetZone>();
+        }
     }
 
     private static Sprite GetOrCreateSprite(string resourceName, System.Func<Texture2D> generator)

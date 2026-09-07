@@ -147,8 +147,8 @@ public class ParkingTargetZone : MonoBehaviour
         Vector3 localTractorRear = transform.InverseTransformPoint(tractorTr.position - tractorTr.up * 4.1f);
 
         // Allowed bounds with comfortable tolerance
-        float maxAllowedX = halfW + 1.0f;
-        float maxAllowedY = halfL + 3.0f;
+        float maxAllowedX = halfW + 1.2f;
+        float maxAllowedY = halfL + 3.5f;
 
         // Check if Trailer is inside the parking box
         bool trailerIn = Mathf.Abs(localTrailerCenter.x) <= maxAllowedX && Mathf.Abs(localTrailerCenter.y) <= maxAllowedY &&
@@ -174,7 +174,7 @@ public class ParkingTargetZone : MonoBehaviour
         {
             speed = tractorRb.linearVelocity.magnitude;
         }
-        return speed < 0.4f;
+        return speed < 0.6f;
     }
 
     private void TriggerSuccess()

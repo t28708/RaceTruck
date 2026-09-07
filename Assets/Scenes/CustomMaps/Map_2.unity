@@ -5191,8 +5191,9 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 220816406}
+  - component: {fileID: 220816407}
   m_Layer: 0
-  m_Name: Stall_Standard_Empty
+  m_Name: TargetParkingSlot
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -49343,6 +49344,20 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2145204770}
   m_CullTransparentMesh: 1
+--- !u!114 &220816407
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 220816405}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce3badf431500d8499995179a2993a86, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ParkingTargetZone
+  targetSlotSize: {x: 4.5, y: 26}
+  requiredStayTime: 0.15
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
