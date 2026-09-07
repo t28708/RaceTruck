@@ -1,6 +1,6 @@
 using System;
+using System.IO;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEditor;
 using UnityEngine;
 #if UNITY_6000_0_OR_NEWER
@@ -15,52 +15,58 @@ public static class RegisterScenesInBuild
         EditorApplication.delayCall += RegisterAllScenes;
     }
 
-    [MenuItem("Tools/Register Scenes in Build Profiles")]
     public static void RegisterAllScenes()
     {
-        string[] requiredScenes = new string[]
-        {
-            "Assets/Scenes/SampleScene.unity",
-            "Assets/Scenes/Level2_AlleyDock.unity",
-            "Assets/Scenes/Level3_GasStation.unity"
-        };
+        List<string> sceneList = new List<string>();
 
-        // 1. Update global EditorBuildSettings.scenes
+        // 1. Main menu at index 0
+        if (File.Exists("Assets/Scenes/MainMenu.unity"))
+        {
+            sceneList.Add("Assets/Scenes/MainMenu.unity");
+        }
+        else if (File.Exists("Assets/Scenes/SampleScene.unity"))
+        {
+            sceneList.Add("Assets/Scenes/SampleScene.unity");
+        }
+
+        // 2. Custom Maps
+        string customMapsDir = "Assets/Scenes/CustomMaps";
+        if (Directory.Exists(customMapsDir))
+        {
+            string[] files = Directory.GetFiles(customMapsDir, "*.unity");
+            foreach (string file in files)
+            {
+                string norm = file.Replace("\\", "/");
+                if (!sceneList.Contains(norm))
+                {
+                    sceneList.Add(norm);
+                }
+            }
+        }
+
+        // 3. Update global EditorBuildSettings.scenes
         List<EditorBuildSettingsScene> editorScenes = new List<EditorBuildSettingsScene>();
-        foreach (string scenePath in requiredScenes)
+        foreach (string scenePath in sceneList)
         {
             editorScenes.Add(new EditorBuildSettingsScene(scenePath, true));
         }
         EditorBuildSettings.scenes = editorScenes.ToArray();
 
-        // 2. Update Unity 6 BuildProfile if available
+        // 4. Update Unity 6 BuildProfile if available
 #if UNITY_6000_0_OR_NEWER
         try
         {
             BuildProfile activeProfile = BuildProfile.GetActiveBuildProfile();
             if (activeProfile != null)
             {
-                var profileScenes = activeProfile.scenes != null ? activeProfile.scenes.ToList() : new List<EditorBuildSettingsScene>();
-                foreach (string scenePath in requiredScenes)
-                {
-                    if (!profileScenes.Any(s => s.path == scenePath))
-                    {
-                        profileScenes.Add(new EditorBuildSettingsScene(scenePath, true));
-                    }
-                }
-                activeProfile.scenes = profileScenes.ToArray();
+                activeProfile.scenes = editorScenes.ToArray();
                 EditorUtility.SetDirty(activeProfile);
                 AssetDatabase.SaveAssetIfDirty(activeProfile);
-                Debug.Log($"[RegisterScenesInBuild] Registered scenes in active BuildProfile: {activeProfile.name}");
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Debug.LogWarning($"[RegisterScenesInBuild] BuildProfile registration exception: {ex.Message}");
         }
 #endif
-
-        AssetDatabase.SaveAssets();
-        Debug.Log("[RegisterScenesInBuild] Scenes registered in EditorBuildSettings & BuildProfile successfully!");
     }
 }

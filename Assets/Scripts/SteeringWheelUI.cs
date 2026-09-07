@@ -27,6 +27,19 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
     private float previousPointerAngle = 0f;
     private bool isDragging = false;
 
+    public RectTransform WheelRect
+    {
+        get
+        {
+            if (wheelRectTransform == null)
+            {
+                wheelRectTransform = GetComponent<RectTransform>();
+                if (wheelRectTransform == null) wheelRectTransform = gameObject.AddComponent<RectTransform>();
+            }
+            return wheelRectTransform;
+        }
+    }
+
     /// <summary>
     /// Current front wheel steering angle in degrees (-maxSteerAngle to +maxSteerAngle).
     /// Positive = Left, Negative = Right.
@@ -42,6 +55,17 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
     public bool IsDragging => isDragging;
 
     private void Awake()
+    {
+        FindComponents();
+    }
+
+    private void Start()
+    {
+        FindComponents();
+        UpdateWheelVisual();
+    }
+
+    public void FindComponents()
     {
         if (wheelRectTransform == null)
         {
@@ -79,6 +103,24 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
 
     private void Update()
     {
+        // Cancel dragging if mouse/touch is released
+#if ENABLE_INPUT_SYSTEM
+        if (isDragging)
+        {
+            bool mouseHeld = (Mouse.current != null && Mouse.current.leftButton.isPressed);
+            bool touchHeld = (Touchscreen.current != null && Touchscreen.current.primaryTouch.press.isPressed);
+            if (!mouseHeld && !touchHeld)
+            {
+                isDragging = false;
+            }
+        }
+#else
+        if (isDragging && !Input.GetMouseButton(0))
+        {
+            isDragging = false;
+        }
+#endif
+
         bool hasKeyInput = HandleKeyboardSteering();
 
         // Spring return to center when not dragging and no keyboard steering active
@@ -129,10 +171,11 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
 
     private float CalculatePointerAngle(Vector2 screenPosition, Camera eventCamera)
     {
-        if (wheelRectTransform == null) return 0f;
+        RectTransform rt = WheelRect;
+        if (rt == null) return 0f;
 
         // Calculate angle relative to the center of the steering wheel on screen
-        Vector2 wheelScreenPos = RectTransformUtility.WorldToScreenPoint(eventCamera, wheelRectTransform.position);
+        Vector2 wheelScreenPos = RectTransformUtility.WorldToScreenPoint(eventCamera, rt.position);
         Vector2 dir = screenPosition - wheelScreenPos;
         if (dir.sqrMagnitude < 4f) return previousPointerAngle;
         return Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
@@ -140,9 +183,10 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
 
     private void UpdateWheelVisual()
     {
-        if (wheelRectTransform != null)
+        RectTransform rt = WheelRect;
+        if (rt != null)
         {
-            wheelRectTransform.localEulerAngles = new Vector3(0f, 0f, currentWheelAngle);
+            rt.localEulerAngles = new Vector3(0f, 0f, currentWheelAngle);
         }
     }
 

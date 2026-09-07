@@ -211,8 +211,8 @@ public class CameraZoomUI : MonoBehaviour
             zoomLabel.text = $"{mult}x";
         }
 
-        bool canDecrease = mult > 1;
-        bool canIncrease = mult < 5;
+        bool canDecrease = mult > CameraFollow.MinZoomMultiplier;
+        bool canIncrease = mult < CameraFollow.MaxZoomMultiplier;
 
         if (leftButton != null) leftButton.interactable = canDecrease;
         if (rightButton != null) rightButton.interactable = canIncrease;

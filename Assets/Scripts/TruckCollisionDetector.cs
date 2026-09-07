@@ -98,16 +98,16 @@ public class TruckCollisionDetector : MonoBehaviour
         Transform p = col.transform.parent;
         string pn = (p != null) ? p.name : "";
 
-        // Never ignore actual physical obstacles
-        if (IsPhysicalObstacleName(n) || IsPhysicalObstacleName(pn))
-        {
-            return false;
-        }
-
-        // Ground markings, guide lines, hazard stripes, chevrons, dashes, and parking triggers
+        // Ground markings, guide lines, hazard stripes, chevrons, dashes, and parking triggers/zones
         if (IsMarkingName(n) || IsMarkingName(pn))
         {
             return true;
+        }
+
+        // Physical obstacles
+        if (IsPhysicalObstacleName(n) || IsPhysicalObstacleName(pn))
+        {
+            return false;
         }
 
         return false;
@@ -116,7 +116,10 @@ public class TruckCollisionDetector : MonoBehaviour
     private static bool IsPhysicalObstacleName(string name)
     {
         if (string.IsNullOrEmpty(name)) return false;
-        return name.IndexOf("Bumper", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+        return name.IndexOf("Boundary", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Border", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Fence", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Bumper", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Truck", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Trailer", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Tractor", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -132,6 +135,13 @@ public class TruckCollisionDetector : MonoBehaviour
     private static bool IsMarkingName(string name)
     {
         if (string.IsNullOrEmpty(name)) return false;
+        // Note: Map boundary walls ("Border" / "Boundary") are physical obstacles, not ignored markings
+        if (name.IndexOf("Border", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("Boundary", System.StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return false;
+        }
+
         return name.IndexOf("Hazard", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Stripe", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Line", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -141,7 +151,6 @@ public class TruckCollisionDetector : MonoBehaviour
                name.IndexOf("Trigger", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Guide", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Marking", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.IndexOf("Border", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Target", System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
@@ -201,8 +210,10 @@ public class TruckCollisionDetector : MonoBehaviour
             return;
         }
 
-        // Relative position to this vehicle part (Tractor or Trailer)
-        Vector2 localObstaclePos = transform.InverseTransformPoint(other.transform.position);
+        // Contact point on the obstacle closest to this vehicle part
+        Collider2D actualCol = hitCol != null ? hitCol : other.GetComponent<Collider2D>();
+        Vector2 contactPoint = (actualCol != null) ? actualCol.ClosestPoint(transform.position) : (Vector2)other.transform.position;
+        Vector2 localObstaclePos = transform.InverseTransformPoint(contactPoint);
         bool isFrontObstacle = (localObstaclePos.y >= 0f);
 
         // CRITICAL 2: If moving AWAY from this obstacle, DO NOT crash or block!
@@ -229,7 +240,6 @@ public class TruckCollisionDetector : MonoBehaviour
         string obstacleName = FormatObstacleNameStatic(other.name, other.transform);
         bool forwardImpact = (speed > 0f);
 
-        Collider2D actualCol = hitCol != null ? hitCol : other.GetComponent<Collider2D>();
         TruckController.Instance.OnCrash(obstacleName, forwardImpact, actualCol);
 
         // Trigger visual screen shake, metal impact sound, spark burst, and "БУХ!" UI banner
@@ -256,10 +266,11 @@ public class TruckCollisionDetector : MonoBehaviour
             return "припаркованный грузовик";
         }
         if (combinedName.Contains("Cone")) return "конус";
+        if (combinedName.Contains("Boundary") || combinedName.Contains("Border") || combinedName.Contains("Fence")) return "границу площадки";
         if (combinedName.Contains("Barrier") || combinedName.Contains("Wall")) return "стену";
         if (combinedName.Contains("Barrel")) return "бочку";
         if (combinedName.Contains("Bumper")) return "упор рампы";
-        if (combinedName.Contains("Hazard") || combinedName.Contains("Border")) return "границу бокса";
+        if (combinedName.Contains("Hazard")) return "разметку бокса";
         return "препятствие";
     }
 }

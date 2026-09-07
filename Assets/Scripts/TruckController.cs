@@ -95,15 +95,32 @@ public class TruckController : MonoBehaviour
 
     public bool IsGasPedalPressed => gasPedalPressed || wPressed;
     public bool IsBrakePedalPressed => brakePedalPressed || sPressed;
+    public bool IsWPressed => wPressed;
+    public bool IsSPressed => sPressed;
 
     // Tracked historical positions for smooth tractrix integration
     private Vector2 prevHitchPos;
     private Vector2 prevTrailerRearAxlePos;
     private bool isInitialized = false;
 
+    // Strict Map Perimeter Bounds
+    private float mapWidth = 54f;
+    private float mapHeight = 60f;
+    private bool hasMapBounds = false;
+
     public float CurrentSpeed => currentSpeed;
     public float SteerAngle => actualSteerAngle;
-    public float TargetSteerAngle => steeringWheel != null ? steeringWheel.CurrentSteerAngle : 0f;
+    public float TargetSteerAngle
+    {
+        get
+        {
+            if (steeringWheel == null)
+            {
+                steeringWheel = Object.FindFirstObjectByType<SteeringWheelUI>();
+            }
+            return steeringWheel != null ? steeringWheel.CurrentSteerAngle : 0f;
+        }
+    }
     public Rigidbody2D TrailerRb => trailerRb;
     public Transform FrontLeftWheel => frontLeftWheel;
     public Transform FrontRightWheel => frontRightWheel;
@@ -140,20 +157,32 @@ public class TruckController : MonoBehaviour
         FindReferences();
         InitializePositions();
         EnsureLevelSwitcher();
+        EnsureMapBoundaries();
     }
 
     private void EnsureEventSystem()
     {
-        if (Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
+        UnityEngine.EventSystems.EventSystem es = Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>();
+        if (es == null)
         {
-            GameObject es = new GameObject("EventSystem");
-            es.AddComponent<UnityEngine.EventSystems.EventSystem>();
-#if ENABLE_INPUT_SYSTEM
-            es.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
-#else
-            es.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
-#endif
+            GameObject esGo = new GameObject("EventSystem");
+            es = esGo.AddComponent<UnityEngine.EventSystems.EventSystem>();
         }
+
+#if ENABLE_INPUT_SYSTEM
+        var standalone = es.GetComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+        if (standalone != null) Destroy(standalone);
+
+        if (es.GetComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>() == null)
+        {
+            es.gameObject.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+        }
+#else
+        if (es.GetComponent<UnityEngine.EventSystems.StandaloneInputModule>() == null)
+        {
+            es.gameObject.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+        }
+#endif
     }
 
     private void EnsureLevelSwitcher()
@@ -226,6 +255,11 @@ public class TruckController : MonoBehaviour
             Transform wheelTrans = canvasGo.transform.Find("SteeringWheel");
             wheelGo = (wheelTrans != null) ? wheelTrans.gameObject : new GameObject("SteeringWheel");
             wheelGo.transform.SetParent(canvasGo.transform, false);
+
+            // Add RectTransform FIRST before adding SteeringWheelUI component
+            RectTransform wheelRect = wheelGo.GetComponent<RectTransform>();
+            if (wheelRect == null) wheelRect = wheelGo.AddComponent<RectTransform>();
+
             wheel = wheelGo.GetComponent<SteeringWheelUI>();
             if (wheel == null) wheel = wheelGo.AddComponent<SteeringWheelUI>();
         }
@@ -236,14 +270,14 @@ public class TruckController : MonoBehaviour
         }
 
         wheelGo.SetActive(true);
-        RectTransform wheelRect = wheelGo.GetComponent<RectTransform>();
-        if (wheelRect == null) wheelRect = wheelGo.AddComponent<RectTransform>();
-        wheelRect.anchorMin = new Vector2(1f, 0f);
-        wheelRect.anchorMax = new Vector2(1f, 0f);
-        wheelRect.pivot = new Vector2(0.5f, 0.5f);
-        wheelRect.anchoredPosition = new Vector2(-270f, 270f);
-        wheelRect.sizeDelta = new Vector2(480f, 480f);
-        wheelRect.localScale = Vector3.one;
+        RectTransform wheelRt = wheelGo.GetComponent<RectTransform>();
+        if (wheelRt == null) wheelRt = wheelGo.AddComponent<RectTransform>();
+        wheelRt.anchorMin = new Vector2(1f, 0f);
+        wheelRt.anchorMax = new Vector2(1f, 0f);
+        wheelRt.pivot = new Vector2(0.5f, 0.5f);
+        wheelRt.anchoredPosition = new Vector2(-270f, 270f);
+        wheelRt.sizeDelta = new Vector2(480f, 480f);
+        wheelRt.localScale = Vector3.one;
 
         Image wheelImg = wheelGo.GetComponent<Image>();
         if (wheelImg == null) wheelImg = wheelGo.AddComponent<Image>();
@@ -253,6 +287,7 @@ public class TruckController : MonoBehaviour
         // Always enforce the exact same realistic steering wheel sprite across all maps!
         wheelImg.sprite = GetOrCreateSprite("SteeringWheelRealistic", GenerateSteeringWheelTexture);
 
+        wheel.FindComponents();
         steeringWheel = wheel;
 
         // 2. Gas & Brake Pedals (Large, comfortable, strictly on bottom-left, matching MTS reference)
@@ -605,40 +640,31 @@ public class TruckController : MonoBehaviour
                 Collider2D col = candidateHits[i];
                 if (!IsObstacle(col)) continue;
 
-                // If this is the obstacle we collided with, and we are moving in the ESCAPE direction, ignore it!
                 if (col == lastCrashedObstacle)
                 {
                     if (isMovingForward && lastCrashDirection == -1) continue;
                     if (!isMovingForward && lastCrashDirection == +1) continue;
                 }
 
-                // Relative position to tractor: local Y > 0 is front, local Y < 0 is rear
-                Vector2 localObstaclePos = transform.InverseTransformPoint(col.bounds.center);
+                // Use the closest point on the collider rather than the center of long walls
+                Vector2 contactPoint = col.ClosestPoint(candTractorPos);
+                Vector2 localObstaclePos = transform.InverseTransformPoint(contactPoint);
 
-                // If moving forward and we previously crashed in reverse (lastCrashDirection == -1):
-                // We are actively pulling forward to escape!
-                // Only obstacles directly in front of the tractor cabin (> 2.0m) can block forward movement.
                 if (isMovingForward && lastCrashDirection == -1 && localObstaclePos.y <= 2.0f)
                 {
                     continue;
                 }
 
-                // If reversing and we previously crashed forward (lastCrashDirection == +1):
-                // We are backing away/escaping from a front collision!
-                // Tractor is pulling backward away from the front obstacle, so ignore tractor hits.
                 if (!isMovingForward && lastCrashDirection == +1)
                 {
                     continue;
                 }
 
-                // Standard moving away checks:
-                // If reversing (speed < 0) and obstacle is in front of tractor, the tractor is moving AWAY!
                 if (!isMovingForward && localObstaclePos.y > -0.5f)
                 {
                     continue;
                 }
 
-                // If moving forward and obstacle is behind tractor (hitch area), ignore
                 if (isMovingForward && localObstaclePos.y < -3.5f)
                 {
                     continue;
@@ -659,40 +685,30 @@ public class TruckController : MonoBehaviour
                 Collider2D col = candidateHits[i];
                 if (!IsObstacle(col)) continue;
 
-                // If this is the obstacle we collided with, and we are moving in the ESCAPE direction, ignore it!
                 if (col == lastCrashedObstacle)
                 {
                     if (isMovingForward && lastCrashDirection == -1) continue;
                     if (!isMovingForward && lastCrashDirection == +1) continue;
                 }
 
-                // Relative position to trailer
-                Vector2 localObstaclePos = trailerRb.transform.InverseTransformPoint(col.bounds.center);
+                Vector2 contactPoint = col.ClosestPoint(candTrailerPos);
+                Vector2 localObstaclePos = trailerRb.transform.InverseTransformPoint(contactPoint);
 
-                // If moving forward and we previously crashed in reverse (lastCrashDirection == -1):
-                // We are pulling forward to escape! The trailer follows the tractor forward.
-                // Any obstacle hit in reverse along trailer sides or rear MUST NOT block pulling forward!
                 if (isMovingForward && lastCrashDirection == -1)
                 {
                     continue;
                 }
 
-                // If reversing and we previously crashed forward (lastCrashDirection == +1):
-                // We are backing away from front collision!
-                // Only obstacles behind trailer rear tandem (< -5.0m) can block reverse.
                 if (!isMovingForward && lastCrashDirection == +1 && localObstaclePos.y >= -5.0f)
                 {
                     continue;
                 }
 
-                // Standard moving away checks:
-                // If moving forward and obstacle is behind trailer rear, the trailer is pulling AWAY!
                 if (isMovingForward && localObstaclePos.y < 0f)
                 {
                     continue;
                 }
 
-                // If reversing and obstacle is near front/hitch, ignore
                 if (!isMovingForward && localObstaclePos.y > 6.0f)
                 {
                     continue;
@@ -723,6 +739,130 @@ public class TruckController : MonoBehaviour
         }
 
         return true;
+    }
+
+    public void EnsureMapBoundaries()
+    {
+        float mapW = 54f;
+        float mapH = 60f;
+
+        if (MapData.Instance != null)
+        {
+            mapW = MapData.Instance.mapWidth;
+            mapH = MapData.Instance.mapHeight;
+        }
+        else
+        {
+            MapData mapData = FindFirstObjectByType<MapData>();
+            if (mapData != null)
+            {
+                mapData.DetectDimensions();
+                mapW = mapData.mapWidth;
+                mapH = mapData.mapHeight;
+            }
+            else
+            {
+                GameObject workspace = GameObject.Find("MapBuilder_Workspace");
+                Transform groundTr = workspace != null ? workspace.transform.Find("AsphaltGround") : null;
+                if (groundTr == null)
+                {
+                    GameObject groundGo = GameObject.Find("AsphaltGround");
+                    if (groundGo != null) groundTr = groundGo.transform;
+                }
+
+                if (groundTr != null)
+                {
+                    SpriteRenderer sr = groundTr.GetComponent<SpriteRenderer>();
+                    if (sr != null && sr.size.x > 5f)
+                    {
+                        mapW = sr.size.x;
+                        mapH = sr.size.y;
+                    }
+                }
+                else
+                {
+                    GameObject borderRight = GameObject.Find("Border_Right");
+                    GameObject borderTop = GameObject.Find("Border_Top");
+                    if (borderRight != null && borderRight.transform.position.x > 5f)
+                    {
+                        mapW = borderRight.transform.position.x;
+                    }
+                    if (borderTop != null && borderTop.transform.position.y > 5f)
+                    {
+                        mapH = borderTop.transform.position.y;
+                    }
+                }
+            }
+        }
+
+        mapWidth = mapW;
+        mapHeight = mapH;
+
+        Debug.Log($"<color=#55ff55>[TruckController] Активные границы сцены: {mapWidth:F1}м x {mapHeight:F1}м</color>");
+
+        GameObject ws = GameObject.Find("MapBuilder_Workspace");
+        Transform borderParent = (ws != null) ? ws.transform.Find("YardBorders") : null;
+        if (borderParent == null)
+        {
+            GameObject borderGo = GameObject.Find("YardBorders");
+            if (borderGo != null)
+            {
+                borderParent = borderGo.transform;
+            }
+            else
+            {
+                GameObject newBorderParent = new GameObject("YardBorders");
+                if (ws != null) newBorderParent.transform.SetParent(ws.transform, false);
+                borderParent = newBorderParent.transform;
+            }
+        }
+
+        // 4 Physical Boundary GameObjects along the perimeter of the map (with bold yellow border lines and 4m thick impenetrable colliders)
+        EnsureBorderCollider(borderParent, "Border_Bottom", new Vector3(mapW * 0.5f, 0f, 0f), new Vector2(mapW + 2f, 1.0f), new Vector2(mapW + 10f, 4.0f), new Vector2(0f, -1.5f));
+        EnsureBorderCollider(borderParent, "Border_Top", new Vector3(mapW * 0.5f, mapH, 0f), new Vector2(mapW + 2f, 1.0f), new Vector2(mapW + 10f, 4.0f), new Vector2(0f, 1.5f));
+        EnsureBorderCollider(borderParent, "Border_Left", new Vector3(0f, mapH * 0.5f, 0f), new Vector2(1.0f, mapH + 2f), new Vector2(4.0f, mapH + 10f), new Vector2(-1.5f, 0f));
+        EnsureBorderCollider(borderParent, "Border_Right", new Vector3(mapW, mapH * 0.5f, 0f), new Vector2(1.0f, mapH + 2f), new Vector2(4.0f, mapH + 10f), new Vector2(1.5f, 0f));
+    }
+
+    private static Sprite GetWhiteStripeSprite()
+    {
+        Sprite s = Resources.Load<Sprite>("ParkingStripe");
+        if (s != null) return s;
+        Texture2D tex = Texture2D.whiteTexture;
+        return Sprite.Create(tex, new Rect(0f, 0f, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+    }
+
+    private static void EnsureBorderCollider(Transform parent, string name, Vector3 pos, Vector2 visualSize, Vector2 colSize, Vector2 colOffset)
+    {
+        Transform lineTr = parent.Find(name);
+        GameObject borderObj;
+        if (lineTr == null)
+        {
+            borderObj = new GameObject(name);
+            borderObj.transform.SetParent(parent, false);
+        }
+        else
+        {
+            borderObj = lineTr.gameObject;
+        }
+
+        borderObj.transform.position = pos;
+
+        // Visual bold yellow boundary line
+        SpriteRenderer sr = borderObj.GetComponent<SpriteRenderer>();
+        if (sr == null) sr = borderObj.AddComponent<SpriteRenderer>();
+        if (sr.sprite == null) sr.sprite = GetWhiteStripeSprite();
+        sr.drawMode = SpriteDrawMode.Tiled;
+        sr.size = visualSize;
+        sr.color = new Color(0.98f, 0.82f, 0.12f, 1.0f); // Bold safety yellow
+        sr.sortingOrder = -5;
+
+        // Physical collision barrier
+        BoxCollider2D col = borderObj.GetComponent<BoxCollider2D>();
+        if (col == null) col = borderObj.AddComponent<BoxCollider2D>();
+        col.size = colSize;
+        col.offset = colOffset;
+        col.isTrigger = true;
     }
 
     private void InitializePositions()
@@ -1008,12 +1148,13 @@ public class TruckController : MonoBehaviour
                 if (CheckCandidateCollision(newTractorCenter, newTractorAngleDeg, newTrailerCenter, newTrailerAngleDeg, out Collider2D hitObstacle))
                 {
                     bool forwardImpact = (currentSpeed > 0f);
-                    string obstacleName = TruckCollisionDetector.FormatObstacleNameStatic(hitObstacle.name, hitObstacle.transform);
+                    string obstacleName = (hitObstacle != null) ? TruckCollisionDetector.FormatObstacleNameStatic(hitObstacle.name, hitObstacle.transform) : "границу площадки";
                     OnCrash(obstacleName, forwardImpact, hitObstacle);
 
                     if (TruckCrashEffect.Instance != null)
                     {
-                        TruckCrashEffect.Instance.TriggerCrash(obstacleName, hitObstacle.transform.position, forwardImpact);
+                        Vector3 impactPos = (hitObstacle != null) ? hitObstacle.transform.position : (forwardImpact ? (Vector3)newTractorCenter : (Vector3)newTrailerCenter);
+                        TruckCrashEffect.Instance.TriggerCrash(obstacleName, impactPos, forwardImpact);
                     }
 
                     currentSpeed = 0f;
@@ -1036,12 +1177,13 @@ public class TruckController : MonoBehaviour
                 if (CheckCandidateCollision(newTractorCenter, newTractorAngleDeg, Vector2.zero, 0f, out Collider2D hitObstacle))
                 {
                     bool forwardImpact = (currentSpeed > 0f);
-                    string obstacleName = TruckCollisionDetector.FormatObstacleNameStatic(hitObstacle.name, hitObstacle.transform);
+                    string obstacleName = (hitObstacle != null) ? TruckCollisionDetector.FormatObstacleNameStatic(hitObstacle.name, hitObstacle.transform) : "границу площадки";
                     OnCrash(obstacleName, forwardImpact, hitObstacle);
 
                     if (TruckCrashEffect.Instance != null)
                     {
-                        TruckCrashEffect.Instance.TriggerCrash(obstacleName, hitObstacle.transform.position, forwardImpact);
+                        Vector3 impactPos = (hitObstacle != null) ? hitObstacle.transform.position : (forwardImpact ? (Vector3)newTractorCenter : (Vector3)prevTrailerRearAxlePos);
+                        TruckCrashEffect.Instance.TriggerCrash(obstacleName, impactPos, forwardImpact);
                     }
 
                     currentSpeed = 0f;

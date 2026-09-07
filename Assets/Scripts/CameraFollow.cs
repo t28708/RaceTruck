@@ -23,8 +23,11 @@ public class CameraFollow : MonoBehaviour
     [Tooltip("Default initial camera zoom")]
     [SerializeField] private float defaultZoom = 16f;
 
-    [Header("Zoom Multiplier (1x - 5x)")]
+    [Header("Zoom Multiplier (1x - 7x)")]
     [SerializeField] private int zoomMultiplier = 1;
+
+    public const int MinZoomMultiplier = 1;
+    public const int MaxZoomMultiplier = 7;
 
     [Header("Camera Framing Offset")]
     [Tooltip("Fixed camera offset along tractor forward axis (locked to reverse framing: -6.5f)")]
@@ -49,16 +52,18 @@ public class CameraFollow : MonoBehaviour
     public float CurrentShift => currentShift;
 
     /// <summary>
-    /// Converts zoom level (1..5) to actual zoom scale factor:
+    /// Converts zoom level (1..7) to actual zoom scale factor:
     /// Level 1 -> 1.0x (16m orthographic size)
     /// Level 2 -> 1.5x (24m)
     /// Level 3 -> 2.0x (32m)
     /// Level 4 -> 2.5x (40m)
     /// Level 5 -> 3.0x (48m)
+    /// Level 6 -> 3.5x (56m)
+    /// Level 7 -> 4.0x (64m)
     /// </summary>
     public static float GetActualZoomScale(int mult)
     {
-        return 1.0f + (Mathf.Clamp(mult, 1, 5) - 1) * 0.5f;
+        return 1.0f + (Mathf.Clamp(mult, MinZoomMultiplier, MaxZoomMultiplier) - 1) * 0.5f;
     }
 
     public float ActualZoomScale => GetActualZoomScale(zoomMultiplier);
@@ -77,7 +82,7 @@ public class CameraFollow : MonoBehaviour
         if (maxZoom < 120f) maxZoom = 120f;
         if (minZoom > 3.5f) minZoom = 3.5f;
 
-        zoomMultiplier = Mathf.Clamp(zoomMultiplier, 1, 5);
+        zoomMultiplier = Mathf.Clamp(zoomMultiplier, MinZoomMultiplier, MaxZoomMultiplier);
         targetZoom = defaultZoom * GetActualZoomScale(zoomMultiplier);
         if (cam != null)
         {
@@ -96,7 +101,7 @@ public class CameraFollow : MonoBehaviour
 
     public void SetZoomMultiplier(int mult)
     {
-        zoomMultiplier = Mathf.Clamp(mult, 1, 5);
+        zoomMultiplier = Mathf.Clamp(mult, MinZoomMultiplier, MaxZoomMultiplier);
         targetZoom = defaultZoom * GetActualZoomScale(zoomMultiplier);
         OnZoomMultiplierChanged?.Invoke(zoomMultiplier);
     }
@@ -109,7 +114,7 @@ public class CameraFollow : MonoBehaviour
     private void SyncMultiplierFromTarget()
     {
         float actualScale = targetZoom / defaultZoom;
-        int mult = Mathf.Clamp(Mathf.RoundToInt(1f + (actualScale - 1f) * 2f), 1, 5);
+        int mult = Mathf.Clamp(Mathf.RoundToInt(1f + (actualScale - 1f) * 2f), MinZoomMultiplier, MaxZoomMultiplier);
         if (mult != zoomMultiplier)
         {
             zoomMultiplier = mult;
