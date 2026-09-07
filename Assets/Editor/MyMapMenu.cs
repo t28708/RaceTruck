@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using UnityEditor;
@@ -58,7 +58,7 @@ public static class MyMapMenu
         if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
         {
             EditorSceneManager.OpenScene(scenePath);
-            if (GameObject.Find("Tractor") == null || GameObject.Find("Trailer") == null || GameObject.Find("TruckControlsCanvas") == null)
+            if (MapBuilderEditor.FindPlayerTractor() == null || MapBuilderEditor.FindPlayerTrailer() == null || GameObject.Find("TruckControlsCanvas") == null)
             {
                 MapBuilderEditor window = EditorWindow.GetWindow<MapBuilderEditor>("Map Builder");
                 window.EnsureCleanWorkPlane(false);

@@ -639,14 +639,17 @@ public class TruckController : MonoBehaviour
 
         if (trailerRb == null)
         {
-            GameObject trailer = GameObject.Find("Trailer");
-            if (trailer != null)
+            foreach (var go in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
             {
-                trailerRb = trailer.GetComponent<Rigidbody2D>();
-                if (trailerRb != null)
+                if (go.name == "Trailer")
                 {
-                    trailerRb.bodyType = RigidbodyType2D.Kinematic;
-                    trailerRb.useFullKinematicContacts = true;
+                    trailerRb = go.GetComponent<Rigidbody2D>();
+                    if (trailerRb != null)
+                    {
+                        trailerRb.bodyType = RigidbodyType2D.Kinematic;
+                        trailerRb.useFullKinematicContacts = true;
+                    }
+                    break;
                 }
             }
         }

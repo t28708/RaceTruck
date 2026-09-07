@@ -158,14 +158,19 @@ public class CameraFollow : MonoBehaviour
 
         if (tractorTarget == null)
         {
-            GameObject tractor = GameObject.Find("Tractor");
-            if (tractor != null) tractorTarget = tractor.transform;
+            foreach (var go in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
+            {
+                if (go.name == "Tractor" && go.GetComponent<TruckController>() != null) { tractorTarget = go.transform; break; }
+                if (go.name == "Tractor" && tractorTarget == null) tractorTarget = go.transform;
+            }
         }
 
         if (trailerTarget == null)
         {
-            GameObject trailer = GameObject.Find("Trailer");
-            if (trailer != null) trailerTarget = trailer.transform;
+            foreach (var go in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
+            {
+                if (go.name == "Trailer") { trailerTarget = go.transform; break; }
+            }
         }
     }
 

@@ -41,6 +41,7 @@ public class MapBuilderEditor : EditorWindow
     private Sprite asphaltSprite;
     private Sprite stripeSprite;
     private Sprite tractorSprite;
+    private Sprite tractorHDSprite;
     private Sprite trailerSprite;
     private Sprite arrowSprite;
     private Sprite yellowArrowSprite;
@@ -277,6 +278,7 @@ public class MapBuilderEditor : EditorWindow
         asphaltSprite = LoadOrCreateSprite(SpritesDir + "/AsphaltGround.png", () => CreateSolidTexture(64, 64, new Color(0.20f, 0.20f, 0.22f)));
         stripeSprite = LoadOrCreateSprite(SpritesDir + "/ParkingStripe.png", () => CreateStripeTexture(16, 128, Color.white));
         tractorSprite = LoadOrCreateSprite(SpritesDir + "/Tractor.png", () => CreateSolidTexture(32, 64, new Color(0.15f, 0.45f, 0.85f)));
+        tractorHDSprite = LoadOrCreateSprite(SpritesDir + "/Tractor_HD.png", null);
         trailerSprite = LoadOrCreateSprite(SpritesDir + "/Trailer.png", () => CreateSolidTexture(32, 128, new Color(0.88f, 0.88f, 0.90f)));
         arrowSprite = LoadOrCreateSprite(SpritesDir + "/DockArrow.png", null);
         yellowArrowSprite = LoadOrCreateSprite(SpritesDir + "/YellowParkingArrow.png", CreateYellowArrowTexture);
@@ -600,15 +602,45 @@ public class MapBuilderEditor : EditorWindow
         }
     }
 
+
+    public static GameObject FindPlayerTractor()
+    {
+        TruckController tc = UnityEngine.Object.FindFirstObjectByType<TruckController>();
+        if (tc != null) return tc.gameObject;
+
+        foreach (var go in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
+        {
+            if (go.name == "Tractor" && go.GetComponent<TruckController>() != null) return go;
+            if (go.name == "Tractor" && go.transform.parent == null) return go;
+        }
+        return null;
+    }
+
+    public static GameObject FindPlayerTrailer()
+    {
+        GameObject tractor = FindPlayerTractor();
+        if (tractor != null)
+        {
+            TruckController tc = tractor.GetComponent<TruckController>();
+            if (tc != null && tc.TrailerRb != null) return tc.TrailerRb.gameObject;
+        }
+
+        foreach (var go in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
+        {
+            if (go.name == "Trailer" && go.transform.parent == null) return go;
+        }
+        return null;
+    }
+
     public void EnsurePlayableTruckAndCanvas()
     {
         LoadSprites();
-        GameObject tractor = GameObject.Find("Tractor");
-        GameObject trailer = GameObject.Find("Trailer");
+        GameObject tractor = FindPlayerTractor();
+        GameObject trailer = FindPlayerTrailer();
         if (tractor == null || trailer == null)
         {
             Vector3 defaultTractorPos = new Vector3(27f, 40f, 0f);
-            Vector3 defaultTrailerPos = new Vector3(27f, 30.3f, 0f);
+            Vector3 defaultTrailerPos = new Vector3(27f, 31.1f, 0f);
             BuildCompletePlayableTruck(defaultTractorPos, defaultTrailerPos, Quaternion.identity);
         }
         else
@@ -1569,11 +1601,12 @@ public class MapBuilderEditor : EditorWindow
         Quaternion rot = Quaternion.Euler(0f, 0f, currentRotation);
         Vector3 tractorPos = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
         
-        Vector3 trailerOffset = rot * new Vector3(0f, -9.7f, 0f);
+        // Distance between tractor and trailer centers: hitch (-2.0m) + kingpin (6.9m) = 8.9m
+        Vector3 trailerOffset = rot * new Vector3(0f, -8.9f, 0f);
         Vector3 trailerPos = tractorPos + trailerOffset;
 
-        GameObject tractor = GameObject.Find("Tractor");
-        GameObject trailer = GameObject.Find("Trailer");
+        GameObject tractor = FindPlayerTractor();
+        GameObject trailer = FindPlayerTrailer();
 
         if (tractor != null && trailer != null)
         {
@@ -1595,13 +1628,19 @@ public class MapBuilderEditor : EditorWindow
             Rigidbody2D tlRb = trailer.GetComponent<Rigidbody2D>();
             if (tlRb != null) { tlRb.linearVelocity = Vector2.zero; tlRb.angularVelocity = 0f; }
 
+            TruckController tc = tractor.GetComponent<TruckController>();
+            if (tc != null)
+            {
+                tc.SetupTrailer(tlRb);
+            }
+
             if (Camera.main != null)
             {
                 Camera.main.transform.position = new Vector3(tractorPos.x, tractorPos.y, -10f);
             }
 
             SafeMarkSceneDirty();
-            Debug.Log($"[MapBuilder] Moved single Truck Start to ({tractorPos.x:F1}, {tractorPos.y:F1}) at {currentRotation:F0}°");
+            Debug.Log($"<color=#55ff55>[MapBuilder] Перемещен старт игрового грузовика в ({tractorPos.x:F1}, {tractorPos.y:F1}) с углом {currentRotation:F0}°</color>");
         }
         else
         {
@@ -1615,14 +1654,16 @@ public class MapBuilderEditor : EditorWindow
     {
         LoadSprites();
 
-        // Clean existing partials
-        GameObject oldTractor = GameObject.Find("Tractor");
+        // Clean existing player partials only
+        GameObject oldTractor = FindPlayerTractor();
         if (oldTractor != null) SafeDestroyObject(oldTractor);
-        GameObject oldTrailer = GameObject.Find("Trailer");
+        GameObject oldTrailer = FindPlayerTrailer();
         if (oldTrailer != null) SafeDestroyObject(oldTrailer);
 
         // Ensure EventSystem & Controls Canvas
         TruckSimulatorSetup.RebuildControlsCanvasInActiveScene();
+
+        Sprite playerSprite = tractorHDSprite != null ? tractorHDSprite : tractorSprite;
 
         // 1. Tractor
         GameObject tractor = new GameObject("Tractor");
@@ -1631,7 +1672,7 @@ public class MapBuilderEditor : EditorWindow
         tractor.transform.localScale = Vector3.one;
 
         SpriteRenderer tractorSr = tractor.AddComponent<SpriteRenderer>();
-        tractorSr.sprite = tractorSprite;
+        tractorSr.sprite = playerSprite;
         tractorSr.sortingOrder = 8;
 
         BoxCollider2D tractorCollider = tractor.AddComponent<BoxCollider2D>();
@@ -1768,7 +1809,7 @@ public class MapBuilderEditor : EditorWindow
             // Preview of Player Truck Spawn
             GameObject trailer = new GameObject("Preview_Trailer");
             trailer.transform.SetParent(parent, false);
-            trailer.transform.localPosition = new Vector3(0f, -9.7f, 0f);
+            trailer.transform.localPosition = new Vector3(0f, -8.9f, 0f);
             trailer.transform.localRotation = Quaternion.identity;
             SpriteRenderer srTrailer = trailer.AddComponent<SpriteRenderer>();
             srTrailer.sprite = trailerSprite;
@@ -1780,7 +1821,7 @@ public class MapBuilderEditor : EditorWindow
             tractor.transform.localPosition = Vector3.zero;
             tractor.transform.localRotation = Quaternion.identity;
             SpriteRenderer srTractor = tractor.AddComponent<SpriteRenderer>();
-            srTractor.sprite = tractorSprite;
+            srTractor.sprite = tractorHDSprite != null ? tractorHDSprite : tractorSprite;
             srTractor.color = new Color(0.3f, 1f, 0.5f, 0.75f);
             srTractor.sortingOrder = truckSortOrder + 1;
             return;
@@ -1876,7 +1917,7 @@ public class MapBuilderEditor : EditorWindow
             tractor.transform.localPosition = new Vector3(0f, 6.8f, 0f);
             tractor.transform.localRotation = Quaternion.identity;
             SpriteRenderer srTractor = tractor.AddComponent<SpriteRenderer>();
-            srTractor.sprite = tractorSprite;
+            srTractor.sprite = tractorHDSprite != null ? tractorHDSprite : tractorSprite;
             srTractor.color = truckColor;
             srTractor.sortingOrder = truckSortOrder;
 

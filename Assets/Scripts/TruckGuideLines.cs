@@ -101,8 +101,10 @@ public class TruckGuideLines : MonoBehaviour
             }
             else
             {
-                GameObject trGo = GameObject.Find("Trailer");
-                if (trGo != null) trailerTransform = trGo.transform;
+                foreach (var go in UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects())
+                {
+                    if (go.name == "Trailer") { trailerTransform = go.transform; break; }
+                }
             }
         }
     }
