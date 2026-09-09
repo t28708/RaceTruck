@@ -18,7 +18,7 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
     [SerializeField] private float keyTurnSpeed = 810f;
 
     [Tooltip("Speed to return to center when released (spring return to 0)")]
-    [SerializeField] private float returnToCenterSpeed = 1012.5f;
+    [SerializeField] private float returnToCenterSpeed = 1518.75f;
 
     [Header("UI References")]
     [SerializeField] private RectTransform wheelRectTransform;
