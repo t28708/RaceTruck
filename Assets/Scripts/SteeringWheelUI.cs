@@ -250,7 +250,7 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
             sliderRt.anchorMin = new Vector2(0.5f, 1f);
             sliderRt.anchorMax = new Vector2(0.5f, 1f);
             sliderRt.pivot = new Vector2(0.5f, 0.5f);
-            sliderRt.anchoredPosition = new Vector2(0f, -95f);
+            sliderRt.anchoredPosition = new Vector2(0f, -125f);
             sliderRt.sizeDelta = new Vector2(760f, 90f);
 
             // Track Background
@@ -327,6 +327,11 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
         else
         {
             sliderContainerGo = existingSlider.gameObject;
+            RectTransform existingSliderRt = sliderContainerGo.GetComponent<RectTransform>();
+            if (existingSliderRt != null)
+            {
+                existingSliderRt.anchoredPosition = new Vector2(0f, -125f);
+            }
             touchSliderScript = sliderContainerGo.GetComponentInChildren<SteerTouchSlider>();
         }
     }
