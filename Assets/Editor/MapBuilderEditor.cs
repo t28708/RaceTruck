@@ -19,7 +19,7 @@ public class MapBuilderEditor : EditorWindow
         StandardParkedNarrow = 6, // 7. Узкое с траком (3.5м)
         TargetParkingNarrow = 7,  // 8. Целевое место парковки (3.5м, Единственное)
         RoadArrow = 8,            // 9. Стрелка направления (Указания на дороге)
-        Wall = 9                  // 10. Стена-препятствие (Прямые углы 90°)
+        Wall = 9                  // 10. Стена-препятствие (Любой угол)
     }
 
     public const string CustomMapsFolder = "Assets/Scenes/CustomMaps";
@@ -73,7 +73,7 @@ public class MapBuilderEditor : EditorWindow
     [SerializeField] private Color roadArrowColor = new Color(0.95f, 0.95f, 0.95f, 1.0f);
     [SerializeField] private RoadDirectionArrow selectedRoadArrow = null;
 
-    // Wall Obstacle tool state (Strictly orthogonal 90° angles)
+    // Wall Obstacle tool state (Arbitrary angles, continuous chain)
     [SerializeField] private bool isDrawingWall = false;
     [SerializeField] private Vector2 wallStartPoint = Vector2.zero;
     [SerializeField] private float wallThickness = 0.45f;
@@ -107,7 +107,7 @@ public class MapBuilderEditor : EditorWindow
         "7. Узкое с траком (3.5м)",
         "8. Целевое место парковки (3.5м, Единственное)",
         "9. Стрелка направления (Указания на дороге)",
-        "10. Стена-препятствие (Прямые углы)"
+        "10. Стена-препятствие (Любой угол)"
     };
 
     [MenuItem("Tools/Map Builder/Open Editor", false, 1)]
@@ -1621,7 +1621,7 @@ public class MapBuilderEditor : EditorWindow
         // Walls (Obstacles) Configuration Section
         EditorGUILayout.Space(6);
         EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-        EditorGUILayout.LabelField("🧱 Стены-препятствия (только прямые углы 90°):", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("🧱 Стены-препятствия (любой угол, цепь):", EditorStyles.boldLabel);
         
         wallThickness = EditorGUILayout.Slider("Толщина стены (м)", wallThickness, 0.15f, 1.50f);
         wallColor = EditorGUILayout.ColorField("Цвет стены", wallColor);
@@ -1639,14 +1639,12 @@ public class MapBuilderEditor : EditorWindow
             GUI.backgroundColor = new Color(0.3f, 0.9f, 0.3f, 1f);
             if (GUILayout.Button("✓ Фиксировать отрезок (Enter)", GUILayout.Height(26)))
             {
-                Vector2 snappedEnd = GetOrthogonalWallEndPoint(wallStartPoint, cursorPosition);
-                if (Vector2.Distance(wallStartPoint, snappedEnd) > 0.2f)
+                if (Vector2.Distance(wallStartPoint, cursorPosition) > 0.2f)
                 {
-                    WallObstacle newWall = CreateWall(wallStartPoint, snappedEnd, wallThickness, wallColor);
+                    WallObstacle newWall = CreateWall(wallStartPoint, cursorPosition, wallThickness, wallColor);
                     selectedWall = newWall;
                     selectedWallPointIndex = 1;
-                    wallStartPoint = snappedEnd;
-                    cursorPosition = snappedEnd;
+                    wallStartPoint = cursorPosition;
                 }
             }
             GUI.backgroundColor = new Color(1f, 0.6f, 0.2f, 1f);
@@ -1845,12 +1843,12 @@ public class MapBuilderEditor : EditorWindow
                 Vector2 newPt = new Vector2(newPos.x, newPos.y);
                 if (selectedWallPointIndex == 0)
                 {
-                    selectedWall.startPoint = GetOrthogonalWallEndPoint(selectedWall.endPoint, newPt);
+                    selectedWall.startPoint = newPt;
                     cursorPosition = selectedWall.startPoint;
                 }
                 else
                 {
-                    selectedWall.endPoint = GetOrthogonalWallEndPoint(selectedWall.startPoint, newPt);
+                    selectedWall.endPoint = newPt;
                     cursorPosition = selectedWall.endPoint;
                 }
                 selectedWall.UpdateTransformAndVisual(stripeSprite);
@@ -1929,14 +1927,13 @@ public class MapBuilderEditor : EditorWindow
                     }
                     else // isDrawingWall == true (Click places segment and continues chain!)
                     {
-                        Vector2 snappedEnd = GetOrthogonalWallEndPoint(wallStartPoint, rawPos);
-                        if (Vector2.Distance(wallStartPoint, snappedEnd) > 0.2f)
+                        if (Vector2.Distance(wallStartPoint, rawPos) > 0.2f)
                         {
-                            WallObstacle newWall = CreateWall(wallStartPoint, snappedEnd, wallThickness, wallColor);
+                            WallObstacle newWall = CreateWall(wallStartPoint, rawPos, wallThickness, wallColor);
                             selectedWall = newWall;
                             selectedWallPointIndex = 1;
-                            wallStartPoint = snappedEnd;
-                            cursorPosition = snappedEnd;
+                            wallStartPoint = rawPos;
+                            cursorPosition = rawPos;
                         }
                     }
                 }
@@ -1986,19 +1983,19 @@ public class MapBuilderEditor : EditorWindow
                 {
                     if (isDrawingWall)
                     {
-                        cursorPosition = GetOrthogonalWallEndPoint(wallStartPoint, rawPos);
+                        cursorPosition = rawPos;
                     }
                     else if (selectedWall != null)
                     {
                         Undo.RecordObject(selectedWall.transform, "Move Wall Point");
                         if (selectedWallPointIndex == 0)
                         {
-                            selectedWall.startPoint = GetOrthogonalWallEndPoint(selectedWall.endPoint, rawPos);
+                            selectedWall.startPoint = rawPos;
                             cursorPosition = selectedWall.startPoint;
                         }
                         else
                         {
-                            selectedWall.endPoint = GetOrthogonalWallEndPoint(selectedWall.startPoint, rawPos);
+                            selectedWall.endPoint = rawPos;
                             cursorPosition = selectedWall.endPoint;
                         }
                         selectedWall.UpdateTransformAndVisual(stripeSprite);
@@ -2241,15 +2238,13 @@ public class MapBuilderEditor : EditorWindow
                     case KeyCode.KeypadEnter:
                         if (isDrawingWall)
                         {
-                            Vector2 snappedEnd = GetOrthogonalWallEndPoint(wallStartPoint, cursorPosition);
-                            if (Vector2.Distance(wallStartPoint, snappedEnd) > 0.2f)
+                            if (Vector2.Distance(wallStartPoint, cursorPosition) > 0.2f)
                             {
-                                WallObstacle newWall = CreateWall(wallStartPoint, snappedEnd, wallThickness, wallColor);
+                                WallObstacle newWall = CreateWall(wallStartPoint, cursorPosition, wallThickness, wallColor);
                                 selectedWall = newWall;
                                 selectedWallPointIndex = 1;
                                 // Automatically advance / continue chain to next segment!
-                                wallStartPoint = snappedEnd;
-                                cursorPosition = snappedEnd;
+                                wallStartPoint = cursorPosition;
                                 if (SceneView.lastActiveSceneView != null)
                                 {
                                     SceneView.lastActiveSceneView.ShowNotification(new GUIContent($"Стена зафиксирована! Ведите следующую ➔"));
@@ -2558,17 +2553,15 @@ public class MapBuilderEditor : EditorWindow
             }
         }
 
-        // 2. If actively drawing a wall chain (Start point fixed, stretching orthogonal 90° segment)
+        // 2. If actively drawing a wall chain (Start point fixed, stretching segment at any angle)
         if (currentObjectType == ObjectType.Wall && isDrawingWall)
         {
             Vector3 pA = new Vector3(wallStartPoint.x, wallStartPoint.y, 0f);
-            Vector2 snappedEnd = GetOrthogonalWallEndPoint(wallStartPoint, cursorPosition);
-            Vector3 pB = new Vector3(snappedEnd.x, snappedEnd.y, 0f);
-            float length = Vector2.Distance(wallStartPoint, snappedEnd);
-            Vector2 dir = snappedEnd - wallStartPoint;
-            string orientation = (Mathf.Abs(dir.x) > Mathf.Abs(dir.y)) ? (dir.x >= 0 ? "Вправо ▶" : "Влево ◀") : (dir.y >= 0 ? "Вверх ▲" : "Вниз ▼");
+            Vector3 pB = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
+            float length = Vector2.Distance(wallStartPoint, cursorPosition);
+            float angle = Vector2.SignedAngle(Vector2.right, cursorPosition - wallStartPoint);
 
-            // Draw solid/thick preview line for the wall
+            // Draw preview line for the wall
             Handles.color = new Color(0.75f, 0.4f, 0.15f, 0.95f);
             Handles.DrawDottedLine(pA, pB, 4f);
 
@@ -2580,7 +2573,7 @@ public class MapBuilderEditor : EditorWindow
             // Draw end point (where Enter will fix it)
             Handles.color = new Color(0.3f, 1.0f, 0.4f, 0.95f);
             Handles.DrawSolidDisc(pB, Vector3.forward, 0.35f);
-            Handles.Label(pB + new Vector3(0.5f, 0.5f, 0f), $"Стена 90°: {orientation} | {length:F1}м [Enter]", EditorStyles.boldLabel);
+            Handles.Label(pB + new Vector3(0.5f, 0.5f, 0f), $"Стена: {length:F1}м ({angle:F0}°) [Enter / Клик]", EditorStyles.boldLabel);
         }
     }
 
@@ -2855,12 +2848,12 @@ public class MapBuilderEditor : EditorWindow
         }
         else if (currentObjectType == ObjectType.Wall)
         {
-            GUI.Label(new Rect(24, 40, 330, 20), "Режим: <color=#d2691e>Стена-препятствие (90° углы)</color>", textStyle);
+            GUI.Label(new Rect(24, 40, 330, 20), "Режим: <color=#d2691e>Стена-препятствие (Любой угол, цепь)</color>", textStyle);
             if (isDrawingWall)
             {
-                Vector2 snappedEnd = GetOrthogonalWallEndPoint(wallStartPoint, cursorPosition);
-                float curLen = Vector2.Distance(wallStartPoint, snappedEnd);
-                GUI.Label(new Rect(24, 60, 330, 20), $"Рисование стены: {curLen:F1}м ➔ [Enter] зафиксировать", textStyle);
+                float curLen = Vector2.Distance(wallStartPoint, cursorPosition);
+                float angle = Vector2.SignedAngle(Vector2.right, cursorPosition - wallStartPoint);
+                GUI.Label(new Rect(24, 60, 330, 20), $"Рисование стены: {curLen:F1}м ({angle:F0}°) ➔ [Enter/Клик]", textStyle);
             }
             else if (selectedWall != null)
             {
@@ -3237,14 +3230,12 @@ public class MapBuilderEditor : EditorWindow
             }
             else
             {
-                Vector2 snappedEnd = GetOrthogonalWallEndPoint(wallStartPoint, cursorPosition);
-                if (Vector2.Distance(wallStartPoint, snappedEnd) > 0.2f)
+                if (Vector2.Distance(wallStartPoint, cursorPosition) > 0.2f)
                 {
-                    WallObstacle newWall = CreateWall(wallStartPoint, snappedEnd, wallThickness, wallColor);
+                    WallObstacle newWall = CreateWall(wallStartPoint, cursorPosition, wallThickness, wallColor);
                     selectedWall = newWall;
                     selectedWallPointIndex = 1;
-                    wallStartPoint = snappedEnd;
-                    cursorPosition = snappedEnd;
+                    wallStartPoint = cursorPosition;
                 }
             }
             SceneView.RepaintAll();
