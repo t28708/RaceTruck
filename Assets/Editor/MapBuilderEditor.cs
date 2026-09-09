@@ -1739,7 +1739,7 @@ public class MapBuilderEditor : EditorWindow
         Transform container = workspace != null ? workspace.transform.Find(MarkingLinesContainerName) : null;
         if (container == null)
         {
-            RoadMarkingLine[] allLines = Object.FindObjectsByType<RoadMarkingLine>(FindObjectsSortMode.None);
+            RoadMarkingLine[] allLines = UnityEngine.Object.FindObjectsByType<RoadMarkingLine>(FindObjectsSortMode.None);
             foreach (var line in allLines)
             {
                 DrawSingleMarkingLineHandle(line);
