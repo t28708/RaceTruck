@@ -10,11 +10,13 @@ public class MapBuilderEditor : EditorWindow
 {
     public enum ObjectType
     {
-        StandardEmpty = 0,   // 1. Стандартное без трака (4.5м)
-        StandardParked = 1,  // 2. Стандартное с траком (4.5м)
-        TargetParking = 2,   // 3. Целевое место парковки (4.5м, Единственное)
-        TruckStartPoint = 3, // 4. Место старта трака (Единственный)
-        MarkingLine = 4      // 5. Линия разметки (A ➔ B)
+        StandardEmpty = 0,        // 1. Стандартное без трака (4.5м)
+        StandardParked = 1,       // 2. Стандартное с траком (4.5м)
+        TargetParking = 2,        // 3. Целевое место парковки (4.5м, Единственное)
+        TruckStartPoint = 3,      // 4. Место старта трака (Единственный)
+        MarkingLine = 4,          // 5. Линия разметки (A ➔ B)
+        StandardEmptyNarrow = 5,  // 6. Узкое без трака (3.5м)
+        StandardParkedNarrow = 6  // 7. Узкое с траком (3.5м)
     }
 
     public const string CustomMapsFolder = "Assets/Scenes/CustomMaps";
@@ -24,8 +26,18 @@ public class MapBuilderEditor : EditorWindow
     private const string MarkingLinesContainerName = "MapBuilder_MarkingLines";
     private const string GhostPreviewName = "__MapBuilder_GhostPreview__";
 
-    public const float SlotWidth = 4.5f;   // Фиксированная ширина стандартного места (4.5м)
-    public const float SlotLength = 26.0f; // Фиксированная длина места (26.0м)
+    public const float SlotWidth = 4.5f;         // Фиксированная ширина стандартного места (4.5м)
+    public const float NarrowSlotWidth = 3.5f;   // Фиксированная ширина узкого места (3.5м)
+    public const float SlotLength = 26.0f;       // Фиксированная длина места (26.0м)
+
+    public static float GetSlotWidth(ObjectType type)
+    {
+        if (type == ObjectType.StandardEmptyNarrow || type == ObjectType.StandardParkedNarrow)
+        {
+            return NarrowSlotWidth;
+        }
+        return SlotWidth;
+    }
 
     [SerializeField] private ObjectType currentObjectType = ObjectType.StandardEmpty;
     [SerializeField] private Vector2 cursorPosition = new Vector2(2.25f, 11.0f);
@@ -69,7 +81,9 @@ public class MapBuilderEditor : EditorWindow
         "2. Стандартное с траком (4.5м)",
         "3. Целевое место парковки (4.5м, Единственное)",
         "4. Место старта трака (Единственный)",
-        "5. Линия разметки (A ➔ B)"
+        "5. Линия разметки (A ➔ B)",
+        "6. Узкое без трака (3.5м)",
+        "7. Узкое с траком (3.5м)"
     };
 
     [MenuItem("Tools/Map Builder/Open Editor", false, 1)]
@@ -284,11 +298,15 @@ public class MapBuilderEditor : EditorWindow
             Vector2 childRight = new Vector2(child.right.x, child.right.y);
             Vector2 childUp = new Vector2(child.up.x, child.up.y);
 
-            // Candidate snap points: only direct adjacent neighbor slots (+/- 4.5m side or +/- 26m end)
+            float childWidth = child.name.Contains("Narrow") ? NarrowSlotWidth : SlotWidth;
+            float currentWidth = GetSlotWidth(currentObjectType);
+            float sideOffset = (childWidth + currentWidth) * 0.5f;
+
+            // Candidate snap points: only direct adjacent neighbor slots (+/- side or +/- 26m end)
             Vector2[] candidateSnapPoints = new Vector2[]
             {
-                childPos + childRight * SlotWidth, // +1 slot right (4.5m)
-                childPos - childRight * SlotWidth, // -1 slot left (4.5m)
+                childPos + childRight * sideOffset, // +1 slot right
+                childPos - childRight * sideOffset, // -1 slot left
                 childPos + childUp * SlotLength,   // end-to-end forward (26.0m)
                 childPos - childUp * SlotLength    // end-to-end backward (26.0m)
             };
@@ -322,7 +340,7 @@ public class MapBuilderEditor : EditorWindow
             return; // Diagonal placement (45 deg, etc.): free position preserved without axis snapping
         }
 
-        float width = SlotWidth;
+        float width = GetSlotWidth(currentObjectType);
         float length = SlotLength;
 
         bool isRotatedHorizontal = Mathf.Approximately(Mathf.Abs(currentRotation), 90f) || Mathf.Approximately(Mathf.Abs(currentRotation), 270f);
@@ -1625,11 +1643,11 @@ public class MapBuilderEditor : EditorWindow
                 Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
                 Vector3 forwardDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.up;
 
-                float step = SlotWidth; // 4.5m step for W, S, A, D
+                float step = GetSlotWidth(currentObjectType); // Step based on current object width (4.5m or 3.5m)
 
                 if (e.shift)
                 {
-                    step *= 2f; // 9.0m
+                    step *= 2f;
                 }
                 else if (e.alt || e.control)
                 {
@@ -1876,7 +1894,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void CycleObjectType()
     {
-        currentObjectType = (ObjectType)(((int)currentObjectType + 1) % 5);
+        currentObjectType = (ObjectType)(((int)currentObjectType + 1) % 7);
         if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine)
         {
             SnapCursorToGrid();
@@ -1929,14 +1947,15 @@ public class MapBuilderEditor : EditorWindow
         }
         else
         {
-            GUI.Label(new Rect(24, 40, 330, 20), "Мышь: <color=#55ff55>Свободное перемещение</color> | Клавиши: <color=#55ffff>4.5м</color>", textStyle);
+            float curW = GetSlotWidth(currentObjectType);
+            GUI.Label(new Rect(24, 40, 330, 20), $"Мышь: <color=#55ff55>Свободное</color> | Шаг: <color=#55ffff>{curW:F1}м</color>", textStyle);
             GUI.Label(new Rect(24, 60, 330, 20), "Объект: " + ObjectTypeNames[(int)currentObjectType], textStyle);
             GUI.Label(new Rect(24, 80, 330, 20), "Позиция: X: " + cursorPosition.x.ToString("F2") + "м | Y: " + cursorPosition.y.ToString("F2") + "м | " + currentRotation.ToString("F0") + "°", textStyle);
 
             GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
             helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
             GUI.Label(new Rect(24, 104, 330, 18), "[Мышь] Свободное таскание + авто-прилипание к слотам", helpStyle);
-            GUI.Label(new Rect(24, 122, 330, 18), "[R] Поворот 45° (Shift: 15°) | [WASD] Шаг 4.5м | [Enter] Ставить", helpStyle);
+            GUI.Label(new Rect(24, 122, 330, 18), $"[R] Поворот 45° (Shift: 15°) | [WASD] Шаг {curW:F1}м | [Enter] Ставить", helpStyle);
             GUI.Label(new Rect(24, 140, 330, 18), "[Ctrl+Стрелки] Сдвиг всей карты 4.5м | [Del] Удалить", helpStyle);
         }
 
@@ -1957,7 +1976,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isEmpty = currentObjectType == ObjectType.StandardEmpty;
         GUI.backgroundColor = isEmpty ? new Color(0.3f, 0.85f, 0.3f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(startX, btnY, 82, btnH), "🅿 1. Пусто"))
+        if (GUI.Button(new Rect(startX, btnY, 78, btnH), "🅿 1. 4.5м"))
         {
             currentObjectType = ObjectType.StandardEmpty;
             SnapCursorToGrid();
@@ -1966,16 +1985,34 @@ public class MapBuilderEditor : EditorWindow
 
         bool isParked = currentObjectType == ObjectType.StandardParked;
         GUI.backgroundColor = isParked ? new Color(1f, 0.45f, 0.45f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(startX + 85, btnY, 82, btnH), "🚛 2. Трак"))
+        if (GUI.Button(new Rect(startX + 81, btnY, 78, btnH), "🚛 2. 4.5м"))
         {
             currentObjectType = ObjectType.StandardParked;
             SnapCursorToGrid();
             UpdateGhostPreview();
         }
 
+        bool isEmptyNarrow = currentObjectType == ObjectType.StandardEmptyNarrow;
+        GUI.backgroundColor = isEmptyNarrow ? new Color(0.3f, 0.85f, 0.3f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(startX + 162, btnY, 78, btnH), "🅿 6. 3.5м"))
+        {
+            currentObjectType = ObjectType.StandardEmptyNarrow;
+            SnapCursorToGrid();
+            UpdateGhostPreview();
+        }
+
+        bool isParkedNarrow = currentObjectType == ObjectType.StandardParkedNarrow;
+        GUI.backgroundColor = isParkedNarrow ? new Color(1f, 0.45f, 0.45f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(startX + 243, btnY, 78, btnH), "🚛 7. 3.5м"))
+        {
+            currentObjectType = ObjectType.StandardParkedNarrow;
+            SnapCursorToGrid();
+            UpdateGhostPreview();
+        }
+
         bool isTarget = currentObjectType == ObjectType.TargetParking;
         GUI.backgroundColor = isTarget ? new Color(1f, 0.85f, 0.05f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(startX + 170, btnY, 78, btnH), "🎯 3. Цель"))
+        if (GUI.Button(new Rect(startX + 324, btnY, 68, btnH), "🎯 3. Цель"))
         {
             currentObjectType = ObjectType.TargetParking;
             SnapCursorToGrid();
@@ -1984,7 +2021,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isStart = currentObjectType == ObjectType.TruckStartPoint;
         GUI.backgroundColor = isStart ? new Color(0.2f, 0.9f, 1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(startX + 251, btnY, 85, btnH), "🏁 4. Старт"))
+        if (GUI.Button(new Rect(startX + 395, btnY, 72, btnH), "🏁 4. Старт"))
         {
             currentObjectType = ObjectType.TruckStartPoint;
             UpdateGhostPreview();
@@ -1992,50 +2029,50 @@ public class MapBuilderEditor : EditorWindow
 
         bool isLine = currentObjectType == ObjectType.MarkingLine;
         GUI.backgroundColor = isLine ? new Color(0.95f, 0.9f, 0.2f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(startX + 339, btnY, 88, btnH), "🖊 5. Линия"))
+        if (GUI.Button(new Rect(startX + 470, btnY, 72, btnH), "🖊 5. Линия"))
         {
             currentObjectType = ObjectType.MarkingLine;
             UpdateGhostPreview();
         }
 
         GUI.backgroundColor = new Color(1f, 0.85f, 0.2f, 0.9f);
-        if (GUI.Button(new Rect(startX + 430, btnY, 68, btnH), "⟳ 45°"))
+        if (GUI.Button(new Rect(startX + 545, btnY, 56, btnH), "⟳ 45°"))
         {
             RotateCursor(45f);
         }
 
         GUI.backgroundColor = new Color(0.2f, 0.9f, 0.3f, 0.95f);
-        if (GUI.Button(new Rect(startX + 501, btnY, 86, btnH), "✓ Применить"))
+        if (GUI.Button(new Rect(startX + 604, btnY, 76, btnH), "✓ Ставить"))
         {
             PlaceCurrentObject();
         }
 
         // Height quick adjuster in HUD
         GUI.backgroundColor = new Color(0.95f, 0.75f, 0.2f, 0.95f);
-        if (GUI.Button(new Rect(startX + 590, btnY, 40, btnH), "[-H]"))
+        if (GUI.Button(new Rect(startX + 683, btnY, 36, btnH), "[-H]"))
         {
             AdjustMapHeight(-5f);
         }
-        if (GUI.Button(new Rect(startX + 633, btnY, 40, btnH), "[+H]"))
+        if (GUI.Button(new Rect(startX + 722, btnY, 36, btnH), "[+H]"))
         {
             AdjustMapHeight(+5f);
         }
 
         // Shift All Map Objects quick buttons in HUD
         GUI.backgroundColor = new Color(0.3f, 0.75f, 0.95f, 0.95f);
-        if (GUI.Button(new Rect(startX + 676, btnY, 32, btnH), "⬅"))
+        if (GUI.Button(new Rect(startX + 761, btnY, 28, btnH), "⬅"))
         {
             ShiftAllMapObjects(new Vector2(-SlotWidth, 0f));
         }
-        if (GUI.Button(new Rect(startX + 711, btnY, 32, btnH), "➡"))
+        if (GUI.Button(new Rect(startX + 792, btnY, 28, btnH), "➡"))
         {
             ShiftAllMapObjects(new Vector2(SlotWidth, 0f));
         }
-        if (GUI.Button(new Rect(startX + 746, btnY, 32, btnH), "⬇"))
+        if (GUI.Button(new Rect(startX + 823, btnY, 28, btnH), "⬇"))
         {
             ShiftAllMapObjects(new Vector2(0f, -SlotWidth));
         }
-        if (GUI.Button(new Rect(startX + 781, btnY, 32, btnH), "⬆"))
+        if (GUI.Button(new Rect(startX + 854, btnY, 28, btnH), "⬆"))
         {
             ShiftAllMapObjects(new Vector2(0f, SlotWidth));
         }
@@ -2046,7 +2083,7 @@ public class MapBuilderEditor : EditorWindow
 
         if (currentObjectType != ObjectType.MarkingLine)
         {
-            float slotWidth = SlotWidth;
+            float slotWidth = GetSlotWidth(currentObjectType);
             float slotLength = (currentObjectType == ObjectType.TargetParking) ? 26.0f : SlotLength;
             Vector3 size = new Vector3(slotWidth, slotLength, 0f);
             
@@ -2209,6 +2246,9 @@ public class MapBuilderEditor : EditorWindow
         GameObject workspace = GameObject.Find(WorkspaceRootName);
         Transform container = workspace != null ? workspace.transform.Find(SlotsContainerName) : null;
 
+        float curWidth = GetSlotWidth(currentObjectType);
+        float threshold = curWidth * 0.45f;
+
         // Ensure only ONE object exists at this grid cell: remove existing slot at cursor position
         if (container != null)
         {
@@ -2216,14 +2256,33 @@ public class MapBuilderEditor : EditorWindow
             {
                 Transform child = container.GetChild(i);
                 float dist = Vector2.Distance(new Vector2(child.position.x, child.position.y), cursorPosition);
-                if (dist < 2.2f)
+                if (dist < threshold)
                 {
                     SafeDestroyObject(child.gameObject);
                 }
             }
         }
 
-        string slotName = currentObjectType == ObjectType.StandardEmpty ? "Stall_Standard_Empty" : "Stall_Standard_Parked";
+        string slotName;
+        switch (currentObjectType)
+        {
+            case ObjectType.StandardEmpty:
+                slotName = "Stall_Standard_Empty";
+                break;
+            case ObjectType.StandardParked:
+                slotName = "Stall_Standard_Parked";
+                break;
+            case ObjectType.StandardEmptyNarrow:
+                slotName = "Stall_Narrow_Empty";
+                break;
+            case ObjectType.StandardParkedNarrow:
+                slotName = "Stall_Narrow_Parked";
+                break;
+            default:
+                slotName = "Stall_Standard_Empty";
+                break;
+        }
+
         GameObject slotObj = new GameObject(slotName);
         
         if (container != null)
@@ -2241,7 +2300,7 @@ public class MapBuilderEditor : EditorWindow
         if (autoAdvanceAfterPlacement)
         {
             Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
-            cursorPosition += new Vector2(rightDir.x, rightDir.y) * SlotWidth;
+            cursorPosition += new Vector2(rightDir.x, rightDir.y) * curWidth;
             UpdateGhostPreview();
         }
 
@@ -2508,7 +2567,7 @@ public class MapBuilderEditor : EditorWindow
         }
 
         bool isTargetParking = (type == ObjectType.TargetParking);
-        float width = SlotWidth;
+        float width = GetSlotWidth(type);
         float length = isTargetParking ? 26.0f : SlotLength;
         float halfWidth = width * 0.5f;
         float stripeThickness = 0.18f;
@@ -2609,7 +2668,7 @@ public class MapBuilderEditor : EditorWindow
         }
 
         // 5. Parked Truck (Centered in 26m slot)
-        if (type == ObjectType.StandardParked)
+        if (type == ObjectType.StandardParked || type == ObjectType.StandardParkedNarrow)
         {
             GameObject trailer = new GameObject("Trailer");
             trailer.transform.SetParent(parent, false);
