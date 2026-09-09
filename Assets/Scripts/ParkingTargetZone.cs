@@ -44,6 +44,32 @@ public class ParkingTargetZone : MonoBehaviour
         AllZones.Remove(this);
     }
 
+    public void SetSlotSize(Vector2 size)
+    {
+        targetSlotSize = size;
+        UpdateVisualStripes();
+    }
+
+    private void AutoDetectSlotSize()
+    {
+        Transform rightStripe = transform.Find("StallLine_Right");
+        if (rightStripe != null)
+        {
+            float detectedWidth = Mathf.Abs(rightStripe.localPosition.x) * 2f;
+            if (detectedWidth > 1.0f)
+            {
+                targetSlotSize.x = detectedWidth;
+            }
+        }
+        else if (gameObject.name.Contains("Narrow"))
+        {
+            targetSlotSize.x = 3.5f;
+        }
+
+        if (targetSlotSize.x < 1.0f) targetSlotSize.x = 4.5f;
+        if (targetSlotSize.y < 25.0f) targetSlotSize.y = 26.0f;
+    }
+
     private void Awake()
     {
         Instance = this;
@@ -52,21 +78,21 @@ public class ParkingTargetZone : MonoBehaviour
             AllZones.Add(this);
         }
         requiredStayTime = 0.2f;
-        targetSlotSize = new Vector2(4.5f, targetSlotSize.y < 25.0f ? 26.0f : targetSlotSize.y);
+        AutoDetectSlotSize();
         UpdateVisualStripes();
     }
 
     private void OnValidate()
     {
         requiredStayTime = 0.2f;
-        targetSlotSize = new Vector2(4.5f, targetSlotSize.y < 25.0f ? 26.0f : targetSlotSize.y);
+        AutoDetectSlotSize();
         UpdateVisualStripes();
     }
 
     private void Start()
     {
         requiredStayTime = 0.2f;
-        targetSlotSize = new Vector2(4.5f, targetSlotSize.y < 25.0f ? 26.0f : targetSlotSize.y);
+        AutoDetectSlotSize();
         UpdateVisualStripes();
         FindTruckComponents();
     }

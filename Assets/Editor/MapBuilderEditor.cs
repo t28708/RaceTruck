@@ -16,7 +16,8 @@ public class MapBuilderEditor : EditorWindow
         TruckStartPoint = 3,      // 4. Место старта трака (Единственный)
         MarkingLine = 4,          // 5. Линия разметки (A ➔ B)
         StandardEmptyNarrow = 5,  // 6. Узкое без трака (3.5м)
-        StandardParkedNarrow = 6  // 7. Узкое с траком (3.5м)
+        StandardParkedNarrow = 6, // 7. Узкое с траком (3.5м)
+        TargetParkingNarrow = 7   // 8. Целевое место парковки (3.5м, Единственное)
     }
 
     public const string CustomMapsFolder = "Assets/Scenes/CustomMaps";
@@ -32,7 +33,7 @@ public class MapBuilderEditor : EditorWindow
 
     public static float GetSlotWidth(ObjectType type)
     {
-        if (type == ObjectType.StandardEmptyNarrow || type == ObjectType.StandardParkedNarrow)
+        if (type == ObjectType.StandardEmptyNarrow || type == ObjectType.StandardParkedNarrow || type == ObjectType.TargetParkingNarrow)
         {
             return NarrowSlotWidth;
         }
@@ -83,7 +84,8 @@ public class MapBuilderEditor : EditorWindow
         "4. Место старта трака (Единственный)",
         "5. Линия разметки (A ➔ B)",
         "6. Узкое без трака (3.5м)",
-        "7. Узкое с траком (3.5м)"
+        "7. Узкое с траком (3.5м)",
+        "8. Целевое место парковки (3.5м, Единственное)"
     };
 
     [MenuItem("Tools/Map Builder/Open Editor", false, 1)]
@@ -1894,7 +1896,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void CycleObjectType()
     {
-        currentObjectType = (ObjectType)(((int)currentObjectType + 1) % 7);
+        currentObjectType = (ObjectType)(((int)currentObjectType + 1) % 8);
         if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine)
         {
             SnapCursorToGrid();
@@ -1973,106 +1975,131 @@ public class MapBuilderEditor : EditorWindow
         float startX = 375;
         float btnY = 14;
         float btnH = 28;
+        float curBtnX = startX;
 
         bool isEmpty = currentObjectType == ObjectType.StandardEmpty;
         GUI.backgroundColor = isEmpty ? new Color(0.3f, 0.85f, 0.3f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(startX, btnY, 78, btnH), "🅿 1. 4.5м"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🅿 1. 4.5м"))
         {
             currentObjectType = ObjectType.StandardEmpty;
             SnapCursorToGrid();
             UpdateGhostPreview();
         }
+        curBtnX += 76;
 
         bool isParked = currentObjectType == ObjectType.StandardParked;
         GUI.backgroundColor = isParked ? new Color(1f, 0.45f, 0.45f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(startX + 81, btnY, 78, btnH), "🚛 2. 4.5м"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🚛 2. 4.5м"))
         {
             currentObjectType = ObjectType.StandardParked;
             SnapCursorToGrid();
             UpdateGhostPreview();
         }
+        curBtnX += 76;
 
         bool isEmptyNarrow = currentObjectType == ObjectType.StandardEmptyNarrow;
         GUI.backgroundColor = isEmptyNarrow ? new Color(0.3f, 0.85f, 0.3f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(startX + 162, btnY, 78, btnH), "🅿 6. 3.5м"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🅿 6. 3.5м"))
         {
             currentObjectType = ObjectType.StandardEmptyNarrow;
             SnapCursorToGrid();
             UpdateGhostPreview();
         }
+        curBtnX += 76;
 
         bool isParkedNarrow = currentObjectType == ObjectType.StandardParkedNarrow;
         GUI.backgroundColor = isParkedNarrow ? new Color(1f, 0.45f, 0.45f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(startX + 243, btnY, 78, btnH), "🚛 7. 3.5м"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🚛 7. 3.5м"))
         {
             currentObjectType = ObjectType.StandardParkedNarrow;
             SnapCursorToGrid();
             UpdateGhostPreview();
         }
+        curBtnX += 76;
 
         bool isTarget = currentObjectType == ObjectType.TargetParking;
         GUI.backgroundColor = isTarget ? new Color(1f, 0.85f, 0.05f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(startX + 324, btnY, 68, btnH), "🎯 3. Цель"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🎯 3. 4.5м"))
         {
             currentObjectType = ObjectType.TargetParking;
             SnapCursorToGrid();
             UpdateGhostPreview();
         }
+        curBtnX += 76;
+
+        bool isTargetNarrow = currentObjectType == ObjectType.TargetParkingNarrow;
+        GUI.backgroundColor = isTargetNarrow ? new Color(1f, 0.85f, 0.05f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🎯 8. 3.5м"))
+        {
+            currentObjectType = ObjectType.TargetParkingNarrow;
+            SnapCursorToGrid();
+            UpdateGhostPreview();
+        }
+        curBtnX += 76;
 
         bool isStart = currentObjectType == ObjectType.TruckStartPoint;
         GUI.backgroundColor = isStart ? new Color(0.2f, 0.9f, 1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(startX + 395, btnY, 72, btnH), "🏁 4. Старт"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 70, btnH), "🏁 4. Старт"))
         {
             currentObjectType = ObjectType.TruckStartPoint;
             UpdateGhostPreview();
         }
+        curBtnX += 72;
 
         bool isLine = currentObjectType == ObjectType.MarkingLine;
         GUI.backgroundColor = isLine ? new Color(0.95f, 0.9f, 0.2f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(startX + 470, btnY, 72, btnH), "🖊 5. Линия"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 70, btnH), "🖊 5. Линия"))
         {
             currentObjectType = ObjectType.MarkingLine;
             UpdateGhostPreview();
         }
+        curBtnX += 72;
 
         GUI.backgroundColor = new Color(1f, 0.85f, 0.2f, 0.9f);
-        if (GUI.Button(new Rect(startX + 545, btnY, 56, btnH), "⟳ 45°"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 54, btnH), "⟳ 45°"))
         {
             RotateCursor(45f);
         }
+        curBtnX += 56;
 
         GUI.backgroundColor = new Color(0.2f, 0.9f, 0.3f, 0.95f);
-        if (GUI.Button(new Rect(startX + 604, btnY, 76, btnH), "✓ Ставить"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "✓ Ставить"))
         {
             PlaceCurrentObject();
         }
+        curBtnX += 76;
 
         // Height quick adjuster in HUD
         GUI.backgroundColor = new Color(0.95f, 0.75f, 0.2f, 0.95f);
-        if (GUI.Button(new Rect(startX + 683, btnY, 36, btnH), "[-H]"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 34, btnH), "[-H]"))
         {
             AdjustMapHeight(-5f);
         }
-        if (GUI.Button(new Rect(startX + 722, btnY, 36, btnH), "[+H]"))
+        curBtnX += 36;
+        if (GUI.Button(new Rect(curBtnX, btnY, 34, btnH), "[+H]"))
         {
             AdjustMapHeight(+5f);
         }
+        curBtnX += 36;
 
         // Shift All Map Objects quick buttons in HUD
         GUI.backgroundColor = new Color(0.3f, 0.75f, 0.95f, 0.95f);
-        if (GUI.Button(new Rect(startX + 761, btnY, 28, btnH), "⬅"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 28, btnH), "⬅"))
         {
             ShiftAllMapObjects(new Vector2(-SlotWidth, 0f));
         }
-        if (GUI.Button(new Rect(startX + 792, btnY, 28, btnH), "➡"))
+        curBtnX += 30;
+        if (GUI.Button(new Rect(curBtnX, btnY, 28, btnH), "➡"))
         {
             ShiftAllMapObjects(new Vector2(SlotWidth, 0f));
         }
-        if (GUI.Button(new Rect(startX + 823, btnY, 28, btnH), "⬇"))
+        curBtnX += 30;
+        if (GUI.Button(new Rect(curBtnX, btnY, 28, btnH), "⬇"))
         {
             ShiftAllMapObjects(new Vector2(0f, -SlotWidth));
         }
-        if (GUI.Button(new Rect(startX + 854, btnY, 28, btnH), "⬆"))
+        curBtnX += 30;
+        if (GUI.Button(new Rect(curBtnX, btnY, 28, btnH), "⬆"))
         {
             ShiftAllMapObjects(new Vector2(0f, SlotWidth));
         }
@@ -2084,7 +2111,7 @@ public class MapBuilderEditor : EditorWindow
         if (currentObjectType != ObjectType.MarkingLine)
         {
             float slotWidth = GetSlotWidth(currentObjectType);
-            float slotLength = (currentObjectType == ObjectType.TargetParking) ? 26.0f : SlotLength;
+            float slotLength = (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow) ? 26.0f : SlotLength;
             Vector3 size = new Vector3(slotWidth, slotLength, 0f);
             
             Matrix4x4 origMatrix = Handles.matrix;
@@ -2098,7 +2125,7 @@ public class MapBuilderEditor : EditorWindow
                 boxOutlineColor = new Color(0.2f, 0.95f, 0.4f, 0.95f);
                 boxFillColor = new Color(0.2f, 0.95f, 0.4f, 0.15f);
             }
-            else if (currentObjectType == ObjectType.TargetParking)
+            else if (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow)
             {
                 boxOutlineColor = new Color(1f, 0.85f, 0.05f, 0.98f);
                 boxFillColor = new Color(1f, 0.85f, 0.05f, 0.22f);
@@ -2215,7 +2242,7 @@ public class MapBuilderEditor : EditorWindow
             return;
         }
 
-        if (currentObjectType == ObjectType.TargetParking)
+        if (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow)
         {
             PlaceOrRelocateTargetParking();
             return;
@@ -2312,13 +2339,13 @@ public class MapBuilderEditor : EditorWindow
         GameObject workspace = GameObject.Find(WorkspaceRootName);
         Transform container = workspace != null ? workspace.transform.Find(SlotsContainerName) : null;
 
-        // Ensure strictly ONLY ONE TargetParkingSlot exists on the map
+        // Ensure strictly ONLY ONE TargetParkingSlot exists on the map (either 4.5m or 3.5m)
         if (container != null)
         {
             for (int i = container.childCount - 1; i >= 0; i--)
             {
                 Transform child = container.GetChild(i);
-                if (child.name == "TargetParkingSlot" || child.GetComponent<ParkingTargetZone>() != null)
+                if (child.name.StartsWith("TargetParking") || child.GetComponent<ParkingTargetZone>() != null)
                 {
                     SafeDestroyObject(child.gameObject);
                 }
@@ -2326,6 +2353,11 @@ public class MapBuilderEditor : EditorWindow
         }
         GameObject strayTarget = GameObject.Find("TargetParkingSlot");
         if (strayTarget != null) SafeDestroyObject(strayTarget);
+        GameObject strayTargetNarrow = GameObject.Find("TargetParkingSlot_Narrow");
+        if (strayTargetNarrow != null) SafeDestroyObject(strayTargetNarrow);
+
+        float curWidth = GetSlotWidth(currentObjectType);
+        float threshold = curWidth * 0.45f;
 
         // Remove any slot existing at the target cursor cell
         if (container != null)
@@ -2334,14 +2366,15 @@ public class MapBuilderEditor : EditorWindow
             {
                 Transform child = container.GetChild(i);
                 float dist = Vector2.Distance(new Vector2(child.position.x, child.position.y), cursorPosition);
-                if (dist < 2.2f)
+                if (dist < threshold)
                 {
                     SafeDestroyObject(child.gameObject);
                 }
             }
         }
 
-        GameObject slotObj = new GameObject("TargetParkingSlot");
+        string slotName = (currentObjectType == ObjectType.TargetParkingNarrow) ? "TargetParkingSlot_Narrow" : "TargetParkingSlot";
+        GameObject slotObj = new GameObject(slotName);
         if (container != null)
         {
             slotObj.transform.SetParent(container, false);
@@ -2349,7 +2382,7 @@ public class MapBuilderEditor : EditorWindow
         slotObj.transform.position = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
         slotObj.transform.rotation = Quaternion.Euler(0f, 0f, currentRotation);
 
-        BuildObjectHierarchy(slotObj.transform, ObjectType.TargetParking, isPreview: false);
+        BuildObjectHierarchy(slotObj.transform, currentObjectType, isPreview: false);
 
         SafeRegisterCreatedObjectUndo(slotObj, "Place Target Parking Slot");
         SafeMarkSceneDirty();
@@ -2357,12 +2390,13 @@ public class MapBuilderEditor : EditorWindow
         if (autoAdvanceAfterPlacement)
         {
             Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
-            cursorPosition += new Vector2(rightDir.x, rightDir.y) * SlotWidth;
+            cursorPosition += new Vector2(rightDir.x, rightDir.y) * curWidth;
             UpdateGhostPreview();
         }
 
         SceneView.RepaintAll();
-        Debug.Log($"<color=#ffd700>[MapBuilder] Установлено единственное Целевое место парковки (4.5м) в ({cursorPosition.x:F1}, {cursorPosition.y:F1})</color>");
+        string widthStr = (currentObjectType == ObjectType.TargetParkingNarrow) ? "3.5м" : "4.5м";
+        Debug.Log($"<color=#ffd700>[MapBuilder] Установлено единственное Целевое место парковки ({widthStr}) в ({cursorPosition.x:F1}, {cursorPosition.y:F1})</color>");
     }
 
     private void PlaceOrRelocateTruckStart()
@@ -2566,7 +2600,7 @@ public class MapBuilderEditor : EditorWindow
             return;
         }
 
-        bool isTargetParking = (type == ObjectType.TargetParking);
+        bool isTargetParking = (type == ObjectType.TargetParking || type == ObjectType.TargetParkingNarrow);
         float width = GetSlotWidth(type);
         float length = isTargetParking ? 26.0f : SlotLength;
         float halfWidth = width * 0.5f;
@@ -2663,7 +2697,8 @@ public class MapBuilderEditor : EditorWindow
             if (!isPreview)
             {
                 ParkingTargetZone zone = parent.gameObject.GetComponent<ParkingTargetZone>();
-                if (zone == null) parent.gameObject.AddComponent<ParkingTargetZone>();
+                if (zone == null) zone = parent.gameObject.AddComponent<ParkingTargetZone>();
+                zone.SetSlotSize(new Vector2(width, length));
             }
         }
 
