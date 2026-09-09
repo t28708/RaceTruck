@@ -12,6 +12,33 @@ EditorBuildSettings:
     path: Assets/Scenes/CustomMaps/Map_1.unity
     guid: e0d491081e79d5747b5ffff47cf69718
   - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_10_parallel_parking-2.unity
+    guid: 61ddc80e1ad92dd409d353befef3a0cf
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_10_parallel_parking.unity
+    guid: cfd6cd167e3413c459e83800852203c5
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_11_angle_back-smaller.unity
+    guid: f68081eb28d450b40abd3de4467c1ee2
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_11_angle_back-standart.unity
+    guid: 0042c9073d63ffd4cbd155d0371b0703
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_12_truck_stop_left_V2.unity
+    guid: 2b4d316e983a2464abe2da60fffd5db1
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_12_truck_stop_left_V3.unity
+    guid: 39cebf0e3b4c7f3478fa6912be497c6a
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_12_truck_stop_small.unity
+    guid: f8e45dbb8ae60684c8a4b531bb68ae20
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_12_truck_stop_standart.unity
+    guid: d0caac1461c9c844a98ca7e7b082a9c3
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_13.unity
+    guid: b875e09bcfb43a34fb5968c9f7eae8e9
+  - enabled: 1
     path: Assets/Scenes/CustomMaps/Map_2.unity
     guid: d700819544484f1419854be1d2bec925
   - enabled: 1
