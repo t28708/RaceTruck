@@ -2650,6 +2650,13 @@ public class MapBuilderEditor : EditorWindow
                     case KeyCode.KeypadEnter:
                     case KeyCode.Space:
                         selectedPassengerCar = CreatePassengerCar(cursorPosition, currentRotation, passengerCarColor);
+                        if (autoAdvanceAfterPlacement)
+                        {
+                            float carStep = 2.75f;
+                            Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
+                            cursorPosition += new Vector2(rightDir.x, rightDir.y) * carStep;
+                            UpdateGhostPreview();
+                        }
                         if (SceneView.lastActiveSceneView != null)
                         {
                             SceneView.lastActiveSceneView.ShowNotification(new GUIContent($"🚗 Легковая машина установлена ({currentRotation:F0}°)"));
@@ -3699,6 +3706,13 @@ public class MapBuilderEditor : EditorWindow
         if (currentObjectType == ObjectType.PassengerCar)
         {
             selectedPassengerCar = CreatePassengerCar(cursorPosition, currentRotation, passengerCarColor);
+            if (autoAdvanceAfterPlacement)
+            {
+                float carStep = 2.75f;
+                Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
+                cursorPosition += new Vector2(rightDir.x, rightDir.y) * carStep;
+                UpdateGhostPreview();
+            }
             SceneView.RepaintAll();
             return;
         }
