@@ -3039,6 +3039,7 @@ public class MapBuilderEditor : EditorWindow
                         handled = true;
                         break;
                 }
+            }
             else // Default parking stalls (StandardEmpty, StandardParked, TargetParking, etc.)
             {
                 if (e.control && (e.keyCode == KeyCode.UpArrow || e.keyCode == KeyCode.DownArrow || e.keyCode == KeyCode.LeftArrow || e.keyCode == KeyCode.RightArrow))
