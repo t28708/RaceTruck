@@ -16,7 +16,7 @@ public class ParkingTargetZone : MonoBehaviour
 
     [Header("Detection Parameters")]
     [SerializeField] private Vector2 targetSlotSize = new Vector2(4.5f, 26.0f);
-    [SerializeField] private float requiredStayTime = 0.2f; // seconds stationary inside slot
+    [SerializeField] private float requiredStayTime = 1.5f; // seconds stationary inside slot
 
     private Transform tractorTr;
     private Transform trailerTr;
@@ -77,21 +77,21 @@ public class ParkingTargetZone : MonoBehaviour
         {
             AllZones.Add(this);
         }
-        requiredStayTime = 0.2f;
+        requiredStayTime = 1.5f;
         AutoDetectSlotSize();
         UpdateVisualStripes();
     }
 
     private void OnValidate()
     {
-        requiredStayTime = 0.2f;
+        requiredStayTime = 1.5f;
         AutoDetectSlotSize();
         UpdateVisualStripes();
     }
 
     private void Start()
     {
-        requiredStayTime = 0.2f;
+        requiredStayTime = 1.5f;
         AutoDetectSlotSize();
         UpdateVisualStripes();
         FindTruckComponents();
