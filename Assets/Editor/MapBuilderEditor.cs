@@ -3039,8 +3039,9 @@ public class MapBuilderEditor : EditorWindow
                         handled = true;
                         break;
                 }
-            }
-            if (e.control && (e.keyCode == KeyCode.UpArrow || e.keyCode == KeyCode.DownArrow || e.keyCode == KeyCode.LeftArrow || e.keyCode == KeyCode.RightArrow))
+            else // Default parking stalls (StandardEmpty, StandardParked, TargetParking, etc.)
+            {
+                if (e.control && (e.keyCode == KeyCode.UpArrow || e.keyCode == KeyCode.DownArrow || e.keyCode == KeyCode.LeftArrow || e.keyCode == KeyCode.RightArrow))
             {
                 float shiftStep = SlotWidth; // 4.5m
                 if (e.shift) shiftStep *= 2f;
@@ -3152,6 +3153,7 @@ public class MapBuilderEditor : EditorWindow
                         break;
                 }
             }
+        }
 
             if (handled)
             {
