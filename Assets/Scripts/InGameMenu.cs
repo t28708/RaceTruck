@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using UnityEngine;
 using UnityEngine.UI;
@@ -72,12 +72,27 @@ public class InGameMenu : MonoBehaviour
     public void OpenMenu() => SetMenuOpen(true);
     public void CloseMenu() => SetMenuOpen(false);
 
+    private Text controlModeBtnText;
+
     public void SetMenuOpen(bool open)
     {
         isMenuOpen = open;
         if (menuModalGo != null)
         {
             menuModalGo.SetActive(isMenuOpen);
+            if (isMenuOpen && controlModeBtnText != null)
+            {
+                controlModeBtnText.text = "🎮 УПРАВЛЕНИЕ: " + SteeringWheelUI.GetControlTypeName(SteeringWheelUI.CurrentControlType);
+            }
+        }
+    }
+
+    public void OnToggleControlMode()
+    {
+        SteeringControlType nextType = SteeringWheelUI.CycleControlType();
+        if (controlModeBtnText != null)
+        {
+            controlModeBtnText.text = "🎮 УПРАВЛЕНИЕ: " + SteeringWheelUI.GetControlTypeName(nextType);
         }
     }
 
@@ -193,7 +208,7 @@ public class InGameMenu : MonoBehaviour
             cardRt.anchorMin = new Vector2(0.5f, 0.5f);
             cardRt.anchorMax = new Vector2(0.5f, 0.5f);
             cardRt.pivot = new Vector2(0.5f, 0.5f);
-            cardRt.sizeDelta = new Vector2(540f, 380f);
+            cardRt.sizeDelta = new Vector2(560f, 470f);
             cardRt.anchoredPosition = Vector2.zero;
 
             Image cardImg = cardGo.AddComponent<Image>();
@@ -207,8 +222,8 @@ public class InGameMenu : MonoBehaviour
             GameObject titleGo = new GameObject("Title");
             titleGo.transform.SetParent(cardGo.transform, false);
             RectTransform titleRt = titleGo.AddComponent<RectTransform>();
-            titleRt.anchorMin = new Vector2(0f, 0.76f);
-            titleRt.anchorMax = new Vector2(1f, 0.96f);
+            titleRt.anchorMin = new Vector2(0f, 0.78f);
+            titleRt.anchorMax = new Vector2(1f, 0.98f);
             titleRt.sizeDelta = Vector2.zero;
 
             Text titleText = titleGo.AddComponent<Text>();
@@ -219,25 +234,38 @@ public class InGameMenu : MonoBehaviour
             titleText.color = new Color(1f, 0.85f, 0.20f, 1f);
             titleText.text = "⏸ МЕНЮ ИГРЫ";
 
-            // Button 1: Перезапустить карту
-            CreateModalButton(cardGo.transform, "RestartBtn", "🔄 ПЕРЕЗАПУСТИТЬ КАРТУ", new Vector2(0f, 20f), new Color(0.20f, 0.55f, 0.90f, 1f), font, RestartCurrentMap);
+            // Button 1: Сменить тип управления
+            controlModeBtnText = CreateModalButton(cardGo.transform, "ControlModeBtn",
+                "🎮 УПРАВЛЕНИЕ: " + SteeringWheelUI.GetControlTypeName(SteeringWheelUI.CurrentControlType),
+                new Vector2(0f, 95f), new Color(0.20f, 0.50f, 0.90f, 1f), font, OnToggleControlMode);
 
-            // Button 2: В главное меню (Выбор всех карт)
-            CreateModalButton(cardGo.transform, "MainMenuBtn", "🗺 В ГЛАВНОЕ МЕНЮ", new Vector2(0f, -50f), new Color(0.18f, 0.75f, 0.45f, 1f), font, GoToMainMenu);
+            // Button 2: Перезапустить карту
+            CreateModalButton(cardGo.transform, "RestartBtn", "🔄 ПЕРЕЗАПУСТИТЬ КАРТУ",
+                new Vector2(0f, 25f), new Color(0.18f, 0.65f, 0.85f, 1f), font, RestartCurrentMap);
 
-            // Button 3: Продолжить
-            CreateModalButton(cardGo.transform, "ResumeBtn", "▶ ПРОДОЛЖИТЬ", new Vector2(0f, -120f), new Color(0.35f, 0.38f, 0.45f, 1f), font, CloseMenu);
+            // Button 3: В главное меню (Выбор всех карт)
+            CreateModalButton(cardGo.transform, "MainMenuBtn", "🗺 В ГЛАВНОЕ МЕНЮ",
+                new Vector2(0f, -45f), new Color(0.18f, 0.75f, 0.45f, 1f), font, GoToMainMenu);
+
+            // Button 4: Продолжить
+            CreateModalButton(cardGo.transform, "ResumeBtn", "▶ ПРОДОЛЖИТЬ",
+                new Vector2(0f, -115f), new Color(0.35f, 0.38f, 0.45f, 1f), font, CloseMenu);
 
             menuModalGo.SetActive(false);
         }
         else
         {
             menuModalGo = existingModal.gameObject;
+            Transform controlBtn = menuModalGo.transform.Find("MenuCard/ControlModeBtn");
+            if (controlBtn != null)
+            {
+                controlModeBtnText = controlBtn.GetComponentInChildren<Text>();
+            }
             menuModalGo.SetActive(false);
         }
     }
 
-    private void CreateModalButton(Transform parent, string name, string text, Vector2 anchoredPos, Color bgColor, Font font, UnityEngine.Events.UnityAction onClick)
+    private Text CreateModalButton(Transform parent, string name, string text, Vector2 anchoredPos, Color bgColor, Font font, UnityEngine.Events.UnityAction onClick)
     {
         GameObject btnGo = new GameObject(name);
         btnGo.transform.SetParent(parent, false);
@@ -246,7 +274,7 @@ public class InGameMenu : MonoBehaviour
         rt.anchorMin = new Vector2(0.5f, 0.5f);
         rt.anchorMax = new Vector2(0.5f, 0.5f);
         rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.sizeDelta = new Vector2(460f, 56f);
+        rt.sizeDelta = new Vector2(480f, 54f);
         rt.anchoredPosition = anchoredPos;
 
         Image img = btnGo.AddComponent<Image>();
@@ -269,5 +297,7 @@ public class InGameMenu : MonoBehaviour
         t.alignment = TextAnchor.MiddleCenter;
         t.color = Color.white;
         t.text = text;
+
+        return t;
     }
 }

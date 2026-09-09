@@ -33,8 +33,14 @@ EditorBuildSettings:
     path: Assets/Scenes/CustomMaps/Map_7-standart-parking-smaller.unity
     guid: 88fbe4800867d184097bcdcf95b8389f
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_8-small.unity
-    guid: 1d791191515347f4a865e7d4b811fc4c
+    path: Assets/Scenes/CustomMaps/Map_8-kroger-small.unity
+    guid: 67ac0f611aa6fcf44b653865ac215c2a
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_8-kroger-smaller.unity
+    guid: 6ccc74550b454454c9f0b8ff56bc6515
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_8-kroger.unity
+    guid: 36f9dc1e765ddd54085d2f319e8377d0
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0

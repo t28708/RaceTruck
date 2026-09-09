@@ -285,6 +285,8 @@ public class TruckController : MonoBehaviour
 
         wheel.FindComponents();
         wheel.SetSpeeds(1215f, 2278.125f);
+        wheel.EnsureAllControls();
+        wheel.UpdateControlsVisibility();
         steeringWheel = wheel;
 
         // 2. Gas & Brake Pedals (Large, comfortable, strictly on bottom-left, matching MTS reference)
