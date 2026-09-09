@@ -17,7 +17,8 @@ public class MapBuilderEditor : EditorWindow
         MarkingLine = 4,          // 5. Линия разметки (A ➔ B)
         StandardEmptyNarrow = 5,  // 6. Узкое без трака (3.5м)
         StandardParkedNarrow = 6, // 7. Узкое с траком (3.5м)
-        TargetParkingNarrow = 7   // 8. Целевое место парковки (3.5м, Единственное)
+        TargetParkingNarrow = 7,  // 8. Целевое место парковки (3.5м, Единственное)
+        RoadArrow = 8             // 9. Стрелка направления (Указания на дороге)
     }
 
     public const string CustomMapsFolder = "Assets/Scenes/CustomMaps";
@@ -25,6 +26,7 @@ public class MapBuilderEditor : EditorWindow
     private const string WorkspaceRootName = "MapBuilder_Workspace";
     private const string SlotsContainerName = "MapBuilder_Slots";
     private const string MarkingLinesContainerName = "MapBuilder_MarkingLines";
+    private const string RoadArrowsContainerName = "MapBuilder_RoadArrows";
     private const string GhostPreviewName = "__MapBuilder_GhostPreview__";
 
     public const float SlotWidth = 4.5f;         // Фиксированная ширина стандартного места (4.5м)
@@ -62,6 +64,13 @@ public class MapBuilderEditor : EditorWindow
     [SerializeField] private RoadMarkingLine selectedMarkingLine = null;
     [SerializeField] private int selectedPointIndex = 0; // 0 = Start (A), 1 = End (B)
 
+    // Road Direction Arrow tool state
+    [SerializeField] private bool isDrawingRoadArrow = false;
+    [SerializeField] private Vector2 roadArrowDragStartPos = Vector2.zero;
+    [SerializeField] private float roadArrowScale = 1.0f;
+    [SerializeField] private Color roadArrowColor = new Color(0.95f, 0.95f, 0.95f, 1.0f);
+    [SerializeField] private RoadDirectionArrow selectedRoadArrow = null;
+
     private GameObject ghostPreviewObj;
     private ObjectType lastBuiltPreviewType = (ObjectType)(-1);
     private Sprite asphaltSprite;
@@ -71,6 +80,7 @@ public class MapBuilderEditor : EditorWindow
     private Sprite trailerSprite;
     private Sprite arrowSprite;
     private Sprite yellowArrowSprite;
+    private Sprite roadArrowSprite;
     private Sprite wheelSprite;
     private Sprite pedalGasSprite;
     private Sprite pedalBrakeSprite;
@@ -85,7 +95,8 @@ public class MapBuilderEditor : EditorWindow
         "5. Линия разметки (A ➔ B)",
         "6. Узкое без трака (3.5м)",
         "7. Узкое с траком (3.5м)",
-        "8. Целевое место парковки (3.5м, Единственное)"
+        "8. Целевое место парковки (3.5м, Единственное)",
+        "9. Стрелка направления (Указания на дороге)"
     };
 
     [MenuItem("Tools/Map Builder/Open Editor", false, 1)]
@@ -272,7 +283,7 @@ public class MapBuilderEditor : EditorWindow
     private Vector2 GetMagneticSnappedPosition(Vector2 rawPos, float rot)
     {
         // Only apply magnetic snap for parking stalls (StandardEmpty, StandardParked, TargetParking)
-        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine) return rawPos;
+        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow) return rawPos;
 
         GameObject workspace = GameObject.Find(WorkspaceRootName);
         if (workspace == null) return rawPos;
@@ -334,7 +345,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void SnapCursorToGrid()
     {
-        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine) return;
+        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow) return;
 
         float rem = Mathf.Abs(currentRotation) % 90f;
         if (rem > 1.0f && rem < 89.0f)
@@ -378,6 +389,7 @@ public class MapBuilderEditor : EditorWindow
         trailerSprite = LoadOrCreateSprite(SpritesDir + "/Trailer.png", () => CreateSolidTexture(32, 128, new Color(0.88f, 0.88f, 0.90f)));
         arrowSprite = LoadOrCreateSprite(SpritesDir + "/DockArrow.png", null);
         yellowArrowSprite = LoadOrCreateSprite(SpritesDir + "/YellowParkingArrow.png", CreateYellowArrowTexture);
+        roadArrowSprite = LoadOrCreateSprite(SpritesDir + "/RoadArrow.png", CreateRoadArrowTexture);
         wheelSprite = LoadOrCreateSprite(SpritesDir + "/Tire.png", () => CreateSolidTexture(16, 32, new Color(0.15f, 0.15f, 0.15f)));
         pedalGasSprite = LoadOrCreateSprite(SpritesDir + "/PedalGas.png", null);
         pedalBrakeSprite = LoadOrCreateSprite(SpritesDir + "/PedalBrake.png", null);
@@ -420,6 +432,47 @@ public class MapBuilderEditor : EditorWindow
         Color[] pixels = new Color[width * height];
         for (int i = 0; i < pixels.Length; i++) pixels[i] = color;
         tex.SetPixels(pixels);
+        tex.Apply();
+        return tex;
+    }
+
+    private Texture2D CreateRoadArrowTexture()
+    {
+        int w = 128;
+        int h = 256;
+        Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        Color transparent = new Color(0, 0, 0, 0);
+        Color white = Color.white;
+        Color[] colors = new Color[w * h];
+        for (int i = 0; i < colors.Length; i++) colors[i] = transparent;
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                // Vertical stem: y from 20 to 140, x from 50 to 78 (28px wide)
+                bool inStem = (y >= 20 && y <= 140 && x >= 50 && x <= 78);
+
+                // Arrow head: triangle from y=120 to y=240
+                bool inHead = false;
+                if (y >= 120 && y <= 240)
+                {
+                    float progress = (y - 120f) / 120f;
+                    float halfWidthAtY = (1f - progress) * 54f;
+                    float midX = 64f;
+                    if (Mathf.Abs(x - midX) <= halfWidthAtY)
+                    {
+                        inHead = true;
+                    }
+                }
+
+                if (inStem || inHead)
+                {
+                    colors[y * w + x] = white;
+                }
+            }
+        }
+        tex.SetPixels(colors);
         tex.Apply();
         return tex;
     }
@@ -636,6 +689,21 @@ public class MapBuilderEditor : EditorWindow
                 }
             }
 
+            Transform arrowsContainer = workspace.transform.Find(RoadArrowsContainerName);
+            if (arrowsContainer != null)
+            {
+                if (!EditorApplication.isPlaying) Undo.RegisterFullObjectHierarchyUndo(arrowsContainer.gameObject, "Shift Road Arrows");
+                for (int i = 0; i < arrowsContainer.childCount; i++)
+                {
+                    RoadDirectionArrow rda = arrowsContainer.GetChild(i).GetComponent<RoadDirectionArrow>();
+                    if (rda != null)
+                    {
+                        rda.position += delta;
+                        rda.UpdateTransformAndVisual(roadArrowSprite);
+                    }
+                }
+            }
+
             cursorPosition += delta;
             UpdateGhostPreview();
             SafeMarkSceneDirty();
@@ -734,6 +802,86 @@ public class MapBuilderEditor : EditorWindow
             }
         }
         return bestLine;
+    }
+
+    public RoadDirectionArrow CreateRoadArrow(Vector2 pos, float rot, float scale = 1.0f, Color? color = null)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null)
+        {
+            EnsureCleanWorkPlane(clearExistingScene: false);
+            workspace = GameObject.Find(WorkspaceRootName);
+        }
+
+        Transform container = workspace.transform.Find(RoadArrowsContainerName);
+        if (container == null)
+        {
+            GameObject containerGo = new GameObject(RoadArrowsContainerName);
+            containerGo.transform.SetParent(workspace.transform, false);
+            container = containerGo.transform;
+            SafeRegisterCreatedObjectUndo(containerGo, "Create Road Arrows Container");
+        }
+
+        int index = container.childCount + 1;
+        GameObject arrowGo = new GameObject($"RoadArrow_{index}");
+        arrowGo.transform.SetParent(container, false);
+
+        RoadDirectionArrow arrowComp = arrowGo.AddComponent<RoadDirectionArrow>();
+        Color col = color ?? roadArrowColor;
+        arrowComp.Setup(pos, rot, scale, col, roadArrowSprite);
+
+        SafeRegisterCreatedObjectUndo(arrowGo, $"Create RoadArrow_{index}");
+        SafeMarkSceneDirty();
+        SceneView.RepaintAll();
+        return arrowComp;
+    }
+
+    public void ClearAllRoadArrows()
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace != null)
+        {
+            Transform container = workspace.transform.Find(RoadArrowsContainerName);
+            if (container != null)
+            {
+                if (!EditorApplication.isPlaying)
+                {
+                    Undo.RegisterFullObjectHierarchyUndo(container.gameObject, "Clear All Road Arrows");
+                }
+                for (int i = container.childCount - 1; i >= 0; i--)
+                {
+                    SafeDestroyObject(container.GetChild(i).gameObject);
+                }
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+        }
+        selectedRoadArrow = null;
+    }
+
+    private RoadDirectionArrow FindRoadArrowNear(Vector2 worldPos, float maxDist)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null) return null;
+        Transform container = workspace.transform.Find(RoadArrowsContainerName);
+        if (container == null) return null;
+
+        RoadDirectionArrow bestArrow = null;
+        float bestDist = maxDist;
+
+        for (int i = 0; i < container.childCount; i++)
+        {
+            RoadDirectionArrow arrow = container.GetChild(i).GetComponent<RoadDirectionArrow>();
+            if (arrow == null) continue;
+
+            float dist = Vector2.Distance(worldPos, arrow.position);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestArrow = arrow;
+            }
+        }
+        return bestArrow;
     }
 
     private float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b)
@@ -1269,6 +1417,79 @@ public class MapBuilderEditor : EditorWindow
         }
         EditorGUILayout.EndVertical();
 
+        // Road Direction Arrows Configuration Section
+        EditorGUILayout.Space(6);
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("➜ Стрелки направления (на дороге):", EditorStyles.boldLabel);
+        
+        roadArrowScale = EditorGUILayout.Slider("Масштаб стрелки", roadArrowScale, 0.4f, 2.5f);
+        roadArrowColor = EditorGUILayout.ColorField("Цвет стрелки", roadArrowColor);
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Белая", GUILayout.Height(22))) { roadArrowColor = new Color(0.95f, 0.95f, 0.95f, 1f); }
+        if (GUILayout.Button("Жёлтая", GUILayout.Height(22))) { roadArrowColor = new Color(1f, 0.85f, 0.05f, 1f); }
+        if (GUILayout.Button("Оранжевая", GUILayout.Height(22))) { roadArrowColor = new Color(1f, 0.5f, 0.1f, 1f); }
+        if (GUILayout.Button("Голубая", GUILayout.Height(22))) { roadArrowColor = new Color(0.2f, 0.85f, 1f, 1f); }
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("▲ 0°", GUILayout.Height(22))) { currentRotation = 0f; UpdateGhostPreview(); SceneView.RepaintAll(); }
+        if (GUILayout.Button("▶ 90°", GUILayout.Height(22))) { currentRotation = 90f; UpdateGhostPreview(); SceneView.RepaintAll(); }
+        if (GUILayout.Button("▼ 180°", GUILayout.Height(22))) { currentRotation = 180f; UpdateGhostPreview(); SceneView.RepaintAll(); }
+        if (GUILayout.Button("◀ 270°", GUILayout.Height(22))) { currentRotation = 270f; UpdateGhostPreview(); SceneView.RepaintAll(); }
+        if (GUILayout.Button("⟳ 45°", GUILayout.Height(22))) { RotateCursor(45f); SceneView.RepaintAll(); }
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("+ Создать стрелку (Enter)", GUILayout.Height(26)))
+        {
+            selectedRoadArrow = CreateRoadArrow(cursorPosition, currentRotation, roadArrowScale, roadArrowColor);
+        }
+        if (GUILayout.Button("Очистить все стрелки", GUILayout.Height(26)))
+        {
+            if (EditorUtility.DisplayDialog("Очистить стрелки", "Удалить все нарисованные стрелки направления на дороге?", "Да, удалить", "Отмена"))
+            {
+                ClearAllRoadArrows();
+            }
+        }
+        EditorGUILayout.EndHorizontal();
+
+        if (selectedRoadArrow != null)
+        {
+            EditorGUILayout.Space(4);
+            EditorGUILayout.HelpBox($"Выделена стрелка: {selectedRoadArrow.name}\nПозиция: ({selectedRoadArrow.position.x:F1}, {selectedRoadArrow.position.y:F1}) | Угол: {selectedRoadArrow.rotationAngle:F0}°\n[R] поворот, [Del] удалить.", MessageType.Info);
+            
+            EditorGUI.BeginChangeCheck();
+            Vector2 editPos = EditorGUILayout.Vector2Field("Позиция", selectedRoadArrow.position);
+            float editAngle = EditorGUILayout.Slider("Угол", selectedRoadArrow.rotationAngle, 0f, 360f);
+            float editScale = EditorGUILayout.Slider("Масштаб", selectedRoadArrow.scale, 0.4f, 2.5f);
+            Color editCol = EditorGUILayout.ColorField("Цвет", selectedRoadArrow.color);
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(selectedRoadArrow.transform, "Edit Road Arrow");
+                selectedRoadArrow.position = editPos;
+                selectedRoadArrow.rotationAngle = editAngle;
+                selectedRoadArrow.scale = editScale;
+                selectedRoadArrow.color = editCol;
+                selectedRoadArrow.UpdateTransformAndVisual(roadArrowSprite);
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("Удалить стрелку (Del)", GUILayout.Height(24)))
+            {
+                SafeDestroyObject(selectedRoadArrow.gameObject);
+                selectedRoadArrow = null;
+            }
+            if (GUILayout.Button("Снять выбор", GUILayout.Height(24)))
+            {
+                selectedRoadArrow = null;
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+        EditorGUILayout.EndVertical();
+
         EditorGUILayout.Space(10);
         EditorGUILayout.LabelField("Действия:", EditorStyles.boldLabel);
         
@@ -1349,7 +1570,7 @@ public class MapBuilderEditor : EditorWindow
         }
 
         // Interactive 2D Position Handle for Scene View (Free Mouse Movement with Magnetic Snapping)
-        if (currentObjectType != ObjectType.MarkingLine)
+        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow)
         {
             EditorGUI.BeginChangeCheck();
             Vector3 curPos3 = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
@@ -1362,6 +1583,24 @@ public class MapBuilderEditor : EditorWindow
                 Vector2 rawPos = new Vector2(newPos.x, newPos.y);
                 cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
                 UpdateGhostPreview();
+                Repaint();
+            }
+        }
+        else if (currentObjectType == ObjectType.RoadArrow && selectedRoadArrow != null)
+        {
+            EditorGUI.BeginChangeCheck();
+            Vector3 curPos3 = new Vector3(selectedRoadArrow.position.x, selectedRoadArrow.position.y, 0f);
+            Quaternion curRotQ = Quaternion.Euler(0f, 0f, selectedRoadArrow.rotationAngle);
+
+            Vector3 newPos = Handles.PositionHandle(curPos3, curRotQ);
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(selectedRoadArrow.transform, "Move Road Arrow");
+                selectedRoadArrow.position = new Vector2(newPos.x, newPos.y);
+                selectedRoadArrow.UpdateTransformAndVisual(roadArrowSprite);
+                cursorPosition = selectedRoadArrow.position;
+                SafeMarkSceneDirty();
                 Repaint();
             }
         }
@@ -1403,6 +1642,23 @@ public class MapBuilderEditor : EditorWindow
                         cursorPosition = rawPos;
                     }
                 }
+                else if (currentObjectType == ObjectType.RoadArrow)
+                {
+                    RoadDirectionArrow hitArrow = FindRoadArrowNear(rawPos, 1.5f);
+                    if (hitArrow != null)
+                    {
+                        selectedRoadArrow = hitArrow;
+                        cursorPosition = hitArrow.position;
+                        currentRotation = hitArrow.rotationAngle;
+                    }
+                    else
+                    {
+                        isDrawingRoadArrow = true;
+                        roadArrowDragStartPos = rawPos;
+                        cursorPosition = rawPos;
+                        selectedRoadArrow = null;
+                    }
+                }
                 else
                 {
                     cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
@@ -1430,6 +1686,30 @@ public class MapBuilderEditor : EditorWindow
                         SafeMarkSceneDirty();
                     }
                 }
+                else if (currentObjectType == ObjectType.RoadArrow)
+                {
+                    if (isDrawingRoadArrow)
+                    {
+                        if (Vector2.Distance(rawPos, roadArrowDragStartPos) > 0.25f)
+                        {
+                            float angle = Mathf.Atan2(rawPos.y - roadArrowDragStartPos.y, rawPos.x - roadArrowDragStartPos.x) * Mathf.Rad2Deg - 90f;
+                            currentRotation = (angle + 360f) % 360f;
+                        }
+                        cursorPosition = roadArrowDragStartPos;
+                    }
+                    else if (selectedRoadArrow != null)
+                    {
+                        Undo.RecordObject(selectedRoadArrow.transform, "Move Road Arrow");
+                        selectedRoadArrow.position = rawPos;
+                        selectedRoadArrow.UpdateTransformAndVisual(roadArrowSprite);
+                        cursorPosition = rawPos;
+                        SafeMarkSceneDirty();
+                    }
+                    else
+                    {
+                        cursorPosition = rawPos;
+                    }
+                }
                 else
                 {
                     cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
@@ -1442,6 +1722,17 @@ public class MapBuilderEditor : EditorWindow
             }
             else if (e.type == EventType.MouseUp && GUIUtility.hotControl == defaultControlID)
             {
+                if (currentObjectType == ObjectType.RoadArrow && isDrawingRoadArrow)
+                {
+                    selectedRoadArrow = CreateRoadArrow(roadArrowDragStartPos, currentRotation, roadArrowScale, roadArrowColor);
+                    isDrawingRoadArrow = false;
+                    cursorPosition = roadArrowDragStartPos;
+                    SafeMarkSceneDirty();
+                    UpdateGhostPreview();
+                    Repaint();
+                    sceneView.Repaint();
+                }
+
                 GUIUtility.hotControl = 0;
                 e.Use();
             }
@@ -1534,6 +1825,97 @@ public class MapBuilderEditor : EditorWindow
                         if (selectedPointIndex == 0) selectedMarkingLine.startPoint += moveDelta;
                         else selectedMarkingLine.endPoint += moveDelta;
                         selectedMarkingLine.UpdateTransformAndVisual(stripeSprite);
+                        SafeMarkSceneDirty();
+                    }
+                    else
+                    {
+                        cursorPosition += moveDelta;
+                    }
+                    handled = true;
+                }
+            }
+            else if (currentObjectType == ObjectType.RoadArrow)
+            {
+                float step = e.shift ? 2.0f : (e.alt || e.control ? 0.1f : 0.5f);
+                Vector2 moveDelta = Vector2.zero;
+
+                switch (e.keyCode)
+                {
+                    case KeyCode.W:
+                    case KeyCode.UpArrow:
+                        moveDelta = new Vector2(0f, step);
+                        break;
+                    case KeyCode.S:
+                    case KeyCode.DownArrow:
+                        moveDelta = new Vector2(0f, -step);
+                        break;
+                    case KeyCode.A:
+                    case KeyCode.LeftArrow:
+                        moveDelta = new Vector2(-step, 0f);
+                        break;
+                    case KeyCode.D:
+                    case KeyCode.RightArrow:
+                        moveDelta = new Vector2(step, 0f);
+                        break;
+
+                    case KeyCode.R:
+                        if (selectedRoadArrow != null)
+                        {
+                            Undo.RecordObject(selectedRoadArrow.transform, "Rotate Road Arrow");
+                            selectedRoadArrow.rotationAngle = (selectedRoadArrow.rotationAngle + (e.shift ? 45f : 15f)) % 360f;
+                            selectedRoadArrow.UpdateTransformAndVisual(roadArrowSprite);
+                            currentRotation = selectedRoadArrow.rotationAngle;
+                            SafeMarkSceneDirty();
+                        }
+                        else
+                        {
+                            RotateCursor(e.shift ? 45f : 15f);
+                        }
+                        handled = true;
+                        break;
+
+                    case KeyCode.Return:
+                    case KeyCode.KeypadEnter:
+                    case KeyCode.Space:
+                        selectedRoadArrow = CreateRoadArrow(cursorPosition, currentRotation, roadArrowScale, roadArrowColor);
+                        handled = true;
+                        break;
+
+                    case KeyCode.Delete:
+                    case KeyCode.Backspace:
+                        if (selectedRoadArrow != null)
+                        {
+                            SafeDestroyObject(selectedRoadArrow.gameObject);
+                            selectedRoadArrow = null;
+                            handled = true;
+                        }
+                        break;
+
+                    case KeyCode.Escape:
+                        selectedRoadArrow = null;
+                        isDrawingRoadArrow = false;
+                        handled = true;
+                        break;
+
+                    case KeyCode.C:
+                        CycleObjectType();
+                        handled = true;
+                        break;
+
+                    case KeyCode.F:
+                        FocusSceneView();
+                        handled = true;
+                        break;
+                }
+
+                if (moveDelta != Vector2.zero)
+                {
+                    if (selectedRoadArrow != null)
+                    {
+                        Undo.RecordObject(selectedRoadArrow.transform, "Move Road Arrow");
+                        selectedRoadArrow.position += moveDelta;
+                        selectedRoadArrow.UpdateTransformAndVisual(roadArrowSprite);
+                        cursorPosition = selectedRoadArrow.position;
                         SafeMarkSceneDirty();
                     }
                     else
@@ -1740,6 +2122,9 @@ public class MapBuilderEditor : EditorWindow
         // Draw interactive Marking Lines handles & preview in Scene View
         DrawMarkingLinesHandles(sceneView);
 
+        // Draw interactive Road Arrows handles & preview in Scene View
+        DrawRoadArrowsHandles(sceneView);
+
         // Ensure ghost preview is in correct position & rotation
         if (ghostPreviewObj != null)
         {
@@ -1799,6 +2184,47 @@ public class MapBuilderEditor : EditorWindow
             Handles.color = new Color(1.0f, 0.9f, 0.1f, 0.9f);
             Handles.DrawSolidDisc(pB, Vector3.forward, 0.35f);
             Handles.Label(pB + new Vector3(0.5f, 0.5f, 0f), $"Точка B | Длина: {length:F2}м ({angle:F0}°)", EditorStyles.boldLabel);
+        }
+    }
+
+    private void DrawRoadArrowsHandles(SceneView sceneView)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        Transform container = workspace != null ? workspace.transform.Find(RoadArrowsContainerName) : null;
+        if (container != null)
+        {
+            for (int i = 0; i < container.childCount; i++)
+            {
+                RoadDirectionArrow arrow = container.GetChild(i).GetComponent<RoadDirectionArrow>();
+                if (arrow == null) continue;
+
+                bool isSelected = (selectedRoadArrow == arrow);
+                Vector3 p = new Vector3(arrow.position.x, arrow.position.y, 0f);
+
+                if (isSelected)
+                {
+                    Handles.color = new Color(0.2f, 1.0f, 0.4f, 0.95f);
+                    Handles.DrawWireDisc(p, Vector3.forward, 1.2f * arrow.scale);
+                    Handles.Label(p + new Vector3(0.6f, 0.6f, 0f), $"★ Стрелка ({arrow.rotationAngle:F0}°)", EditorStyles.boldLabel);
+                }
+                else if (currentObjectType == ObjectType.RoadArrow)
+                {
+                    Handles.color = new Color(1f, 1f, 1f, 0.35f);
+                    Handles.DrawWireDisc(p, Vector3.forward, 0.6f * arrow.scale);
+                }
+            }
+        }
+
+        if (currentObjectType == ObjectType.RoadArrow && isDrawingRoadArrow)
+        {
+            Vector3 startP = new Vector3(roadArrowDragStartPos.x, roadArrowDragStartPos.y, 0f);
+            Ray ray = HandleUtility.GUIPointToWorldRay(Event.current.mousePosition);
+            Vector3 mouseP = new Vector3(ray.origin.x, ray.origin.y, 0f);
+
+            Handles.color = new Color(1f, 0.85f, 0.1f, 0.9f);
+            Handles.DrawDottedLine(startP, mouseP, 4f);
+            Handles.DrawSolidDisc(startP, Vector3.forward, 0.35f);
+            Handles.Label(startP + new Vector3(0.5f, 0.5f, 0f), $"Направление: {currentRotation:F0}°", EditorStyles.boldLabel);
         }
     }
 
@@ -1880,7 +2306,7 @@ public class MapBuilderEditor : EditorWindow
     private void MoveCursor(Vector2 delta)
     {
         cursorPosition += delta;
-        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine)
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow)
         {
             SnapCursorToGrid();
         }
@@ -1896,8 +2322,8 @@ public class MapBuilderEditor : EditorWindow
 
     private void CycleObjectType()
     {
-        currentObjectType = (ObjectType)(((int)currentObjectType + 1) % 8);
-        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine)
+        currentObjectType = (ObjectType)(((int)currentObjectType + 1) % 9);
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow)
         {
             SnapCursorToGrid();
         }
@@ -1946,6 +2372,18 @@ public class MapBuilderEditor : EditorWindow
             GUI.Label(new Rect(24, 104, 330, 18), "[Клик 1] Старт (A) | [Клик 2] Конец (B) линии", helpStyle);
             GUI.Label(new Rect(24, 122, 330, 18), "[Клик на линию] Выбрать | [Enter] Точка A ↔ B", helpStyle);
             GUI.Label(new Rect(24, 140, 330, 18), "[WASD/Гизмо] Двигать точку | [Del] Удалить", helpStyle);
+        }
+        else if (currentObjectType == ObjectType.RoadArrow)
+        {
+            GUI.Label(new Rect(24, 40, 330, 20), "Режим: <color=#ffff55>Стрелка направления (на дороге)</color>", textStyle);
+            GUI.Label(new Rect(24, 60, 330, 20), isDrawingRoadArrow ? $"Рисование: от ({roadArrowDragStartPos.x:F1}, {roadArrowDragStartPos.y:F1}) ➔ {currentRotation:F0}°" : (selectedRoadArrow != null ? $"Выделена: ({selectedRoadArrow.position.x:F1}, {selectedRoadArrow.position.y:F1}) | {selectedRoadArrow.rotationAngle:F0}°" : "Кликните или потяните мышкой на дороге"), textStyle);
+            GUI.Label(new Rect(24, 80, 330, 20), $"Угол: {currentRotation:F0}° | Масштаб: {roadArrowScale:F1}x | [R] Поворот", textStyle);
+
+            GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
+            helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
+            GUI.Label(new Rect(24, 104, 330, 18), "[Мышь] Зажмите и потяните для рисования направления", helpStyle);
+            GUI.Label(new Rect(24, 122, 330, 18), "[Клик на стрелку] Выбрать | [R] Поворот 15°/45°", helpStyle);
+            GUI.Label(new Rect(24, 140, 330, 18), "[Enter] Ставить | [Del] Удалить выбранную", helpStyle);
         }
         else
         {
@@ -2055,6 +2493,15 @@ public class MapBuilderEditor : EditorWindow
         }
         curBtnX += 72;
 
+        bool isArrow = currentObjectType == ObjectType.RoadArrow;
+        GUI.backgroundColor = isArrow ? new Color(0.95f, 0.9f, 0.2f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY, 76, btnH), "➜ 9. Стрелка"))
+        {
+            currentObjectType = ObjectType.RoadArrow;
+            UpdateGhostPreview();
+        }
+        curBtnX += 78;
+
         GUI.backgroundColor = new Color(1f, 0.85f, 0.2f, 0.9f);
         if (GUI.Button(new Rect(curBtnX, btnY, 54, btnH), "⟳ 45°"))
         {
@@ -2108,7 +2555,7 @@ public class MapBuilderEditor : EditorWindow
 
         Handles.EndGUI();
 
-        if (currentObjectType != ObjectType.MarkingLine)
+        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow)
         {
             float slotWidth = GetSlotWidth(currentObjectType);
             float slotLength = (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow) ? 26.0f : SlotLength;
@@ -2266,6 +2713,13 @@ public class MapBuilderEditor : EditorWindow
                 }
                 isDrawingMarkingLine = false;
             }
+            SceneView.RepaintAll();
+            return;
+        }
+
+        if (currentObjectType == ObjectType.RoadArrow)
+        {
+            selectedRoadArrow = CreateRoadArrow(cursorPosition, currentRotation, roadArrowScale, roadArrowColor);
             SceneView.RepaintAll();
             return;
         }
@@ -2597,6 +3051,21 @@ public class MapBuilderEditor : EditorWindow
     {
         if (type == ObjectType.MarkingLine)
         {
+            return;
+        }
+
+        if (type == ObjectType.RoadArrow)
+        {
+            GameObject arrow = new GameObject("Preview_RoadArrow");
+            arrow.transform.SetParent(parent, false);
+            arrow.transform.localPosition = Vector3.zero;
+            arrow.transform.localRotation = Quaternion.identity;
+            arrow.transform.localScale = new Vector3(roadArrowScale, roadArrowScale, 1f);
+
+            SpriteRenderer sr = arrow.AddComponent<SpriteRenderer>();
+            sr.sprite = roadArrowSprite != null ? roadArrowSprite : yellowArrowSprite;
+            sr.color = isPreview ? new Color(roadArrowColor.r, roadArrowColor.g, roadArrowColor.b, 0.75f) : roadArrowColor;
+            sr.sortingOrder = isPreview ? 40 : 2;
             return;
         }
 
