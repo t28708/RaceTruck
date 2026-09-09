@@ -972,9 +972,8 @@ public class TruckController : MonoBehaviour
         prevGasPedalPressed = gasPedalPressed;
         prevBrakePedalPressed = brakePedalPressed;
 
-        // Hydraulic power steering smoothing
-        float targetSteer = TargetSteerAngle;
-        actualSteerAngle = Mathf.MoveTowards(actualSteerAngle, targetSteer, powerSteeringSpeed * Time.deltaTime);
+        // Direct steering synchronization: front wheels and steer guide lines follow steering wheel instantly
+        actualSteerAngle = TargetSteerAngle;
 
         UpdateWheelVisuals();
         UpdateHUD();
