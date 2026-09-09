@@ -18,7 +18,8 @@ public class MapBuilderEditor : EditorWindow
         StandardEmptyNarrow = 5,  // 6. Узкое без трака (3.5м)
         StandardParkedNarrow = 6, // 7. Узкое с траком (3.5м)
         TargetParkingNarrow = 7,  // 8. Целевое место парковки (3.5м, Единственное)
-        RoadArrow = 8             // 9. Стрелка направления (Указания на дороге)
+        RoadArrow = 8,            // 9. Стрелка направления (Указания на дороге)
+        Wall = 9                  // 10. Стена-препятствие (Прямые углы 90°)
     }
 
     public const string CustomMapsFolder = "Assets/Scenes/CustomMaps";
@@ -27,6 +28,7 @@ public class MapBuilderEditor : EditorWindow
     private const string SlotsContainerName = "MapBuilder_Slots";
     private const string MarkingLinesContainerName = "MapBuilder_MarkingLines";
     private const string RoadArrowsContainerName = "MapBuilder_RoadArrows";
+    private const string WallsContainerName = "MapBuilder_Walls";
     private const string GhostPreviewName = "__MapBuilder_GhostPreview__";
 
     public const float SlotWidth = 4.5f;         // Фиксированная ширина стандартного места (4.5м)
@@ -71,6 +73,14 @@ public class MapBuilderEditor : EditorWindow
     [SerializeField] private Color roadArrowColor = new Color(0.95f, 0.95f, 0.95f, 1.0f);
     [SerializeField] private RoadDirectionArrow selectedRoadArrow = null;
 
+    // Wall Obstacle tool state (Strictly orthogonal 90° angles)
+    [SerializeField] private bool isDrawingWall = false;
+    [SerializeField] private Vector2 wallStartPoint = Vector2.zero;
+    [SerializeField] private float wallThickness = 0.45f;
+    [SerializeField] private Color wallColor = new Color(0.48f, 0.28f, 0.15f, 1.0f); // Solid rich brown
+    [SerializeField] private WallObstacle selectedWall = null;
+    [SerializeField] private int selectedWallPointIndex = 0; // 0 = Start (A), 1 = End (B)
+
     private GameObject ghostPreviewObj;
     private ObjectType lastBuiltPreviewType = (ObjectType)(-1);
     private Sprite asphaltSprite;
@@ -96,7 +106,8 @@ public class MapBuilderEditor : EditorWindow
         "6. Узкое без трака (3.5м)",
         "7. Узкое с траком (3.5м)",
         "8. Целевое место парковки (3.5м, Единственное)",
-        "9. Стрелка направления (Указания на дороге)"
+        "9. Стрелка направления (Указания на дороге)",
+        "10. Стена-препятствие (Прямые углы)"
     };
 
     [MenuItem("Tools/Map Builder/Open Editor", false, 1)]
@@ -704,6 +715,22 @@ public class MapBuilderEditor : EditorWindow
                 }
             }
 
+            Transform wallsContainer = workspace.transform.Find(WallsContainerName);
+            if (wallsContainer != null)
+            {
+                if (!EditorApplication.isPlaying) Undo.RegisterFullObjectHierarchyUndo(wallsContainer.gameObject, "Shift Walls");
+                for (int i = 0; i < wallsContainer.childCount; i++)
+                {
+                    WallObstacle wall = wallsContainer.GetChild(i).GetComponent<WallObstacle>();
+                    if (wall != null)
+                    {
+                        wall.startPoint += delta;
+                        wall.endPoint += delta;
+                        wall.UpdateTransformAndVisual(stripeSprite);
+                    }
+                }
+            }
+
             cursorPosition += delta;
             UpdateGhostPreview();
             SafeMarkSceneDirty();
@@ -892,6 +919,107 @@ public class MapBuilderEditor : EditorWindow
         float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / lenSq);
         Vector2 projection = a + t * ab;
         return Vector2.Distance(p, projection);
+    }
+
+    public static Vector2 GetOrthogonalWallEndPoint(Vector2 start, Vector2 current)
+    {
+        Vector2 diff = current - start;
+        if (Mathf.Abs(diff.x) >= Mathf.Abs(diff.y))
+        {
+            return new Vector2(current.x, start.y);
+        }
+        else
+        {
+            return new Vector2(start.x, current.y);
+        }
+    }
+
+    public WallObstacle CreateWall(Vector2 start, Vector2 end, float thickness = 0.45f, Color? color = null)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null)
+        {
+            EnsureCleanWorkPlane(clearExistingScene: false);
+            workspace = GameObject.Find(WorkspaceRootName);
+        }
+
+        Transform container = workspace.transform.Find(WallsContainerName);
+        if (container == null)
+        {
+            GameObject containerGo = new GameObject(WallsContainerName);
+            containerGo.transform.SetParent(workspace.transform, false);
+            container = containerGo.transform;
+            SafeRegisterCreatedObjectUndo(containerGo, "Create Walls Container");
+        }
+
+        int index = container.childCount + 1;
+        GameObject wallGo = new GameObject($"WallSegment_{index}");
+        wallGo.transform.SetParent(container, false);
+
+        WallObstacle wall = wallGo.AddComponent<WallObstacle>();
+        wall.Setup(start, end, thickness, color ?? wallColor, stripeSprite);
+
+        SafeRegisterCreatedObjectUndo(wallGo, $"Create WallSegment_{index}");
+        SafeMarkSceneDirty();
+        SceneView.RepaintAll();
+
+        Debug.Log($"<color=#d2691e>[MapBuilder] Создана стена-препятствие {wallGo.name}: ({start.x:F1}, {start.y:F1}) ➔ ({end.x:F1}, {end.y:F1}), Длина: {Vector2.Distance(start, end):F1}м</color>");
+        return wall;
+    }
+
+    public void ClearAllWalls()
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace != null)
+        {
+            Transform container = workspace.transform.Find(WallsContainerName);
+            if (container != null)
+            {
+                if (!EditorApplication.isPlaying)
+                {
+                    Undo.RegisterFullObjectHierarchyUndo(container.gameObject, "Clear All Walls");
+                }
+                for (int i = container.childCount - 1; i >= 0; i--)
+                {
+                    SafeDestroyObject(container.GetChild(i).gameObject);
+                }
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+        }
+        selectedWall = null;
+        isDrawingWall = false;
+    }
+
+    private WallObstacle FindWallNear(Vector2 worldPos, float maxDist, out int pointIndex)
+    {
+        pointIndex = 0;
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null) return null;
+        Transform container = workspace.transform.Find(WallsContainerName);
+        if (container == null) return null;
+
+        WallObstacle bestWall = null;
+        float bestDist = maxDist;
+
+        for (int i = 0; i < container.childCount; i++)
+        {
+            WallObstacle wall = container.GetChild(i).GetComponent<WallObstacle>();
+            if (wall == null) continue;
+
+            float distStart = Vector2.Distance(worldPos, wall.startPoint);
+            float distEnd = Vector2.Distance(worldPos, wall.endPoint);
+            float distSeg = DistanceToSegment(worldPos, wall.startPoint, wall.endPoint);
+
+            float minDist = Mathf.Min(distStart, distEnd, distSeg);
+            if (minDist < bestDist)
+            {
+                bestDist = minDist;
+                bestWall = wall;
+                pointIndex = (distEnd < distStart) ? 1 : 0;
+            }
+        }
+        return bestWall;
     }
 
     #endregion
@@ -1490,6 +1618,104 @@ public class MapBuilderEditor : EditorWindow
         }
         EditorGUILayout.EndVertical();
 
+        // Walls (Obstacles) Configuration Section
+        EditorGUILayout.Space(6);
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("🧱 Стены-препятствия (только прямые углы 90°):", EditorStyles.boldLabel);
+        
+        wallThickness = EditorGUILayout.Slider("Толщина стены (м)", wallThickness, 0.15f, 1.50f);
+        wallColor = EditorGUILayout.ColorField("Цвет стены", wallColor);
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Коричневый", GUILayout.Height(22))) { wallColor = new Color(0.48f, 0.28f, 0.15f, 1f); }
+        if (GUILayout.Button("Темный орех", GUILayout.Height(22))) { wallColor = new Color(0.32f, 0.18f, 0.08f, 1f); }
+        if (GUILayout.Button("Кирпичный", GUILayout.Height(22))) { wallColor = new Color(0.65f, 0.25f, 0.15f, 1f); }
+        if (GUILayout.Button("Серый бетон", GUILayout.Height(22))) { wallColor = new Color(0.45f, 0.45f, 0.45f, 1f); }
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        if (isDrawingWall)
+        {
+            GUI.backgroundColor = new Color(0.3f, 0.9f, 0.3f, 1f);
+            if (GUILayout.Button("✓ Фиксировать отрезок (Enter)", GUILayout.Height(26)))
+            {
+                Vector2 snappedEnd = GetOrthogonalWallEndPoint(wallStartPoint, cursorPosition);
+                if (Vector2.Distance(wallStartPoint, snappedEnd) > 0.2f)
+                {
+                    WallObstacle newWall = CreateWall(wallStartPoint, snappedEnd, wallThickness, wallColor);
+                    selectedWall = newWall;
+                    selectedWallPointIndex = 1;
+                    wallStartPoint = snappedEnd;
+                    cursorPosition = snappedEnd;
+                }
+            }
+            GUI.backgroundColor = new Color(1f, 0.6f, 0.2f, 1f);
+            if (GUILayout.Button("Завершить цепь (Esc)", GUILayout.Height(26)))
+            {
+                isDrawingWall = false;
+                selectedWall = null;
+            }
+            GUI.backgroundColor = Color.white;
+        }
+        else
+        {
+            if (GUILayout.Button("Начать цепь стен", GUILayout.Height(26)))
+            {
+                isDrawingWall = true;
+                wallStartPoint = cursorPosition;
+                selectedWall = null;
+            }
+        }
+
+        if (GUILayout.Button("Очистить все стены", GUILayout.Height(26)))
+        {
+            if (EditorUtility.DisplayDialog("Очистить стены", "Удалить все построенные стены-препятствия?", "Да, удалить", "Отмена"))
+            {
+                ClearAllWalls();
+            }
+        }
+        EditorGUILayout.EndHorizontal();
+
+        if (selectedWall != null)
+        {
+            EditorGUILayout.Space(4);
+            EditorGUILayout.HelpBox($"Выделена: {selectedWall.name}\nАктивная точка: {(selectedWallPointIndex == 0 ? "★ ТОЧКА A (Старт)" : "★ ТОЧКА B (Конец)")}\n[Enter] переключает точку, [Del] удаляет.", MessageType.Info);
+            
+            EditorGUI.BeginChangeCheck();
+            Vector2 editStart = EditorGUILayout.Vector2Field("Координата A", selectedWall.startPoint);
+            Vector2 editEnd = EditorGUILayout.Vector2Field("Координата B", selectedWall.endPoint);
+            float editThick = EditorGUILayout.Slider("Толщина", selectedWall.thickness, 0.15f, 1.50f);
+            Color editCol = EditorGUILayout.ColorField("Цвет", selectedWall.color);
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(selectedWall.transform, "Edit Wall");
+                selectedWall.startPoint = editStart;
+                selectedWall.endPoint = editEnd;
+                selectedWall.thickness = editThick;
+                selectedWall.color = editCol;
+                selectedWall.UpdateTransformAndVisual(stripeSprite);
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("Сменить точку (Enter)", GUILayout.Height(24)))
+            {
+                selectedWallPointIndex = 1 - selectedWallPointIndex;
+            }
+            if (GUILayout.Button("Удалить стену (Del)", GUILayout.Height(24)))
+            {
+                SafeDestroyObject(selectedWall.gameObject);
+                selectedWall = null;
+            }
+            if (GUILayout.Button("Снять выбор", GUILayout.Height(24)))
+            {
+                selectedWall = null;
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+        EditorGUILayout.EndVertical();
+
         EditorGUILayout.Space(10);
         EditorGUILayout.LabelField("Действия:", EditorStyles.boldLabel);
         
@@ -1570,7 +1796,7 @@ public class MapBuilderEditor : EditorWindow
         }
 
         // Interactive 2D Position Handle for Scene View (Free Mouse Movement with Magnetic Snapping)
-        if (currentObjectType != ObjectType.MarkingLine && (currentObjectType != ObjectType.RoadArrow || selectedRoadArrow == null))
+        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.Wall && (currentObjectType != ObjectType.RoadArrow || selectedRoadArrow == null))
         {
             EditorGUI.BeginChangeCheck();
             Vector3 curPos3 = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
@@ -1600,6 +1826,34 @@ public class MapBuilderEditor : EditorWindow
                 selectedRoadArrow.position = new Vector2(newPos.x, newPos.y);
                 selectedRoadArrow.UpdateTransformAndVisual(roadArrowSprite);
                 cursorPosition = selectedRoadArrow.position;
+                SafeMarkSceneDirty();
+                Repaint();
+            }
+        }
+        else if (currentObjectType == ObjectType.Wall && selectedWall != null)
+        {
+            EditorGUI.BeginChangeCheck();
+            Vector3 curPos3 = (selectedWallPointIndex == 0)
+                ? new Vector3(selectedWall.startPoint.x, selectedWall.startPoint.y, 0f)
+                : new Vector3(selectedWall.endPoint.x, selectedWall.endPoint.y, 0f);
+
+            Vector3 newPos = Handles.PositionHandle(curPos3, Quaternion.identity);
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(selectedWall.transform, "Move Wall Point");
+                Vector2 newPt = new Vector2(newPos.x, newPos.y);
+                if (selectedWallPointIndex == 0)
+                {
+                    selectedWall.startPoint = GetOrthogonalWallEndPoint(selectedWall.endPoint, newPt);
+                    cursorPosition = selectedWall.startPoint;
+                }
+                else
+                {
+                    selectedWall.endPoint = GetOrthogonalWallEndPoint(selectedWall.startPoint, newPt);
+                    cursorPosition = selectedWall.endPoint;
+                }
+                selectedWall.UpdateTransformAndVisual(stripeSprite);
                 SafeMarkSceneDirty();
                 Repaint();
             }
@@ -1657,6 +1911,35 @@ public class MapBuilderEditor : EditorWindow
                         cursorPosition = rawPos;
                     }
                 }
+                else if (currentObjectType == ObjectType.Wall)
+                {
+                    WallObstacle hitWall = FindWallNear(rawPos, 1.2f, out int hitPointIndex);
+                    if (hitWall != null && !isDrawingWall)
+                    {
+                        selectedWall = hitWall;
+                        selectedWallPointIndex = hitPointIndex;
+                        cursorPosition = (selectedWallPointIndex == 0) ? selectedWall.startPoint : selectedWall.endPoint;
+                    }
+                    else if (!isDrawingWall)
+                    {
+                        isDrawingWall = true;
+                        wallStartPoint = rawPos;
+                        selectedWall = null;
+                        cursorPosition = rawPos;
+                    }
+                    else // isDrawingWall == true (Click places segment and continues chain!)
+                    {
+                        Vector2 snappedEnd = GetOrthogonalWallEndPoint(wallStartPoint, rawPos);
+                        if (Vector2.Distance(wallStartPoint, snappedEnd) > 0.2f)
+                        {
+                            WallObstacle newWall = CreateWall(wallStartPoint, snappedEnd, wallThickness, wallColor);
+                            selectedWall = newWall;
+                            selectedWallPointIndex = 1;
+                            wallStartPoint = snappedEnd;
+                            cursorPosition = snappedEnd;
+                        }
+                    }
+                }
                 else
                 {
                     cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
@@ -1692,6 +1975,33 @@ public class MapBuilderEditor : EditorWindow
                         selectedRoadArrow.position = rawPos;
                         selectedRoadArrow.UpdateTransformAndVisual(roadArrowSprite);
                         cursorPosition = rawPos;
+                        SafeMarkSceneDirty();
+                    }
+                    else
+                    {
+                        cursorPosition = rawPos;
+                    }
+                }
+                else if (currentObjectType == ObjectType.Wall)
+                {
+                    if (isDrawingWall)
+                    {
+                        cursorPosition = GetOrthogonalWallEndPoint(wallStartPoint, rawPos);
+                    }
+                    else if (selectedWall != null)
+                    {
+                        Undo.RecordObject(selectedWall.transform, "Move Wall Point");
+                        if (selectedWallPointIndex == 0)
+                        {
+                            selectedWall.startPoint = GetOrthogonalWallEndPoint(selectedWall.endPoint, rawPos);
+                            cursorPosition = selectedWall.startPoint;
+                        }
+                        else
+                        {
+                            selectedWall.endPoint = GetOrthogonalWallEndPoint(selectedWall.startPoint, rawPos);
+                            cursorPosition = selectedWall.endPoint;
+                        }
+                        selectedWall.UpdateTransformAndVisual(stripeSprite);
                         SafeMarkSceneDirty();
                     }
                     else
@@ -1903,6 +2213,119 @@ public class MapBuilderEditor : EditorWindow
                     handled = true;
                 }
             }
+            else if (currentObjectType == ObjectType.Wall)
+            {
+                float step = e.shift ? 2.0f : (e.alt || e.control ? 0.1f : 0.5f);
+                Vector2 moveDelta = Vector2.zero;
+
+                switch (e.keyCode)
+                {
+                    case KeyCode.W:
+                    case KeyCode.UpArrow:
+                        moveDelta = new Vector2(0f, step);
+                        break;
+                    case KeyCode.S:
+                    case KeyCode.DownArrow:
+                        moveDelta = new Vector2(0f, -step);
+                        break;
+                    case KeyCode.A:
+                    case KeyCode.LeftArrow:
+                        moveDelta = new Vector2(-step, 0f);
+                        break;
+                    case KeyCode.D:
+                    case KeyCode.RightArrow:
+                        moveDelta = new Vector2(step, 0f);
+                        break;
+
+                    case KeyCode.Return:
+                    case KeyCode.KeypadEnter:
+                        if (isDrawingWall)
+                        {
+                            Vector2 snappedEnd = GetOrthogonalWallEndPoint(wallStartPoint, cursorPosition);
+                            if (Vector2.Distance(wallStartPoint, snappedEnd) > 0.2f)
+                            {
+                                WallObstacle newWall = CreateWall(wallStartPoint, snappedEnd, wallThickness, wallColor);
+                                selectedWall = newWall;
+                                selectedWallPointIndex = 1;
+                                // Automatically advance / continue chain to next segment!
+                                wallStartPoint = snappedEnd;
+                                cursorPosition = snappedEnd;
+                                if (SceneView.lastActiveSceneView != null)
+                                {
+                                    SceneView.lastActiveSceneView.ShowNotification(new GUIContent($"Стена зафиксирована! Ведите следующую ➔"));
+                                }
+                            }
+                        }
+                        else if (selectedWall != null)
+                        {
+                            selectedWallPointIndex = 1 - selectedWallPointIndex;
+                            if (SceneView.lastActiveSceneView != null)
+                            {
+                                SceneView.lastActiveSceneView.ShowNotification(new GUIContent(selectedWallPointIndex == 0 ? "★ Выделена: ТОЧКА A стены" : "★ Выделена: ТОЧКА B стены"));
+                            }
+                        }
+                        else
+                        {
+                            isDrawingWall = true;
+                            wallStartPoint = cursorPosition;
+                        }
+                        handled = true;
+                        break;
+
+                    case KeyCode.Delete:
+                    case KeyCode.Backspace:
+                        if (selectedWall != null)
+                        {
+                            SafeDestroyObject(selectedWall.gameObject);
+                            selectedWall = null;
+                            handled = true;
+                        }
+                        else if (isDrawingWall)
+                        {
+                            isDrawingWall = false;
+                            handled = true;
+                        }
+                        break;
+
+                    case KeyCode.Escape:
+                        isDrawingWall = false;
+                        selectedWall = null;
+                        if (SceneView.lastActiveSceneView != null)
+                        {
+                            SceneView.lastActiveSceneView.ShowNotification(new GUIContent("Цепь стен завершена"));
+                        }
+                        handled = true;
+                        break;
+
+                    case KeyCode.C:
+                        CycleObjectType();
+                        handled = true;
+                        break;
+
+                    case KeyCode.F:
+                        FocusSceneView();
+                        handled = true;
+                        break;
+                }
+
+                if (moveDelta != Vector2.zero)
+                {
+                    if (selectedWall != null)
+                    {
+                        Undo.RecordObject(selectedWall.transform, "Move Wall Point");
+                        if (selectedWallPointIndex == 0) selectedWall.startPoint += moveDelta;
+                        else selectedWall.endPoint += moveDelta;
+                        selectedWall.UpdateTransformAndVisual(stripeSprite);
+                        cursorPosition = (selectedWallPointIndex == 0) ? selectedWall.startPoint : selectedWall.endPoint;
+                        SafeMarkSceneDirty();
+                    }
+                    else
+                    {
+                        cursorPosition += moveDelta;
+                    }
+                    handled = true;
+                }
+            }
             else if (currentObjectType == ObjectType.TruckStartPoint)
             {
                 // Fine-grained keyboard control for Truck Start point (0.5m / 2m / 0.1m)
@@ -2103,6 +2526,9 @@ public class MapBuilderEditor : EditorWindow
         // Draw interactive Road Arrows handles & preview in Scene View
         DrawRoadArrowsHandles(sceneView);
 
+        // Draw interactive Walls handles & preview in Scene View
+        DrawWallsHandles(sceneView);
+
         // Ensure ghost preview is in correct position & rotation
         if (ghostPreviewObj != null)
         {
@@ -2113,6 +2539,82 @@ public class MapBuilderEditor : EditorWindow
 
         // Draw HUD Overlay in Scene View
         DrawSceneHUD(sceneView);
+    }
+
+    private void DrawWallsHandles(SceneView sceneView)
+    {
+        // 1. Draw all existing walls in the scene
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        Transform container = workspace != null ? workspace.transform.Find(WallsContainerName) : null;
+        if (container != null)
+        {
+            for (int i = 0; i < container.childCount; i++)
+            {
+                WallObstacle wall = container.GetChild(i).GetComponent<WallObstacle>();
+                if (wall != null)
+                {
+                    DrawSingleWallHandle(wall);
+                }
+            }
+        }
+
+        // 2. If actively drawing a wall chain (Start point fixed, stretching orthogonal 90° segment)
+        if (currentObjectType == ObjectType.Wall && isDrawingWall)
+        {
+            Vector3 pA = new Vector3(wallStartPoint.x, wallStartPoint.y, 0f);
+            Vector2 snappedEnd = GetOrthogonalWallEndPoint(wallStartPoint, cursorPosition);
+            Vector3 pB = new Vector3(snappedEnd.x, snappedEnd.y, 0f);
+            float length = Vector2.Distance(wallStartPoint, snappedEnd);
+            Vector2 dir = snappedEnd - wallStartPoint;
+            string orientation = (Mathf.Abs(dir.x) > Mathf.Abs(dir.y)) ? (dir.x >= 0 ? "Вправо ▶" : "Влево ◀") : (dir.y >= 0 ? "Вверх ▲" : "Вниз ▼");
+
+            // Draw solid/thick preview line for the wall
+            Handles.color = new Color(0.75f, 0.4f, 0.15f, 0.95f);
+            Handles.DrawDottedLine(pA, pB, 4f);
+
+            // Draw starting point (anchor of current chain)
+            Handles.color = new Color(1.0f, 0.5f, 0.1f, 0.95f);
+            Handles.DrawSolidDisc(pA, Vector3.forward, 0.35f);
+            Handles.Label(pA + new Vector3(0.5f, 0.5f, 0f), "Начало стены", EditorStyles.boldLabel);
+
+            // Draw end point (where Enter will fix it)
+            Handles.color = new Color(0.3f, 1.0f, 0.4f, 0.95f);
+            Handles.DrawSolidDisc(pB, Vector3.forward, 0.35f);
+            Handles.Label(pB + new Vector3(0.5f, 0.5f, 0f), $"Стена 90°: {orientation} | {length:F1}м [Enter]", EditorStyles.boldLabel);
+        }
+    }
+
+    private void DrawSingleWallHandle(WallObstacle wall)
+    {
+        if (wall == null) return;
+
+        bool isSelected = (selectedWall == wall);
+        Vector3 pA = new Vector3(wall.startPoint.x, wall.startPoint.y, 0f);
+        Vector3 pB = new Vector3(wall.endPoint.x, wall.endPoint.y, 0f);
+
+        if (isSelected)
+        {
+            // Selected wall highlight
+            Handles.color = new Color(1.0f, 0.6f, 0.2f, 0.95f);
+            Handles.DrawLine(pA, pB, 3.5f);
+
+            Vector3 activeP = (selectedWallPointIndex == 0) ? pA : pB;
+            Vector3 inactiveP = (selectedWallPointIndex == 0) ? pB : pA;
+
+            Handles.color = new Color(0.2f, 1.0f, 0.3f, 0.95f);
+            Handles.DrawSolidDisc(activeP, Vector3.forward, 0.45f);
+            Handles.Label(activeP + new Vector3(0.5f, 0.5f, 0f), (selectedWallPointIndex == 0 ? "★ ТОЧКА A (Стена)" : "★ ТОЧКА B (Стена)"), EditorStyles.boldLabel);
+
+            Handles.color = new Color(0.8f, 0.8f, 0.8f, 0.7f);
+            Handles.DrawSolidDisc(inactiveP, Vector3.forward, 0.30f);
+            Handles.Label(inactiveP + new Vector3(0.5f, -0.5f, 0f), (selectedWallPointIndex == 0 ? "Точка B" : "Точка A"), EditorStyles.miniLabel);
+        }
+        else if (currentObjectType == ObjectType.Wall)
+        {
+            Handles.color = new Color(0.9f, 0.5f, 0.2f, 0.4f);
+            Handles.DrawSolidDisc(pA, Vector3.forward, 0.25f);
+            Handles.DrawSolidDisc(pB, Vector3.forward, 0.25f);
+        }
     }
 
     private void DrawMarkingLinesHandles(SceneView sceneView)
@@ -2272,7 +2774,7 @@ public class MapBuilderEditor : EditorWindow
     private void MoveCursor(Vector2 delta)
     {
         cursorPosition += delta;
-        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow)
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall)
         {
             SnapCursorToGrid();
         }
@@ -2288,8 +2790,8 @@ public class MapBuilderEditor : EditorWindow
 
     private void CycleObjectType()
     {
-        currentObjectType = (ObjectType)(((int)currentObjectType + 1) % 9);
-        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow)
+        currentObjectType = (ObjectType)(((int)currentObjectType + 1) % 10);
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall)
         {
             SnapCursorToGrid();
         }
@@ -2350,6 +2852,32 @@ public class MapBuilderEditor : EditorWindow
             GUI.Label(new Rect(24, 104, 330, 18), "[Клик/Мышь] Переместить призрачную стрелку", helpStyle);
             GUI.Label(new Rect(24, 122, 330, 18), "[Enter] Установить стрелку | [R] Поворот 15°/45°", helpStyle);
             GUI.Label(new Rect(24, 140, 330, 18), "[Клик на готовую стрелку] Выбрать | [Del] Удалить", helpStyle);
+        }
+        else if (currentObjectType == ObjectType.Wall)
+        {
+            GUI.Label(new Rect(24, 40, 330, 20), "Режим: <color=#d2691e>Стена-препятствие (90° углы)</color>", textStyle);
+            if (isDrawingWall)
+            {
+                Vector2 snappedEnd = GetOrthogonalWallEndPoint(wallStartPoint, cursorPosition);
+                float curLen = Vector2.Distance(wallStartPoint, snappedEnd);
+                GUI.Label(new Rect(24, 60, 330, 20), $"Рисование стены: {curLen:F1}м ➔ [Enter] зафиксировать", textStyle);
+            }
+            else if (selectedWall != null)
+            {
+                float len = Vector2.Distance(selectedWall.startPoint, selectedWall.endPoint);
+                GUI.Label(new Rect(24, 60, 330, 20), $"Выделена: {selectedWall.name} ({len:F1}м) | Точка {(selectedWallPointIndex == 0 ? "A" : "B")}", textStyle);
+            }
+            else
+            {
+                GUI.Label(new Rect(24, 60, 330, 20), "Кликните на сцене для начала стены", textStyle);
+            }
+            GUI.Label(new Rect(24, 80, 330, 20), $"Толщина: {wallThickness:F2}м | [Esc] Завершить цепь", textStyle);
+
+            GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
+            helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
+            GUI.Label(new Rect(24, 104, 330, 18), "[Клик/Enter] Зафиксировать отрезок и продолжать цепь", helpStyle);
+            GUI.Label(new Rect(24, 122, 330, 18), "[Esc] Завершить цепь | [Клик на стену] Выбрать", helpStyle);
+            GUI.Label(new Rect(24, 140, 330, 18), "[WASD/Гизмо] Двигать | [Del] Удалить выбранную", helpStyle);
         }
         else
         {
@@ -2467,6 +2995,15 @@ public class MapBuilderEditor : EditorWindow
             UpdateGhostPreview();
         }
         curBtnX += 78;
+
+        bool isWall = currentObjectType == ObjectType.Wall;
+        GUI.backgroundColor = isWall ? new Color(0.85f, 0.5f, 0.2f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🧱 10. Стена"))
+        {
+            currentObjectType = ObjectType.Wall;
+            UpdateGhostPreview();
+        }
+        curBtnX += 76;
 
         GUI.backgroundColor = new Color(1f, 0.85f, 0.2f, 0.9f);
         if (GUI.Button(new Rect(curBtnX, btnY, 54, btnH), "⟳ 45°"))
@@ -2686,6 +3223,30 @@ public class MapBuilderEditor : EditorWindow
         if (currentObjectType == ObjectType.RoadArrow)
         {
             selectedRoadArrow = CreateRoadArrow(cursorPosition, currentRotation, roadArrowScale, roadArrowColor);
+            SceneView.RepaintAll();
+            return;
+        }
+
+        if (currentObjectType == ObjectType.Wall)
+        {
+            if (!isDrawingWall)
+            {
+                isDrawingWall = true;
+                wallStartPoint = cursorPosition;
+                selectedWall = null;
+            }
+            else
+            {
+                Vector2 snappedEnd = GetOrthogonalWallEndPoint(wallStartPoint, cursorPosition);
+                if (Vector2.Distance(wallStartPoint, snappedEnd) > 0.2f)
+                {
+                    WallObstacle newWall = CreateWall(wallStartPoint, snappedEnd, wallThickness, wallColor);
+                    selectedWall = newWall;
+                    selectedWallPointIndex = 1;
+                    wallStartPoint = snappedEnd;
+                    cursorPosition = snappedEnd;
+                }
+            }
             SceneView.RepaintAll();
             return;
         }
@@ -3015,7 +3576,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void BuildObjectHierarchy(Transform parent, ObjectType type, bool isPreview)
     {
-        if (type == ObjectType.MarkingLine)
+        if (type == ObjectType.MarkingLine || type == ObjectType.Wall)
         {
             return;
         }
