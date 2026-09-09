@@ -1570,7 +1570,7 @@ public class MapBuilderEditor : EditorWindow
         }
 
         // Interactive 2D Position Handle for Scene View (Free Mouse Movement with Magnetic Snapping)
-        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow)
+        if (currentObjectType != ObjectType.MarkingLine && (currentObjectType != ObjectType.RoadArrow || selectedRoadArrow == null))
         {
             EditorGUI.BeginChangeCheck();
             Vector3 curPos3 = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
@@ -1581,7 +1581,7 @@ public class MapBuilderEditor : EditorWindow
             if (EditorGUI.EndChangeCheck())
             {
                 Vector2 rawPos = new Vector2(newPos.x, newPos.y);
-                cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
+                cursorPosition = (currentObjectType == ObjectType.RoadArrow) ? rawPos : GetMagneticSnappedPosition(rawPos, currentRotation);
                 UpdateGhostPreview();
                 Repaint();
             }
@@ -1653,10 +1653,8 @@ public class MapBuilderEditor : EditorWindow
                     }
                     else
                     {
-                        isDrawingRoadArrow = true;
-                        roadArrowDragStartPos = rawPos;
-                        cursorPosition = rawPos;
                         selectedRoadArrow = null;
+                        cursorPosition = rawPos;
                     }
                 }
                 else
@@ -1688,16 +1686,7 @@ public class MapBuilderEditor : EditorWindow
                 }
                 else if (currentObjectType == ObjectType.RoadArrow)
                 {
-                    if (isDrawingRoadArrow)
-                    {
-                        if (Vector2.Distance(rawPos, roadArrowDragStartPos) > 0.25f)
-                        {
-                            float angle = Mathf.Atan2(rawPos.y - roadArrowDragStartPos.y, rawPos.x - roadArrowDragStartPos.x) * Mathf.Rad2Deg - 90f;
-                            currentRotation = (angle + 360f) % 360f;
-                        }
-                        cursorPosition = roadArrowDragStartPos;
-                    }
-                    else if (selectedRoadArrow != null)
+                    if (selectedRoadArrow != null)
                     {
                         Undo.RecordObject(selectedRoadArrow.transform, "Move Road Arrow");
                         selectedRoadArrow.position = rawPos;
@@ -1722,17 +1711,6 @@ public class MapBuilderEditor : EditorWindow
             }
             else if (e.type == EventType.MouseUp && GUIUtility.hotControl == defaultControlID)
             {
-                if (currentObjectType == ObjectType.RoadArrow && isDrawingRoadArrow)
-                {
-                    selectedRoadArrow = CreateRoadArrow(roadArrowDragStartPos, currentRotation, roadArrowScale, roadArrowColor);
-                    isDrawingRoadArrow = false;
-                    cursorPosition = roadArrowDragStartPos;
-                    SafeMarkSceneDirty();
-                    UpdateGhostPreview();
-                    Repaint();
-                    sceneView.Repaint();
-                }
-
                 GUIUtility.hotControl = 0;
                 e.Use();
             }
@@ -2214,18 +2192,6 @@ public class MapBuilderEditor : EditorWindow
                 }
             }
         }
-
-        if (currentObjectType == ObjectType.RoadArrow && isDrawingRoadArrow)
-        {
-            Vector3 startP = new Vector3(roadArrowDragStartPos.x, roadArrowDragStartPos.y, 0f);
-            Ray ray = HandleUtility.GUIPointToWorldRay(Event.current.mousePosition);
-            Vector3 mouseP = new Vector3(ray.origin.x, ray.origin.y, 0f);
-
-            Handles.color = new Color(1f, 0.85f, 0.1f, 0.9f);
-            Handles.DrawDottedLine(startP, mouseP, 4f);
-            Handles.DrawSolidDisc(startP, Vector3.forward, 0.35f);
-            Handles.Label(startP + new Vector3(0.5f, 0.5f, 0f), $"Направление: {currentRotation:F0}°", EditorStyles.boldLabel);
-        }
     }
 
     private void DrawSingleMarkingLineHandle(RoadMarkingLine line)
@@ -2376,14 +2342,14 @@ public class MapBuilderEditor : EditorWindow
         else if (currentObjectType == ObjectType.RoadArrow)
         {
             GUI.Label(new Rect(24, 40, 330, 20), "Режим: <color=#ffff55>Стрелка направления (на дороге)</color>", textStyle);
-            GUI.Label(new Rect(24, 60, 330, 20), isDrawingRoadArrow ? $"Рисование: от ({roadArrowDragStartPos.x:F1}, {roadArrowDragStartPos.y:F1}) ➔ {currentRotation:F0}°" : (selectedRoadArrow != null ? $"Выделена: ({selectedRoadArrow.position.x:F1}, {selectedRoadArrow.position.y:F1}) | {selectedRoadArrow.rotationAngle:F0}°" : "Кликните или потяните мышкой на дороге"), textStyle);
-            GUI.Label(new Rect(24, 80, 330, 20), $"Угол: {currentRotation:F0}° | Масштаб: {roadArrowScale:F1}x | [R] Поворот", textStyle);
+            GUI.Label(new Rect(24, 60, 330, 20), selectedRoadArrow != null ? $"Выделена: ({selectedRoadArrow.position.x:F1}, {selectedRoadArrow.position.y:F1}) | {selectedRoadArrow.rotationAngle:F0}°" : $"Позиция: ({cursorPosition.x:F1}, {cursorPosition.y:F1}) | Угол: {currentRotation:F0}°", textStyle);
+            GUI.Label(new Rect(24, 80, 330, 20), $"Масштаб: {roadArrowScale:F1}x | [R] Поворот | [Enter] Установить", textStyle);
 
             GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
             helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
-            GUI.Label(new Rect(24, 104, 330, 18), "[Мышь] Зажмите и потяните для рисования направления", helpStyle);
-            GUI.Label(new Rect(24, 122, 330, 18), "[Клик на стрелку] Выбрать | [R] Поворот 15°/45°", helpStyle);
-            GUI.Label(new Rect(24, 140, 330, 18), "[Enter] Ставить | [Del] Удалить выбранную", helpStyle);
+            GUI.Label(new Rect(24, 104, 330, 18), "[Клик/Мышь] Переместить призрачную стрелку", helpStyle);
+            GUI.Label(new Rect(24, 122, 330, 18), "[Enter] Установить стрелку | [R] Поворот 15°/45°", helpStyle);
+            GUI.Label(new Rect(24, 140, 330, 18), "[Клик на готовую стрелку] Выбрать | [Del] Удалить", helpStyle);
         }
         else
         {
