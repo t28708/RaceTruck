@@ -13,13 +13,15 @@ public class MapBuilderEditor : EditorWindow
         StandardEmpty = 0,   // 1. Стандартное без трака (4.5м)
         StandardParked = 1,  // 2. Стандартное с траком (4.5м)
         TargetParking = 2,   // 3. Целевое место парковки (4.5м, Единственное)
-        TruckStartPoint = 3  // 4. Место старта трака (Единственный)
+        TruckStartPoint = 3, // 4. Место старта трака (Единственный)
+        MarkingLine = 4      // 5. Линия разметки (A ➔ B)
     }
 
     public const string CustomMapsFolder = "Assets/Scenes/CustomMaps";
     private const string SpritesDir = "Assets/GeneratedSprites";
     private const string WorkspaceRootName = "MapBuilder_Workspace";
     private const string SlotsContainerName = "MapBuilder_Slots";
+    private const string MarkingLinesContainerName = "MapBuilder_MarkingLines";
     private const string GhostPreviewName = "__MapBuilder_GhostPreview__";
 
     public const float SlotWidth = 4.5f;   // Фиксированная ширина стандартного места (4.5м)
@@ -36,6 +38,16 @@ public class MapBuilderEditor : EditorWindow
     [SerializeField] private string mapName = "MyParkingMap_1";
     [SerializeField] private float mapWidth = 54.0f;   // Ширина карты в метрах
     [SerializeField] private float mapHeight = 60.0f;  // Высота карты в метрах
+
+    // Marking Line tool state
+    [SerializeField] private bool isDrawingMarkingLine = false;
+    [SerializeField] private Vector2 markingLineStartPoint = Vector2.zero;
+    [SerializeField] private Vector2 markingLineManualStart = new Vector2(5f, 5f);
+    [SerializeField] private Vector2 markingLineManualEnd = new Vector2(5f, 25f);
+    [SerializeField] private float markingLineThickness = 0.20f;
+    [SerializeField] private Color markingLineColor = new Color(0.95f, 0.95f, 0.95f, 1.0f);
+    [SerializeField] private RoadMarkingLine selectedMarkingLine = null;
+    [SerializeField] private int selectedPointIndex = 0; // 0 = Start (A), 1 = End (B)
 
     private GameObject ghostPreviewObj;
     private ObjectType lastBuiltPreviewType = (ObjectType)(-1);
@@ -56,7 +68,8 @@ public class MapBuilderEditor : EditorWindow
         "1. Стандартное без трака (4.5м)",
         "2. Стандартное с траком (4.5м)",
         "3. Целевое место парковки (4.5м, Единственное)",
-        "4. Место старта трака (Единственный)"
+        "4. Место старта трака (Единственный)",
+        "5. Линия разметки (A ➔ B)"
     };
 
     [MenuItem("Tools/Map Builder/Open Editor", false, 1)]
@@ -243,7 +256,7 @@ public class MapBuilderEditor : EditorWindow
     private Vector2 GetMagneticSnappedPosition(Vector2 rawPos, float rot)
     {
         // Only apply magnetic snap for parking stalls (StandardEmpty, StandardParked, TargetParking)
-        if (currentObjectType == ObjectType.TruckStartPoint) return rawPos;
+        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine) return rawPos;
 
         GameObject workspace = GameObject.Find(WorkspaceRootName);
         if (workspace == null) return rawPos;
@@ -301,7 +314,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void SnapCursorToGrid()
     {
-        if (currentObjectType == ObjectType.TruckStartPoint) return;
+        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine) return;
 
         float rem = Mathf.Abs(currentRotation) % 90f;
         if (rem > 1.0f && rem < 89.0f)
@@ -587,6 +600,22 @@ public class MapBuilderEditor : EditorWindow
                 Camera.main.transform.position = new Vector3(tractor.transform.position.x, tractor.transform.position.y, -10f);
             }
 
+            Transform markingsContainer = workspace.transform.Find(MarkingLinesContainerName);
+            if (markingsContainer != null)
+            {
+                if (!EditorApplication.isPlaying) Undo.RegisterFullObjectHierarchyUndo(markingsContainer.gameObject, "Shift Marking Lines");
+                for (int i = 0; i < markingsContainer.childCount; i++)
+                {
+                    RoadMarkingLine rml = markingsContainer.GetChild(i).GetComponent<RoadMarkingLine>();
+                    if (rml != null)
+                    {
+                        rml.startPoint += delta;
+                        rml.endPoint += delta;
+                        rml.UpdateTransformAndVisual(stripeSprite);
+                    }
+                }
+            }
+
             cursorPosition += delta;
             UpdateGhostPreview();
             SafeMarkSceneDirty();
@@ -599,6 +628,102 @@ public class MapBuilderEditor : EditorWindow
                 SceneView.lastActiveSceneView.ShowNotification(new GUIContent($"✥ Все объекты сдвинуты ({dirStr})"));
             }
         }
+    }
+
+    public RoadMarkingLine CreateMarkingLine(Vector2 start, Vector2 end, float thickness = 0.20f, Color? color = null)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null)
+        {
+            EnsureCleanWorkPlane(clearExistingScene: false);
+            workspace = GameObject.Find(WorkspaceRootName);
+        }
+
+        Transform container = workspace.transform.Find(MarkingLinesContainerName);
+        if (container == null)
+        {
+            GameObject containerGo = new GameObject(MarkingLinesContainerName);
+            containerGo.transform.SetParent(workspace.transform, false);
+            container = containerGo.transform;
+            SafeRegisterCreatedObjectUndo(containerGo, "Create Marking Lines Container");
+        }
+
+        int index = container.childCount + 1;
+        GameObject lineGo = new GameObject($"MarkingLine_{index}");
+        lineGo.transform.SetParent(container, false);
+
+        RoadMarkingLine lineComp = lineGo.AddComponent<RoadMarkingLine>();
+        Color col = color ?? markingLineColor;
+        lineComp.Setup(start, end, thickness, col, stripeSprite);
+
+        SafeRegisterCreatedObjectUndo(lineGo, $"Create MarkingLine_{index}");
+        SafeMarkSceneDirty();
+        SceneView.RepaintAll();
+        return lineComp;
+    }
+
+    public void ClearAllMarkingLines()
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace != null)
+        {
+            Transform container = workspace.transform.Find(MarkingLinesContainerName);
+            if (container != null)
+            {
+                if (!EditorApplication.isPlaying)
+                {
+                    Undo.RegisterFullObjectHierarchyUndo(container.gameObject, "Clear All Marking Lines");
+                }
+                for (int i = container.childCount - 1; i >= 0; i--)
+                {
+                    SafeDestroyObject(container.GetChild(i).gameObject);
+                }
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+        }
+        selectedMarkingLine = null;
+    }
+
+    private RoadMarkingLine FindMarkingLineNear(Vector2 worldPos, float maxDist, out int pointIndex)
+    {
+        pointIndex = 0;
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null) return null;
+        Transform container = workspace.transform.Find(MarkingLinesContainerName);
+        if (container == null) return null;
+
+        RoadMarkingLine bestLine = null;
+        float bestDist = maxDist;
+
+        for (int i = 0; i < container.childCount; i++)
+        {
+            RoadMarkingLine line = container.GetChild(i).GetComponent<RoadMarkingLine>();
+            if (line == null) continue;
+
+            float distStart = Vector2.Distance(worldPos, line.startPoint);
+            float distEnd = Vector2.Distance(worldPos, line.endPoint);
+            float distSeg = DistanceToSegment(worldPos, line.startPoint, line.endPoint);
+
+            float minDist = Mathf.Min(distStart, distEnd, distSeg);
+            if (minDist < bestDist)
+            {
+                bestDist = minDist;
+                bestLine = line;
+                pointIndex = (distEnd < distStart) ? 1 : 0;
+            }
+        }
+        return bestLine;
+    }
+
+    private float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b)
+    {
+        Vector2 ab = b - a;
+        float lenSq = ab.sqrMagnitude;
+        if (lenSq < 0.0001f) return Vector2.Distance(p, a);
+        float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / lenSq);
+        Vector2 projection = a + t * ab;
+        return Vector2.Distance(p, projection);
     }
 
     #endregion
@@ -1059,6 +1184,71 @@ public class MapBuilderEditor : EditorWindow
         EditorGUILayout.Space(4);
         autoAdvanceAfterPlacement = EditorGUILayout.Toggle("Автосдвиг к следующему краю", autoAdvanceAfterPlacement);
 
+        // Marking Lines Manual Configuration Section
+        EditorGUILayout.Space(6);
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("🖊 Линии дорожной разметки (любой угол):", EditorStyles.boldLabel);
+        
+        markingLineManualStart = EditorGUILayout.Vector2Field("Точка A (Старт X, Y)", markingLineManualStart);
+        markingLineManualEnd = EditorGUILayout.Vector2Field("Точка B (Конец X, Y)", markingLineManualEnd);
+        markingLineThickness = EditorGUILayout.Slider("Толщина линии (м)", markingLineThickness, 0.05f, 0.80f);
+        markingLineColor = EditorGUILayout.ColorField("Цвет разметки", markingLineColor);
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("+ Создать линию", GUILayout.Height(26)))
+        {
+            selectedMarkingLine = CreateMarkingLine(markingLineManualStart, markingLineManualEnd, markingLineThickness, markingLineColor);
+            selectedPointIndex = 0;
+        }
+        if (GUILayout.Button("Очистить все линии", GUILayout.Height(26)))
+        {
+            if (EditorUtility.DisplayDialog("Очистить линии", "Удалить все нарисованные линии разметки?", "Да, удалить", "Отмена"))
+            {
+                ClearAllMarkingLines();
+            }
+        }
+        EditorGUILayout.EndHorizontal();
+
+        if (selectedMarkingLine != null)
+        {
+            EditorGUILayout.Space(4);
+            EditorGUILayout.HelpBox($"Выделена: {selectedMarkingLine.name}\nАктивная точка: {(selectedPointIndex == 0 ? "★ ТОЧКА A (Старт)" : "★ ТОЧКА B (Конец)")}\n[Enter] переключает точку, [Del] удаляет.", MessageType.Info);
+            
+            EditorGUI.BeginChangeCheck();
+            Vector2 editStart = EditorGUILayout.Vector2Field("Координата A", selectedMarkingLine.startPoint);
+            Vector2 editEnd = EditorGUILayout.Vector2Field("Координата B", selectedMarkingLine.endPoint);
+            float editThick = EditorGUILayout.Slider("Толщина", selectedMarkingLine.thickness, 0.05f, 0.80f);
+            Color editCol = EditorGUILayout.ColorField("Цвет", selectedMarkingLine.color);
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(selectedMarkingLine.transform, "Edit Marking Line");
+                selectedMarkingLine.startPoint = editStart;
+                selectedMarkingLine.endPoint = editEnd;
+                selectedMarkingLine.thickness = editThick;
+                selectedMarkingLine.color = editCol;
+                selectedMarkingLine.UpdateTransformAndVisual(stripeSprite);
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("Сменить точку (Enter)", GUILayout.Height(24)))
+            {
+                selectedPointIndex = 1 - selectedPointIndex;
+            }
+            if (GUILayout.Button("Удалить линию (Del)", GUILayout.Height(24)))
+            {
+                SafeDestroyObject(selectedMarkingLine.gameObject);
+                selectedMarkingLine = null;
+            }
+            if (GUILayout.Button("Снять выбор", GUILayout.Height(24)))
+            {
+                selectedMarkingLine = null;
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+        EditorGUILayout.EndVertical();
+
         EditorGUILayout.Space(10);
         EditorGUILayout.LabelField("Действия:", EditorStyles.boldLabel);
         
@@ -1139,18 +1329,21 @@ public class MapBuilderEditor : EditorWindow
         }
 
         // Interactive 2D Position Handle for Scene View (Free Mouse Movement with Magnetic Snapping)
-        EditorGUI.BeginChangeCheck();
-        Vector3 curPos3 = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
-        Quaternion curRotQ = Quaternion.Euler(0f, 0f, currentRotation);
-
-        Vector3 newPos = Handles.PositionHandle(curPos3, curRotQ);
-
-        if (EditorGUI.EndChangeCheck())
+        if (currentObjectType != ObjectType.MarkingLine)
         {
-            Vector2 rawPos = new Vector2(newPos.x, newPos.y);
-            cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
-            UpdateGhostPreview();
-            Repaint();
+            EditorGUI.BeginChangeCheck();
+            Vector3 curPos3 = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
+            Quaternion curRotQ = Quaternion.Euler(0f, 0f, currentRotation);
+
+            Vector3 newPos = Handles.PositionHandle(curPos3, curRotQ);
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                Vector2 rawPos = new Vector2(newPos.x, newPos.y);
+                cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
+                UpdateGhostPreview();
+                Repaint();
+            }
         }
 
         // Handle Mouse Drag & Click anywhere in Scene View without triggering Unity's selection box
@@ -1161,7 +1354,39 @@ public class MapBuilderEditor : EditorWindow
                 GUIUtility.hotControl = defaultControlID;
                 Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
                 Vector2 rawPos = new Vector2(ray.origin.x, ray.origin.y);
-                cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
+
+                if (currentObjectType == ObjectType.MarkingLine)
+                {
+                    RoadMarkingLine hitLine = FindMarkingLineNear(rawPos, 1.2f, out int hitPointIndex);
+                    if (hitLine != null && !isDrawingMarkingLine)
+                    {
+                        selectedMarkingLine = hitLine;
+                        selectedPointIndex = hitPointIndex;
+                        cursorPosition = (selectedPointIndex == 0) ? selectedMarkingLine.startPoint : selectedMarkingLine.endPoint;
+                    }
+                    else if (!isDrawingMarkingLine)
+                    {
+                        isDrawingMarkingLine = true;
+                        markingLineStartPoint = rawPos;
+                        selectedMarkingLine = null;
+                        cursorPosition = rawPos;
+                    }
+                    else // isDrawingMarkingLine == true (second click finishes line)
+                    {
+                        if (Vector2.Distance(markingLineStartPoint, rawPos) > 0.2f)
+                        {
+                            RoadMarkingLine newLine = CreateMarkingLine(markingLineStartPoint, rawPos, markingLineThickness, markingLineColor);
+                            selectedMarkingLine = newLine;
+                            selectedPointIndex = 0;
+                        }
+                        isDrawingMarkingLine = false;
+                        cursorPosition = rawPos;
+                    }
+                }
+                else
+                {
+                    cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
+                }
 
                 UpdateGhostPreview();
                 Repaint();
@@ -1172,7 +1397,23 @@ public class MapBuilderEditor : EditorWindow
             {
                 Ray ray = HandleUtility.GUIPointToWorldRay(e.mousePosition);
                 Vector2 rawPos = new Vector2(ray.origin.x, ray.origin.y);
-                cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
+
+                if (currentObjectType == ObjectType.MarkingLine)
+                {
+                    cursorPosition = rawPos;
+                    if (selectedMarkingLine != null)
+                    {
+                        Undo.RecordObject(selectedMarkingLine.transform, "Move Marking Line Point");
+                        if (selectedPointIndex == 0) selectedMarkingLine.startPoint = rawPos;
+                        else selectedMarkingLine.endPoint = rawPos;
+                        selectedMarkingLine.UpdateTransformAndVisual(stripeSprite);
+                        SafeMarkSceneDirty();
+                    }
+                }
+                else
+                {
+                    cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
+                }
 
                 UpdateGhostPreview();
                 Repaint();
@@ -1190,8 +1431,99 @@ public class MapBuilderEditor : EditorWindow
         if (e.type == EventType.KeyDown)
         {
             bool handled = false;
-            
-            if (currentObjectType == ObjectType.TruckStartPoint)
+
+            if (currentObjectType == ObjectType.MarkingLine)
+            {
+                float step = e.shift ? 2.0f : (e.alt || e.control ? 0.1f : 0.5f);
+                Vector2 moveDelta = Vector2.zero;
+
+                switch (e.keyCode)
+                {
+                    case KeyCode.W:
+                    case KeyCode.UpArrow:
+                        moveDelta = new Vector2(0f, step);
+                        break;
+                    case KeyCode.S:
+                    case KeyCode.DownArrow:
+                        moveDelta = new Vector2(0f, -step);
+                        break;
+                    case KeyCode.A:
+                    case KeyCode.LeftArrow:
+                        moveDelta = new Vector2(-step, 0f);
+                        break;
+                    case KeyCode.D:
+                    case KeyCode.RightArrow:
+                        moveDelta = new Vector2(step, 0f);
+                        break;
+
+                    case KeyCode.Return:
+                    case KeyCode.KeypadEnter:
+                        if (selectedMarkingLine != null)
+                        {
+                            selectedPointIndex = 1 - selectedPointIndex;
+                            if (SceneView.lastActiveSceneView != null)
+                            {
+                                SceneView.lastActiveSceneView.ShowNotification(new GUIContent(selectedPointIndex == 0 ? "★ Выделена: ТОЧКА A (Старт)" : "★ Выделена: ТОЧКА B (Конец)"));
+                            }
+                        }
+                        else if (isDrawingMarkingLine)
+                        {
+                            if (Vector2.Distance(markingLineStartPoint, cursorPosition) > 0.2f)
+                            {
+                                RoadMarkingLine newLine = CreateMarkingLine(markingLineStartPoint, cursorPosition, markingLineThickness, markingLineColor);
+                                selectedMarkingLine = newLine;
+                                selectedPointIndex = 0;
+                            }
+                            isDrawingMarkingLine = false;
+                        }
+                        handled = true;
+                        break;
+
+                    case KeyCode.Delete:
+                    case KeyCode.Backspace:
+                        if (selectedMarkingLine != null)
+                        {
+                            SafeDestroyObject(selectedMarkingLine.gameObject);
+                            selectedMarkingLine = null;
+                            handled = true;
+                        }
+                        break;
+
+                    case KeyCode.Escape:
+                        isDrawingMarkingLine = false;
+                        selectedMarkingLine = null;
+                        handled = true;
+                        break;
+
+                    case KeyCode.C:
+                        CycleObjectType();
+                        handled = true;
+                        break;
+
+                    case KeyCode.F:
+                        FocusSceneView();
+                        handled = true;
+                        break;
+                }
+
+                if (moveDelta != Vector2.zero)
+                {
+                    if (selectedMarkingLine != null)
+                    {
+                        Undo.RecordObject(selectedMarkingLine.transform, "Move Marking Line Point");
+                        if (selectedPointIndex == 0) selectedMarkingLine.startPoint += moveDelta;
+                        else selectedMarkingLine.endPoint += moveDelta;
+                        selectedMarkingLine.UpdateTransformAndVisual(stripeSprite);
+                        SafeMarkSceneDirty();
+                    }
+                    else
+                    {
+                        cursorPosition += moveDelta;
+                    }
+                    handled = true;
+                }
+            }
+            else if (currentObjectType == ObjectType.TruckStartPoint)
             {
                 // Fine-grained keyboard control for Truck Start point (0.5m / 2m / 0.1m)
                 float step = e.shift ? 2.0f : (e.alt || e.control ? 0.1f : 0.5f);
@@ -1385,6 +1717,9 @@ public class MapBuilderEditor : EditorWindow
             }
         }
 
+        // Draw interactive Marking Lines handles & preview in Scene View
+        DrawMarkingLinesHandles(sceneView);
+
         // Ensure ghost preview is in correct position & rotation
         if (ghostPreviewObj != null)
         {
@@ -1395,6 +1730,115 @@ public class MapBuilderEditor : EditorWindow
 
         // Draw HUD Overlay in Scene View
         DrawSceneHUD(sceneView);
+    }
+
+    private void DrawMarkingLinesHandles(SceneView sceneView)
+    {
+        // 1. Draw all existing marking lines in the scene
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        Transform container = workspace != null ? workspace.transform.Find(MarkingLinesContainerName) : null;
+        if (container == null)
+        {
+            RoadMarkingLine[] allLines = Object.FindObjectsByType<RoadMarkingLine>(FindObjectsSortMode.None);
+            foreach (var line in allLines)
+            {
+                DrawSingleMarkingLineHandle(line);
+            }
+        }
+        else
+        {
+            for (int i = 0; i < container.childCount; i++)
+            {
+                RoadMarkingLine line = container.GetChild(i).GetComponent<RoadMarkingLine>();
+                if (line != null)
+                {
+                    DrawSingleMarkingLineHandle(line);
+                }
+            }
+        }
+
+        // 2. If actively drawing a new marking line (First point clicked, dragging to second point)
+        if (currentObjectType == ObjectType.MarkingLine && isDrawingMarkingLine)
+        {
+            Vector3 pA = new Vector3(markingLineStartPoint.x, markingLineStartPoint.y, 0f);
+            Vector3 pB = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
+            float length = Vector2.Distance(markingLineStartPoint, cursorPosition);
+            Vector2 dir = cursorPosition - markingLineStartPoint;
+            float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+
+            // Draw connecting preview line
+            Handles.color = new Color(0.2f, 0.9f, 1f, 0.95f);
+            Handles.DrawDottedLine(pA, pB, 4f);
+
+            // Draw start point disc
+            Handles.color = new Color(0.2f, 1.0f, 0.3f, 0.9f);
+            Handles.DrawSolidDisc(pA, Vector3.forward, 0.35f);
+            Handles.Label(pA + new Vector3(0.5f, 0.5f, 0f), "Точка A (Старт)", EditorStyles.boldLabel);
+
+            // Draw dynamic cursor end point disc
+            Handles.color = new Color(1.0f, 0.9f, 0.1f, 0.9f);
+            Handles.DrawSolidDisc(pB, Vector3.forward, 0.35f);
+            Handles.Label(pB + new Vector3(0.5f, 0.5f, 0f), $"Точка B | Длина: {length:F2}м ({angle:F0}°)", EditorStyles.boldLabel);
+        }
+    }
+
+    private void DrawSingleMarkingLineHandle(RoadMarkingLine line)
+    {
+        if (line == null) return;
+
+        bool isSelected = (selectedMarkingLine == line);
+        Vector3 pA = new Vector3(line.startPoint.x, line.startPoint.y, 0f);
+        Vector3 pB = new Vector3(line.endPoint.x, line.endPoint.y, 0f);
+
+        if (isSelected)
+        {
+            // Selected line highlight
+            Handles.color = new Color(0.2f, 1.0f, 0.4f, 0.9f);
+            Handles.DrawLine(pA, pB);
+
+            // Position handle on the ACTIVE point (Point A or Point B)
+            EditorGUI.BeginChangeCheck();
+            Vector3 activePt = (selectedPointIndex == 0) ? pA : pB;
+            Vector3 newPt = Handles.PositionHandle(activePt, Quaternion.identity);
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(line.transform, "Move Marking Line Point");
+                if (selectedPointIndex == 0) line.startPoint = new Vector2(newPt.x, newPt.y);
+                else line.endPoint = new Vector2(newPt.x, newPt.y);
+                line.UpdateTransformAndVisual(stripeSprite);
+                SafeMarkSceneDirty();
+                Repaint();
+            }
+
+            // Draw Point A handle disc & label
+            if (selectedPointIndex == 0)
+            {
+                Handles.color = new Color(0.2f, 1f, 0.2f, 0.95f);
+                Handles.DrawSolidDisc(pA, Vector3.forward, 0.40f);
+                Handles.Label(pA + new Vector3(0.5f, 0.5f, 0f), "★ ТОЧКА A [АКТИВНА]", EditorStyles.boldLabel);
+
+                Handles.color = new Color(0.2f, 0.8f, 1f, 0.75f);
+                Handles.DrawSolidDisc(pB, Vector3.forward, 0.25f);
+                Handles.Label(pB + new Vector3(0.5f, 0.5f, 0f), "Точка B (Enter: выбрать)", EditorStyles.miniLabel);
+            }
+            else
+            {
+                Handles.color = new Color(0.2f, 0.8f, 1f, 0.75f);
+                Handles.DrawSolidDisc(pA, Vector3.forward, 0.25f);
+                Handles.Label(pA + new Vector3(0.5f, 0.5f, 0f), "Точка A (Enter: выбрать)", EditorStyles.miniLabel);
+
+                Handles.color = new Color(0.2f, 1f, 0.2f, 0.95f);
+                Handles.DrawSolidDisc(pB, Vector3.forward, 0.40f);
+                Handles.Label(pB + new Vector3(0.5f, 0.5f, 0f), "★ ТОЧКА B [АКТИВНА]", EditorStyles.boldLabel);
+            }
+        }
+        else if (currentObjectType == ObjectType.MarkingLine)
+        {
+            // When in MarkingLine mode, show subtle clickable endpoint hints
+            Handles.color = new Color(1f, 1f, 1f, 0.4f);
+            Handles.DrawWireDisc(pA, Vector3.forward, 0.2f);
+            Handles.DrawWireDisc(pB, Vector3.forward, 0.2f);
+        }
     }
 
     private void DrawWorldGrid(float cellWidth, float cellLength)
@@ -1416,7 +1860,7 @@ public class MapBuilderEditor : EditorWindow
     private void MoveCursor(Vector2 delta)
     {
         cursorPosition += delta;
-        if (currentObjectType != ObjectType.TruckStartPoint)
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine)
         {
             SnapCursorToGrid();
         }
@@ -1432,8 +1876,8 @@ public class MapBuilderEditor : EditorWindow
 
     private void CycleObjectType()
     {
-        currentObjectType = (ObjectType)(((int)currentObjectType + 1) % 4);
-        if (currentObjectType != ObjectType.TruckStartPoint)
+        currentObjectType = (ObjectType)(((int)currentObjectType + 1) % 5);
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine)
         {
             SnapCursorToGrid();
         }
@@ -1471,6 +1915,18 @@ public class MapBuilderEditor : EditorWindow
             GUI.Label(new Rect(24, 122, 330, 18), "[Мышь] Клик в точку / тащите за стрелки гизмо", helpStyle);
             GUI.Label(new Rect(24, 140, 330, 18), "[Enter / Space] Применить старт трака | [C] Сменить", helpStyle);
         }
+        else if (currentObjectType == ObjectType.MarkingLine)
+        {
+            GUI.Label(new Rect(24, 40, 330, 20), "Режим: <color=#ffff55>Линия разметки (любой угол)</color>", textStyle);
+            GUI.Label(new Rect(24, 60, 330, 20), isDrawingMarkingLine ? $"Рисование: A({markingLineStartPoint.x:F1}, {markingLineStartPoint.y:F1}) ➔ Мышь" : (selectedMarkingLine != null ? $"Выделена: A({selectedMarkingLine.startPoint.x:F1}, {selectedMarkingLine.startPoint.y:F1}) ➔ B({selectedMarkingLine.endPoint.x:F1}, {selectedMarkingLine.endPoint.y:F1})" : "Кликните на карте для точки A"), textStyle);
+            GUI.Label(new Rect(24, 80, 330, 20), selectedMarkingLine != null ? $"Активна: <color=#55ff55>Точка {(selectedPointIndex == 0 ? "A (Старт)" : "B (Конец)")}</color> | [Enter] Точка A/B" : $"Толщина: {markingLineThickness:F2}м", textStyle);
+
+            GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
+            helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
+            GUI.Label(new Rect(24, 104, 330, 18), "[Клик 1] Старт (A) | [Клик 2] Конец (B) линии", helpStyle);
+            GUI.Label(new Rect(24, 122, 330, 18), "[Клик на линию] Выбрать | [Enter] Точка A ↔ B", helpStyle);
+            GUI.Label(new Rect(24, 140, 330, 18), "[WASD/Гизмо] Двигать точку | [Del] Удалить", helpStyle);
+        }
         else
         {
             GUI.Label(new Rect(24, 40, 330, 20), "Мышь: <color=#55ff55>Свободное перемещение</color> | Клавиши: <color=#55ffff>4.5м</color>", textStyle);
@@ -1499,39 +1955,9 @@ public class MapBuilderEditor : EditorWindow
         float btnY = 14;
         float btnH = 28;
 
-        // Height quick adjuster in HUD
-        GUI.backgroundColor = new Color(0.95f, 0.75f, 0.2f, 0.95f);
-        if (GUI.Button(new Rect(startX + 580, btnY, 42, btnH), "[-H]"))
-        {
-            AdjustMapHeight(-5f);
-        }
-        if (GUI.Button(new Rect(startX + 626, btnY, 42, btnH), "[+H]"))
-        {
-            AdjustMapHeight(+5f);
-        }
-
-        // Shift All Map Objects quick buttons in HUD
-        GUI.backgroundColor = new Color(0.3f, 0.75f, 0.95f, 0.95f);
-        if (GUI.Button(new Rect(startX + 672, btnY, 34, btnH), "⬅"))
-        {
-            ShiftAllMapObjects(new Vector2(-SlotWidth, 0f));
-        }
-        if (GUI.Button(new Rect(startX + 708, btnY, 34, btnH), "➡"))
-        {
-            ShiftAllMapObjects(new Vector2(SlotWidth, 0f));
-        }
-        if (GUI.Button(new Rect(startX + 744, btnY, 34, btnH), "⬇"))
-        {
-            ShiftAllMapObjects(new Vector2(0f, -SlotWidth));
-        }
-        if (GUI.Button(new Rect(startX + 780, btnY, 34, btnH), "⬆"))
-        {
-            ShiftAllMapObjects(new Vector2(0f, SlotWidth));
-        }
-
         bool isEmpty = currentObjectType == ObjectType.StandardEmpty;
         GUI.backgroundColor = isEmpty ? new Color(0.3f, 0.85f, 0.3f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(startX, btnY, 95, btnH), "🅿 1. Пусто"))
+        if (GUI.Button(new Rect(startX, btnY, 82, btnH), "🅿 1. Пусто"))
         {
             currentObjectType = ObjectType.StandardEmpty;
             SnapCursorToGrid();
@@ -1540,7 +1966,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isParked = currentObjectType == ObjectType.StandardParked;
         GUI.backgroundColor = isParked ? new Color(1f, 0.45f, 0.45f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(startX + 98, btnY, 95, btnH), "🚛 2. Трак"))
+        if (GUI.Button(new Rect(startX + 85, btnY, 82, btnH), "🚛 2. Трак"))
         {
             currentObjectType = ObjectType.StandardParked;
             SnapCursorToGrid();
@@ -1549,7 +1975,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isTarget = currentObjectType == ObjectType.TargetParking;
         GUI.backgroundColor = isTarget ? new Color(1f, 0.85f, 0.05f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(startX + 196, btnY, 85, btnH), "🎯 3. Цель"))
+        if (GUI.Button(new Rect(startX + 170, btnY, 78, btnH), "🎯 3. Цель"))
         {
             currentObjectType = ObjectType.TargetParking;
             SnapCursorToGrid();
@@ -1558,68 +1984,109 @@ public class MapBuilderEditor : EditorWindow
 
         bool isStart = currentObjectType == ObjectType.TruckStartPoint;
         GUI.backgroundColor = isStart ? new Color(0.2f, 0.9f, 1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(startX + 284, btnY, 115, btnH), "🏁 4. Старт трака"))
+        if (GUI.Button(new Rect(startX + 251, btnY, 85, btnH), "🏁 4. Старт"))
         {
             currentObjectType = ObjectType.TruckStartPoint;
             UpdateGhostPreview();
         }
 
+        bool isLine = currentObjectType == ObjectType.MarkingLine;
+        GUI.backgroundColor = isLine ? new Color(0.95f, 0.9f, 0.2f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(startX + 339, btnY, 88, btnH), "🖊 5. Линия"))
+        {
+            currentObjectType = ObjectType.MarkingLine;
+            UpdateGhostPreview();
+        }
+
         GUI.backgroundColor = new Color(1f, 0.85f, 0.2f, 0.9f);
-        if (GUI.Button(new Rect(startX + 403, btnY, 78, btnH), "⟳ 45°"))
+        if (GUI.Button(new Rect(startX + 430, btnY, 68, btnH), "⟳ 45°"))
         {
             RotateCursor(45f);
         }
 
         GUI.backgroundColor = new Color(0.2f, 0.9f, 0.3f, 0.95f);
-        if (GUI.Button(new Rect(startX + 485, btnY, 90, btnH), "✓ Применить"))
+        if (GUI.Button(new Rect(startX + 501, btnY, 86, btnH), "✓ Применить"))
         {
             PlaceCurrentObject();
+        }
+
+        // Height quick adjuster in HUD
+        GUI.backgroundColor = new Color(0.95f, 0.75f, 0.2f, 0.95f);
+        if (GUI.Button(new Rect(startX + 590, btnY, 40, btnH), "[-H]"))
+        {
+            AdjustMapHeight(-5f);
+        }
+        if (GUI.Button(new Rect(startX + 633, btnY, 40, btnH), "[+H]"))
+        {
+            AdjustMapHeight(+5f);
+        }
+
+        // Shift All Map Objects quick buttons in HUD
+        GUI.backgroundColor = new Color(0.3f, 0.75f, 0.95f, 0.95f);
+        if (GUI.Button(new Rect(startX + 676, btnY, 32, btnH), "⬅"))
+        {
+            ShiftAllMapObjects(new Vector2(-SlotWidth, 0f));
+        }
+        if (GUI.Button(new Rect(startX + 711, btnY, 32, btnH), "➡"))
+        {
+            ShiftAllMapObjects(new Vector2(SlotWidth, 0f));
+        }
+        if (GUI.Button(new Rect(startX + 746, btnY, 32, btnH), "⬇"))
+        {
+            ShiftAllMapObjects(new Vector2(0f, -SlotWidth));
+        }
+        if (GUI.Button(new Rect(startX + 781, btnY, 32, btnH), "⬆"))
+        {
+            ShiftAllMapObjects(new Vector2(0f, SlotWidth));
         }
 
         GUI.backgroundColor = Color.white;
 
         Handles.EndGUI();
 
-        float slotWidth = SlotWidth;
-        float slotLength = (currentObjectType == ObjectType.TargetParking) ? 26.0f : SlotLength;
-        Vector3 size = new Vector3(slotWidth, slotLength, 0f);
-        
-        Matrix4x4 origMatrix = Handles.matrix;
-        Handles.matrix = Matrix4x4.TRS(new Vector3(cursorPosition.x, cursorPosition.y, 0f), Quaternion.Euler(0f, 0f, currentRotation), Vector3.one);
-        
-        Color boxOutlineColor;
-        Color boxFillColor;
-
-        if (currentObjectType == ObjectType.TruckStartPoint)
+        if (currentObjectType != ObjectType.MarkingLine)
         {
-            boxOutlineColor = new Color(0.2f, 0.95f, 0.4f, 0.95f);
-            boxFillColor = new Color(0.2f, 0.95f, 0.4f, 0.15f);
+            float slotWidth = SlotWidth;
+            float slotLength = (currentObjectType == ObjectType.TargetParking) ? 26.0f : SlotLength;
+            Vector3 size = new Vector3(slotWidth, slotLength, 0f);
+            
+            Matrix4x4 origMatrix = Handles.matrix;
+            Handles.matrix = Matrix4x4.TRS(new Vector3(cursorPosition.x, cursorPosition.y, 0f), Quaternion.Euler(0f, 0f, currentRotation), Vector3.one);
+            
+            Color boxOutlineColor;
+            Color boxFillColor;
+
+            if (currentObjectType == ObjectType.TruckStartPoint)
+            {
+                boxOutlineColor = new Color(0.2f, 0.95f, 0.4f, 0.95f);
+                boxFillColor = new Color(0.2f, 0.95f, 0.4f, 0.15f);
+            }
+            else if (currentObjectType == ObjectType.TargetParking)
+            {
+                boxOutlineColor = new Color(1f, 0.85f, 0.05f, 0.98f);
+                boxFillColor = new Color(1f, 0.85f, 0.05f, 0.22f);
+            }
+            else
+            {
+                boxOutlineColor = new Color(0.2f, 0.9f, 1f, 0.95f);
+                boxFillColor = new Color(0.2f, 0.85f, 1f, 0.12f);
+            }
+
+            Handles.DrawSolidRectangleWithOutline(new Vector3[]
+            {
+                new Vector3(-slotWidth * 0.5f, -slotLength * 0.5f, 0f),
+                new Vector3(-slotWidth * 0.5f,  slotLength * 0.5f, 0f),
+                new Vector3( slotWidth * 0.5f,  slotLength * 0.5f, 0f),
+                new Vector3( slotWidth * 0.5f, -slotLength * 0.5f, 0f)
+            }, boxFillColor, boxOutlineColor);
+
+            Handles.color = new Color(1f, 0.85f, 0.2f, 0.95f);
+            Handles.DrawLine(new Vector3(0f, -slotLength * 0.5f - 2.0f, 0f), new Vector3(0f, -slotLength * 0.5f + 1.0f, 0f));
+            Handles.DrawLine(new Vector3(0f, -slotLength * 0.5f + 1.0f, 0f), new Vector3(-0.6f, -slotLength * 0.5f - 0.2f, 0f));
+            Handles.DrawLine(new Vector3(0f, -slotLength * 0.5f + 1.0f, 0f), new Vector3( 0.6f, -slotLength * 0.5f - 0.2f, 0f));
+
+            Handles.matrix = origMatrix;
         }
-        else if (currentObjectType == ObjectType.TargetParking)
-        {
-            boxOutlineColor = new Color(1f, 0.85f, 0.05f, 0.98f);
-            boxFillColor = new Color(1f, 0.85f, 0.05f, 0.22f);
-        }
-        else
-        {
-            boxOutlineColor = new Color(0.2f, 0.9f, 1f, 0.95f);
-            boxFillColor = new Color(0.2f, 0.85f, 1f, 0.12f);
-        }
-
-        Handles.DrawSolidRectangleWithOutline(new Vector3[]
-        {
-            new Vector3(-slotWidth * 0.5f, -slotLength * 0.5f, 0f),
-            new Vector3(-slotWidth * 0.5f,  slotLength * 0.5f, 0f),
-            new Vector3( slotWidth * 0.5f,  slotLength * 0.5f, 0f),
-            new Vector3( slotWidth * 0.5f, -slotLength * 0.5f, 0f)
-        }, boxFillColor, boxOutlineColor);
-
-        Handles.color = new Color(1f, 0.85f, 0.2f, 0.95f);
-        Handles.DrawLine(new Vector3(0f, -slotLength * 0.5f - 2.0f, 0f), new Vector3(0f, -slotLength * 0.5f + 1.0f, 0f));
-        Handles.DrawLine(new Vector3(0f, -slotLength * 0.5f + 1.0f, 0f), new Vector3(-0.6f, -slotLength * 0.5f - 0.2f, 0f));
-        Handles.DrawLine(new Vector3(0f, -slotLength * 0.5f + 1.0f, 0f), new Vector3( 0.6f, -slotLength * 0.5f - 0.2f, 0f));
-
-        Handles.matrix = origMatrix;
     }
 
     #endregion
@@ -1714,6 +2181,28 @@ public class MapBuilderEditor : EditorWindow
         if (currentObjectType == ObjectType.TargetParking)
         {
             PlaceOrRelocateTargetParking();
+            return;
+        }
+
+        if (currentObjectType == ObjectType.MarkingLine)
+        {
+            if (!isDrawingMarkingLine)
+            {
+                isDrawingMarkingLine = true;
+                markingLineStartPoint = cursorPosition;
+                selectedMarkingLine = null;
+            }
+            else
+            {
+                if (Vector2.Distance(markingLineStartPoint, cursorPosition) > 0.2f)
+                {
+                    RoadMarkingLine newLine = CreateMarkingLine(markingLineStartPoint, cursorPosition, markingLineThickness, markingLineColor);
+                    selectedMarkingLine = newLine;
+                    selectedPointIndex = 0;
+                }
+                isDrawingMarkingLine = false;
+            }
+            SceneView.RepaintAll();
             return;
         }
 
@@ -2013,6 +2502,11 @@ public class MapBuilderEditor : EditorWindow
 
     private void BuildObjectHierarchy(Transform parent, ObjectType type, bool isPreview)
     {
+        if (type == ObjectType.MarkingLine)
+        {
+            return;
+        }
+
         bool isTargetParking = (type == ObjectType.TargetParking);
         float width = SlotWidth;
         float length = isTargetParking ? 26.0f : SlotLength;
