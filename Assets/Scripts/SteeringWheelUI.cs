@@ -15,10 +15,10 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
     [SerializeField] private float maxSteerAngle = 40f;
 
     [Tooltip("Rotation speed in degrees per second when turning via A and D keys")]
-    [SerializeField] private float keyTurnSpeed = 540f;
+    [SerializeField] private float keyTurnSpeed = 810f;
 
     [Tooltip("Speed to return to center when released (spring return to 0)")]
-    [SerializeField] private float returnToCenterSpeed = 675f;
+    [SerializeField] private float returnToCenterSpeed = 1012.5f;
 
     [Header("UI References")]
     [SerializeField] private RectTransform wheelRectTransform;

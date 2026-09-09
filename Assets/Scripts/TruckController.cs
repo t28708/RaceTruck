@@ -43,8 +43,8 @@ public class TruckController : MonoBehaviour
     [Header("Steering Dynamics & Hydraulic Inertia")]
     [Tooltip("Maximum front wheel steer angle in degrees")]
     [SerializeField] private float maxSteerAngle = 38f;
-    [Tooltip("Speed at which the front wheels turn in degrees per second")]
-    [SerializeField] private float powerSteeringSpeed = 48f;
+    [Tooltip("Power steering hydraulic response speed (deg/s)")]
+    [SerializeField] private float powerSteeringSpeed = 72f;
 
     [Header("Diesel Engine & Driving Dynamics (km/h)")]
     [Tooltip("Maximum forward maneuvering speed in km/h (fixed at 10.0 km/h)")]
@@ -284,7 +284,7 @@ public class TruckController : MonoBehaviour
         wheelImg.sprite = GetOrCreateSprite("SteeringWheelRealistic", GenerateSteeringWheelTexture);
 
         wheel.FindComponents();
-        wheel.SetSpeeds(540f, 675f);
+        wheel.SetSpeeds(810f, 1012.5f);
         steeringWheel = wheel;
 
         // 2. Gas & Brake Pedals (Large, comfortable, strictly on bottom-left, matching MTS reference)
