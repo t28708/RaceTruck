@@ -144,7 +144,7 @@ public class InGameMenu : MonoBehaviour
         Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
 
-        // 1. Top-Left Menu Button
+        // 1. Top-Left Menu Button (Lowered down and enlarged for comfortable mobile touch)
         Transform existingBtn = canvasGo.transform.Find("TopLeft_MenuButton");
         if (existingBtn == null)
         {
@@ -155,11 +155,19 @@ public class InGameMenu : MonoBehaviour
             btnRt.anchorMin = new Vector2(0f, 1f);
             btnRt.anchorMax = new Vector2(0f, 1f);
             btnRt.pivot = new Vector2(0f, 1f);
-            btnRt.anchoredPosition = new Vector2(25f, -20f);
-            btnRt.sizeDelta = new Vector2(160f, 54f);
+            btnRt.anchoredPosition = new Vector2(30f, -85f);
+            btnRt.sizeDelta = new Vector2(210f, 68f);
 
             Image btnImg = topMenuBtnGo.AddComponent<Image>();
             btnImg.color = new Color(0.12f, 0.45f, 0.85f, 0.95f);
+
+            Outline outline = topMenuBtnGo.AddComponent<Outline>();
+            outline.effectColor = new Color(0.35f, 0.65f, 1.0f, 0.85f);
+            outline.effectDistance = new Vector2(2f, -2f);
+
+            Shadow shadow = topMenuBtnGo.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.5f);
+            shadow.effectDistance = new Vector2(3f, -3f);
 
             Button btn = topMenuBtnGo.AddComponent<Button>();
             btn.onClick.AddListener(ToggleMenu);
@@ -173,7 +181,7 @@ public class InGameMenu : MonoBehaviour
 
             Text t = textGo.AddComponent<Text>();
             if (font != null) t.font = font;
-            t.fontSize = 20;
+            t.fontSize = 24;
             t.fontStyle = FontStyle.Bold;
             t.alignment = TextAnchor.MiddleCenter;
             t.color = Color.white;
@@ -182,6 +190,20 @@ public class InGameMenu : MonoBehaviour
         else
         {
             topMenuBtnGo = existingBtn.gameObject;
+            RectTransform btnRt = topMenuBtnGo.GetComponent<RectTransform>();
+            if (btnRt != null)
+            {
+                btnRt.anchorMin = new Vector2(0f, 1f);
+                btnRt.anchorMax = new Vector2(0f, 1f);
+                btnRt.pivot = new Vector2(0f, 1f);
+                btnRt.anchoredPosition = new Vector2(30f, -85f);
+                btnRt.sizeDelta = new Vector2(210f, 68f);
+            }
+            Text t = topMenuBtnGo.GetComponentInChildren<Text>();
+            if (t != null)
+            {
+                t.fontSize = 24;
+            }
         }
 
         // 2. In-Game Menu Modal (Popup)
