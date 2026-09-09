@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 /// <summary>
 /// Solid wall obstacle component.
@@ -8,11 +8,11 @@
 [ExecuteAlways]
 public class WallObstacle : MonoBehaviour
 {
-    [Header(Wall Coordinates)]
+    [Header("Wall Coordinates")]
     public Vector2 startPoint;
     public Vector2 endPoint;
 
-    [Header(Appearance & Size)]
+    [Header("Appearance & Size")]
     public float thickness = 0.45f;
     public Color color = new Color(0.48f, 0.28f, 0.15f, 1.0f); // Solid rich brown wall
 
