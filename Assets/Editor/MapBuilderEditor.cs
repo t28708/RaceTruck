@@ -19,7 +19,8 @@ public class MapBuilderEditor : EditorWindow
         StandardParkedNarrow = 6, // 7. Узкое с траком (3.5м)
         TargetParkingNarrow = 7,  // 8. Целевое место парковки (3.5м, Единственное)
         RoadArrow = 8,            // 9. Стрелка направления (Указания на дороге)
-        Wall = 9                  // 10. Стена-препятствие (Любой угол)
+        Wall = 9,                 // 10. Стена-препятствие (Любой угол)
+        PassengerCar = 10         // 11. Легковая машина (0°, 45°, 90°)
     }
 
     public const string CustomMapsFolder = "Assets/Scenes/CustomMaps";
@@ -29,6 +30,7 @@ public class MapBuilderEditor : EditorWindow
     private const string MarkingLinesContainerName = "MapBuilder_MarkingLines";
     private const string RoadArrowsContainerName = "MapBuilder_RoadArrows";
     private const string WallsContainerName = "MapBuilder_Walls";
+    private const string PassengerCarsContainerName = "MapBuilder_PassengerCars";
     private const string GhostPreviewName = "__MapBuilder_GhostPreview__";
 
     public const float SlotWidth = 4.5f;         // Фиксированная ширина стандартного места (4.5м)
@@ -81,6 +83,10 @@ public class MapBuilderEditor : EditorWindow
     [SerializeField] private WallObstacle selectedWall = null;
     [SerializeField] private int selectedWallPointIndex = 0; // 0 = Start (A), 1 = End (B)
 
+    // Passenger Car tool state (0°, 45°, 90°, customizable colors)
+    [SerializeField] private Color passengerCarColor = Color.white;
+    [SerializeField] private PassengerCarObstacle selectedPassengerCar = null;
+
     private GameObject ghostPreviewObj;
     private ObjectType lastBuiltPreviewType = (ObjectType)(-1);
     private Sprite asphaltSprite;
@@ -91,6 +97,7 @@ public class MapBuilderEditor : EditorWindow
     private Sprite arrowSprite;
     private Sprite yellowArrowSprite;
     private Sprite roadArrowSprite;
+    private Sprite passengerCarSprite;
     private Sprite wheelSprite;
     private Sprite pedalGasSprite;
     private Sprite pedalBrakeSprite;
@@ -107,7 +114,8 @@ public class MapBuilderEditor : EditorWindow
         "7. Узкое с траком (3.5м)",
         "8. Целевое место парковки (3.5м, Единственное)",
         "9. Стрелка направления (Указания на дороге)",
-        "10. Стена-препятствие (Любой угол)"
+        "10. Стена-препятствие (Любой угол)",
+        "11. Легковая машина (0°, 45°, 90°)"
     };
 
     [MenuItem("Tools/Map Builder/Open Editor", false, 1)]
@@ -294,7 +302,7 @@ public class MapBuilderEditor : EditorWindow
     private Vector2 GetMagneticSnappedPosition(Vector2 rawPos, float rot)
     {
         // Only apply magnetic snap for parking stalls (StandardEmpty, StandardParked, TargetParking)
-        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow) return rawPos;
+        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar) return rawPos;
 
         GameObject workspace = GameObject.Find(WorkspaceRootName);
         if (workspace == null) return rawPos;
@@ -356,7 +364,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void SnapCursorToGrid()
     {
-        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow) return;
+        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar) return;
 
         float rem = Mathf.Abs(currentRotation) % 90f;
         if (rem > 1.0f && rem < 89.0f)
@@ -401,6 +409,7 @@ public class MapBuilderEditor : EditorWindow
         arrowSprite = LoadOrCreateSprite(SpritesDir + "/DockArrow.png", null);
         yellowArrowSprite = LoadOrCreateSprite(SpritesDir + "/YellowParkingArrow.png", CreateYellowArrowTexture);
         roadArrowSprite = LoadOrCreateSprite(SpritesDir + "/RoadArrow.png", CreateRoadArrowTexture);
+        passengerCarSprite = LoadOrCreateSprite(SpritesDir + "/PassengerCar.png", null);
         wheelSprite = LoadOrCreateSprite(SpritesDir + "/Tire.png", () => CreateSolidTexture(16, 32, new Color(0.15f, 0.15f, 0.15f)));
         pedalGasSprite = LoadOrCreateSprite(SpritesDir + "/PedalGas.png", null);
         pedalBrakeSprite = LoadOrCreateSprite(SpritesDir + "/PedalBrake.png", null);
@@ -731,6 +740,21 @@ public class MapBuilderEditor : EditorWindow
                 }
             }
 
+            Transform carsContainer = workspace.transform.Find(PassengerCarsContainerName);
+            if (carsContainer != null)
+            {
+                if (!EditorApplication.isPlaying) Undo.RegisterFullObjectHierarchyUndo(carsContainer.gameObject, "Shift Passenger Cars");
+                for (int i = 0; i < carsContainer.childCount; i++)
+                {
+                    PassengerCarObstacle car = carsContainer.GetChild(i).GetComponent<PassengerCarObstacle>();
+                    if (car != null)
+                    {
+                        car.position += delta;
+                        car.UpdateTransformAndVisual(passengerCarSprite);
+                    }
+                }
+            }
+
             cursorPosition += delta;
             UpdateGhostPreview();
             SafeMarkSceneDirty();
@@ -990,6 +1014,122 @@ public class MapBuilderEditor : EditorWindow
         selectedWall = null;
         isDrawingWall = false;
     }
+
+    #region Passenger Cars Management
+
+    public PassengerCarObstacle CreatePassengerCar(Vector2 pos, float rot, Color? color = null)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null)
+        {
+            EnsureCleanWorkPlane(clearExistingScene: false);
+            workspace = GameObject.Find(WorkspaceRootName);
+        }
+
+        Transform container = workspace.transform.Find(PassengerCarsContainerName);
+        if (container == null)
+        {
+            GameObject containerGo = new GameObject(PassengerCarsContainerName);
+            containerGo.transform.SetParent(workspace.transform, false);
+            SafeRegisterCreatedObjectUndo(containerGo, "Create Passenger Cars Container");
+            container = containerGo.transform;
+        }
+
+        int index = container.childCount + 1;
+        GameObject carGo = new GameObject($"PassengerCar_{index}");
+        carGo.transform.SetParent(container, false);
+
+        PassengerCarObstacle car = carGo.AddComponent<PassengerCarObstacle>();
+        Color col = color ?? passengerCarColor;
+        float snappedRot = PassengerCarObstacle.SnapAngle45(rot);
+        car.Setup(pos, snappedRot, col, passengerCarSprite);
+
+        SafeRegisterCreatedObjectUndo(carGo, $"Create PassengerCar_{index}");
+        SafeMarkSceneDirty();
+        SceneView.RepaintAll();
+
+        Debug.Log($"<color=#33ccff>[MapBuilder] Добавлен легковой автомобиль {carGo.name} в ({pos.x:F1}, {pos.y:F1}), угол: {snappedRot:F0}°</color>");
+        return car;
+    }
+
+    public void ClearAllPassengerCars()
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace != null)
+        {
+            Transform container = workspace.transform.Find(PassengerCarsContainerName);
+            if (container != null)
+            {
+                if (!EditorApplication.isPlaying)
+                {
+                    Undo.RegisterFullObjectHierarchyUndo(container.gameObject, "Clear All Passenger Cars");
+                }
+                for (int i = container.childCount - 1; i >= 0; i--)
+                {
+                    SafeDestroyObject(container.GetChild(i).gameObject);
+                }
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+        }
+        selectedPassengerCar = null;
+        SceneView.RepaintAll();
+    }
+
+    private PassengerCarObstacle FindPassengerCarNear(Vector2 worldPos, float maxDist)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null) return null;
+        Transform container = workspace.transform.Find(PassengerCarsContainerName);
+        if (container == null) return null;
+
+        PassengerCarObstacle bestCar = null;
+        float bestDist = maxDist;
+        for (int i = 0; i < container.childCount; i++)
+        {
+            PassengerCarObstacle car = container.GetChild(i).GetComponent<PassengerCarObstacle>();
+            if (car == null) continue;
+
+            float dist = Vector2.Distance(worldPos, car.position);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestCar = car;
+            }
+        }
+        return bestCar;
+    }
+
+    private void SetCarColor(Color col)
+    {
+        passengerCarColor = col;
+        if (selectedPassengerCar != null)
+        {
+            Undo.RecordObject(selectedPassengerCar, "Change Car Color");
+            selectedPassengerCar.color = col;
+            selectedPassengerCar.UpdateTransformAndVisual(passengerCarSprite);
+            SafeMarkSceneDirty();
+        }
+        UpdateGhostPreview();
+        SceneView.RepaintAll();
+    }
+
+    private void SetCarRotation(float angle)
+    {
+        currentRotation = PassengerCarObstacle.SnapAngle45(angle);
+        if (selectedPassengerCar != null)
+        {
+            Undo.RecordObject(selectedPassengerCar, "Rotate Car");
+            selectedPassengerCar.rotationAngle = currentRotation;
+            selectedPassengerCar.UpdateTransformAndVisual(passengerCarSprite);
+            SafeMarkSceneDirty();
+        }
+        UpdateGhostPreview();
+        SceneView.RepaintAll();
+    }
+
+    #endregion
+
 
     private WallObstacle FindWallNear(Vector2 worldPos, float maxDist, out int pointIndex)
     {
@@ -1714,6 +1854,100 @@ public class MapBuilderEditor : EditorWindow
         }
         EditorGUILayout.EndVertical();
 
+        // Passenger Cars Configuration Section
+        EditorGUILayout.Space(6);
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("🚗 Легковая машина (Препятствие, 0°/45°/90°):", EditorStyles.boldLabel);
+
+        EditorGUI.BeginChangeCheck();
+        passengerCarColor = EditorGUILayout.ColorField("Цвет кузова", passengerCarColor);
+        if (EditorGUI.EndChangeCheck())
+        {
+            if (selectedPassengerCar != null)
+            {
+                Undo.RecordObject(selectedPassengerCar, "Change Car Color");
+                selectedPassengerCar.color = passengerCarColor;
+                selectedPassengerCar.UpdateTransformAndVisual(passengerCarSprite);
+                SafeMarkSceneDirty();
+            }
+            UpdateGhostPreview();
+            SceneView.RepaintAll();
+        }
+
+        EditorGUILayout.LabelField("Быстрая палитра цветов:", EditorStyles.miniLabel);
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Белый", GUILayout.Height(22))) { SetCarColor(Color.white); }
+        if (GUILayout.Button("Черный", GUILayout.Height(22))) { SetCarColor(new Color(0.20f, 0.20f, 0.22f, 1f)); }
+        if (GUILayout.Button("Красный", GUILayout.Height(22))) { SetCarColor(new Color(0.85f, 0.15f, 0.15f, 1f)); }
+        if (GUILayout.Button("Синий", GUILayout.Height(22))) { SetCarColor(new Color(0.15f, 0.45f, 0.85f, 1f)); }
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Серебристый", GUILayout.Height(22))) { SetCarColor(new Color(0.78f, 0.80f, 0.84f, 1f)); }
+        if (GUILayout.Button("Желтый", GUILayout.Height(22))) { SetCarColor(new Color(0.95f, 0.82f, 0.12f, 1f)); }
+        if (GUILayout.Button("Зеленый", GUILayout.Height(22))) { SetCarColor(new Color(0.15f, 0.60f, 0.25f, 1f)); }
+        if (GUILayout.Button("Оранжевый", GUILayout.Height(22))) { SetCarColor(new Color(0.95f, 0.48f, 0.10f, 1f)); }
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.Space(2);
+        EditorGUILayout.LabelField("Поворот (шаг 45°):", EditorStyles.miniLabel);
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("▲ 0°", GUILayout.Height(22))) { SetCarRotation(0f); }
+        if (GUILayout.Button("↗ 45°", GUILayout.Height(22))) { SetCarRotation(45f); }
+        if (GUILayout.Button("▶ 90°", GUILayout.Height(22))) { SetCarRotation(90f); }
+        if (GUILayout.Button("↘ 135°", GUILayout.Height(22))) { SetCarRotation(135f); }
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("▼ 180°", GUILayout.Height(22))) { SetCarRotation(180f); }
+        if (GUILayout.Button("↙ 225°", GUILayout.Height(22))) { SetCarRotation(225f); }
+        if (GUILayout.Button("◀ 270°", GUILayout.Height(22))) { SetCarRotation(270f); }
+        if (GUILayout.Button("↖ 315°", GUILayout.Height(22))) { SetCarRotation(315f); }
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Поставить машину (Enter)", GUILayout.Height(26)))
+        {
+            selectedPassengerCar = CreatePassengerCar(cursorPosition, currentRotation, passengerCarColor);
+        }
+        if (GUILayout.Button("Очистить все легковые", GUILayout.Height(26)))
+        {
+            if (EditorUtility.DisplayDialog("Очистить легковые машины", "Удалить все установленные легковые машины?", "Да, удалить", "Отмена"))
+            {
+                ClearAllPassengerCars();
+            }
+        }
+        EditorGUILayout.EndHorizontal();
+
+        if (selectedPassengerCar != null)
+        {
+            EditorGUILayout.Space(4);
+            EditorGUILayout.HelpBox($"Выделена: {selectedPassengerCar.name}\nПозиция: ({selectedPassengerCar.position.x:F1}, {selectedPassengerCar.position.y:F1}) | Угол: {selectedPassengerCar.rotationAngle:F0}°", MessageType.Info);
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("Повернуть 45° (R)", GUILayout.Height(24)))
+            {
+                Undo.RecordObject(selectedPassengerCar, "Rotate Car");
+                selectedPassengerCar.rotationAngle = PassengerCarObstacle.SnapAngle45(selectedPassengerCar.rotationAngle + 45f);
+                selectedPassengerCar.UpdateTransformAndVisual(passengerCarSprite);
+                currentRotation = selectedPassengerCar.rotationAngle;
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+            if (GUILayout.Button("Удалить авто (Del)", GUILayout.Height(24)))
+            {
+                SafeDestroyObject(selectedPassengerCar.gameObject);
+                selectedPassengerCar = null;
+            }
+            if (GUILayout.Button("Снять выбор", GUILayout.Height(24)))
+            {
+                selectedPassengerCar = null;
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+        EditorGUILayout.EndVertical();
+
+
         EditorGUILayout.Space(10);
         EditorGUILayout.LabelField("Действия:", EditorStyles.boldLabel);
         
@@ -1794,7 +2028,7 @@ public class MapBuilderEditor : EditorWindow
         }
 
         // Interactive 2D Position Handle for Scene View (Free Mouse Movement with Magnetic Snapping)
-        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.Wall && (currentObjectType != ObjectType.RoadArrow || selectedRoadArrow == null))
+        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.Wall && (currentObjectType != ObjectType.RoadArrow || selectedRoadArrow == null) && (currentObjectType != ObjectType.PassengerCar || selectedPassengerCar == null))
         {
             EditorGUI.BeginChangeCheck();
             Vector3 curPos3 = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
@@ -1805,7 +2039,7 @@ public class MapBuilderEditor : EditorWindow
             if (EditorGUI.EndChangeCheck())
             {
                 Vector2 rawPos = new Vector2(newPos.x, newPos.y);
-                cursorPosition = (currentObjectType == ObjectType.RoadArrow) ? rawPos : GetMagneticSnappedPosition(rawPos, currentRotation);
+                cursorPosition = (currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.PassengerCar) ? rawPos : GetMagneticSnappedPosition(rawPos, currentRotation);
                 UpdateGhostPreview();
                 Repaint();
             }
@@ -1852,6 +2086,24 @@ public class MapBuilderEditor : EditorWindow
                     cursorPosition = selectedWall.endPoint;
                 }
                 selectedWall.UpdateTransformAndVisual(stripeSprite);
+                SafeMarkSceneDirty();
+                Repaint();
+            }
+        }
+        else if (currentObjectType == ObjectType.PassengerCar && selectedPassengerCar != null)
+        {
+            EditorGUI.BeginChangeCheck();
+            Vector3 curPos3 = new Vector3(selectedPassengerCar.position.x, selectedPassengerCar.position.y, 0f);
+            Quaternion curRotQ = Quaternion.Euler(0f, 0f, selectedPassengerCar.rotationAngle);
+
+            Vector3 newPos = Handles.PositionHandle(curPos3, curRotQ);
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(selectedPassengerCar.transform, "Move Passenger Car");
+                selectedPassengerCar.position = new Vector2(newPos.x, newPos.y);
+                selectedPassengerCar.UpdateTransformAndVisual(passengerCarSprite);
+                cursorPosition = selectedPassengerCar.position;
                 SafeMarkSceneDirty();
                 Repaint();
             }
@@ -1937,6 +2189,22 @@ public class MapBuilderEditor : EditorWindow
                         }
                     }
                 }
+                else if (currentObjectType == ObjectType.PassengerCar)
+                {
+                    PassengerCarObstacle hitCar = FindPassengerCarNear(rawPos, 2.0f);
+                    if (hitCar != null)
+                    {
+                        selectedPassengerCar = hitCar;
+                        cursorPosition = hitCar.position;
+                        currentRotation = hitCar.rotationAngle;
+                        passengerCarColor = hitCar.color;
+                    }
+                    else
+                    {
+                        selectedPassengerCar = null;
+                        cursorPosition = rawPos;
+                    }
+                }
                 else
                 {
                     cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
@@ -1999,6 +2267,21 @@ public class MapBuilderEditor : EditorWindow
                             cursorPosition = selectedWall.endPoint;
                         }
                         selectedWall.UpdateTransformAndVisual(stripeSprite);
+                        SafeMarkSceneDirty();
+                    }
+                    else
+                    {
+                        cursorPosition = rawPos;
+                    }
+                }
+                else if (currentObjectType == ObjectType.PassengerCar)
+                {
+                    if (selectedPassengerCar != null)
+                    {
+                        Undo.RecordObject(selectedPassengerCar.transform, "Move Passenger Car");
+                        selectedPassengerCar.position = rawPos;
+                        selectedPassengerCar.UpdateTransformAndVisual(passengerCarSprite);
+                        cursorPosition = rawPos;
                         SafeMarkSceneDirty();
                     }
                     else
@@ -2321,6 +2604,103 @@ public class MapBuilderEditor : EditorWindow
                     handled = true;
                 }
             }
+            else if (currentObjectType == ObjectType.PassengerCar)
+            {
+                float step = e.shift ? 2.0f : (e.alt || e.control ? 0.1f : 0.5f);
+                Vector2 moveDelta = Vector2.zero;
+
+                switch (e.keyCode)
+                {
+                    case KeyCode.W:
+                    case KeyCode.UpArrow:
+                        moveDelta = new Vector2(0f, step);
+                        break;
+                    case KeyCode.S:
+                    case KeyCode.DownArrow:
+                        moveDelta = new Vector2(0f, -step);
+                        break;
+                    case KeyCode.A:
+                    case KeyCode.LeftArrow:
+                        moveDelta = new Vector2(-step, 0f);
+                        break;
+                    case KeyCode.D:
+                    case KeyCode.RightArrow:
+                        moveDelta = new Vector2(step, 0f);
+                        break;
+
+                    case KeyCode.R:
+                        float rotDelta = e.shift ? -45f : 45f;
+                        if (selectedPassengerCar != null)
+                        {
+                            Undo.RecordObject(selectedPassengerCar.transform, "Rotate Passenger Car");
+                            selectedPassengerCar.rotationAngle = PassengerCarObstacle.SnapAngle45(selectedPassengerCar.rotationAngle + rotDelta);
+                            selectedPassengerCar.UpdateTransformAndVisual(passengerCarSprite);
+                            currentRotation = selectedPassengerCar.rotationAngle;
+                            SafeMarkSceneDirty();
+                        }
+                        else
+                        {
+                            currentRotation = PassengerCarObstacle.SnapAngle45(currentRotation + rotDelta);
+                        }
+                        UpdateGhostPreview();
+                        handled = true;
+                        break;
+
+                    case KeyCode.Return:
+                    case KeyCode.KeypadEnter:
+                    case KeyCode.Space:
+                        selectedPassengerCar = CreatePassengerCar(cursorPosition, currentRotation, passengerCarColor);
+                        if (SceneView.lastActiveSceneView != null)
+                        {
+                            SceneView.lastActiveSceneView.ShowNotification(new GUIContent($"🚗 Легковая машина установлена ({currentRotation:F0}°)"));
+                        }
+                        handled = true;
+                        break;
+
+                    case KeyCode.Delete:
+                    case KeyCode.Backspace:
+                        if (selectedPassengerCar != null)
+                        {
+                            SafeDestroyObject(selectedPassengerCar.gameObject);
+                            selectedPassengerCar = null;
+                            handled = true;
+                        }
+                        break;
+
+                    case KeyCode.Escape:
+                        selectedPassengerCar = null;
+                        handled = true;
+                        break;
+
+                    case KeyCode.C:
+                        CycleObjectType();
+                        handled = true;
+                        break;
+
+                    case KeyCode.F:
+                        FocusSceneView();
+                        handled = true;
+                        break;
+                }
+
+                if (moveDelta != Vector2.zero)
+                {
+                    if (selectedPassengerCar != null)
+                    {
+                        Undo.RecordObject(selectedPassengerCar.transform, "Move Passenger Car");
+                        selectedPassengerCar.position += moveDelta;
+                        selectedPassengerCar.UpdateTransformAndVisual(passengerCarSprite);
+                        cursorPosition = selectedPassengerCar.position;
+                        SafeMarkSceneDirty();
+                    }
+                    else
+                    {
+                        cursorPosition += moveDelta;
+                    }
+                    UpdateGhostPreview();
+                    handled = true;
+                }
+            }
             else if (currentObjectType == ObjectType.TruckStartPoint)
             {
                 // Fine-grained keyboard control for Truck Start point (0.5m / 2m / 0.1m)
@@ -2524,6 +2904,9 @@ public class MapBuilderEditor : EditorWindow
         // Draw interactive Walls handles & preview in Scene View
         DrawWallsHandles(sceneView);
 
+        // Draw interactive Passenger Cars handles & preview in Scene View
+        DrawPassengerCarsHandles(sceneView);
+
         // Ensure ghost preview is in correct position & rotation
         if (ghostPreviewObj != null)
         {
@@ -2660,6 +3043,36 @@ public class MapBuilderEditor : EditorWindow
         }
     }
 
+
+    private void DrawPassengerCarsHandles(SceneView sceneView)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        Transform container = workspace != null ? workspace.transform.Find(PassengerCarsContainerName) : null;
+        if (container != null)
+        {
+            for (int i = 0; i < container.childCount; i++)
+            {
+                PassengerCarObstacle car = container.GetChild(i).GetComponent<PassengerCarObstacle>();
+                if (car == null) continue;
+
+                bool isSelected = (selectedPassengerCar == car);
+                Vector3 p = new Vector3(car.position.x, car.position.y, 0f);
+
+                if (isSelected)
+                {
+                    Handles.color = new Color(0.2f, 1.0f, 0.4f, 0.95f);
+                    Handles.DrawWireDisc(p, Vector3.forward, 2.5f);
+                    Handles.Label(p + new Vector3(1.2f, 1.2f, 0f), $"★ {car.name} ({car.rotationAngle:F0}°)", EditorStyles.boldLabel);
+                }
+                else if (currentObjectType == ObjectType.PassengerCar)
+                {
+                    Handles.color = new Color(0.3f, 0.8f, 1f, 0.4f);
+                    Handles.DrawWireDisc(p, Vector3.forward, 1.5f);
+                }
+            }
+        }
+    }
+
     private void DrawRoadArrowsHandles(SceneView sceneView)
     {
         GameObject workspace = GameObject.Find(WorkspaceRootName);
@@ -2776,15 +3189,34 @@ public class MapBuilderEditor : EditorWindow
 
     private void RotateCursor(float angleDelta)
     {
-        currentRotation = (currentRotation + angleDelta) % 360f;
-        if (currentRotation < 0f) currentRotation += 360f;
+        if (currentObjectType == ObjectType.PassengerCar)
+        {
+            float rotDelta = angleDelta >= 0 ? 45f : -45f;
+            currentRotation = PassengerCarObstacle.SnapAngle45(currentRotation + rotDelta);
+            if (selectedPassengerCar != null)
+            {
+                Undo.RecordObject(selectedPassengerCar, "Rotate Passenger Car");
+                selectedPassengerCar.rotationAngle = currentRotation;
+                selectedPassengerCar.UpdateTransformAndVisual(passengerCarSprite);
+                SafeMarkSceneDirty();
+            }
+        }
+        else
+        {
+            currentRotation = (currentRotation + angleDelta) % 360f;
+            if (currentRotation < 0f) currentRotation += 360f;
+        }
         UpdateGhostPreview();
     }
 
     private void CycleObjectType()
     {
-        currentObjectType = (ObjectType)(((int)currentObjectType + 1) % 10);
-        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall)
+        currentObjectType = (ObjectType)(((int)currentObjectType + 1) % 11);
+        if (currentObjectType == ObjectType.PassengerCar)
+        {
+            currentRotation = PassengerCarObstacle.SnapAngle45(currentRotation);
+        }
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar)
         {
             SnapCursorToGrid();
         }
@@ -2871,6 +3303,18 @@ public class MapBuilderEditor : EditorWindow
             GUI.Label(new Rect(24, 104, 330, 18), "[Клик/Enter] Зафиксировать отрезок и продолжать цепь", helpStyle);
             GUI.Label(new Rect(24, 122, 330, 18), "[Esc] Завершить цепь | [Клик на стену] Выбрать", helpStyle);
             GUI.Label(new Rect(24, 140, 330, 18), "[WASD/Гизмо] Двигать | [Del] Удалить выбранную", helpStyle);
+        }
+        else if (currentObjectType == ObjectType.PassengerCar)
+        {
+            GUI.Label(new Rect(24, 40, 330, 20), "Режим: <color=#33ccff>Легковая машина (0°, 45°, 90°)</color>", textStyle);
+            GUI.Label(new Rect(24, 60, 330, 20), selectedPassengerCar != null ? $"Выделена: {selectedPassengerCar.name} | Угол: {selectedPassengerCar.rotationAngle:F0}°" : $"Позиция: ({cursorPosition.x:F1}, {cursorPosition.y:F1}) | Угол: {currentRotation:F0}°", textStyle);
+            GUI.Label(new Rect(24, 80, 330, 20), "[R] Поворот 45° | [Enter/Клик] Поставить | [Del] Удалить", textStyle);
+
+            GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
+            helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
+            GUI.Label(new Rect(24, 104, 330, 18), "[Клик/Мышь] Переместить призрачную машину", helpStyle);
+            GUI.Label(new Rect(24, 122, 330, 18), "[Enter] Установить машину | [R] Поворот 45°", helpStyle);
+            GUI.Label(new Rect(24, 140, 330, 18), "[Клик на машину] Выбрать | [Del] Удалить выбранную", helpStyle);
         }
         else
         {
@@ -2998,6 +3442,16 @@ public class MapBuilderEditor : EditorWindow
         }
         curBtnX += 76;
 
+        bool isCar = currentObjectType == ObjectType.PassengerCar;
+        GUI.backgroundColor = isCar ? new Color(0.2f, 0.7f, 1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🚗 11. Авто"))
+        {
+            currentObjectType = ObjectType.PassengerCar;
+            currentRotation = PassengerCarObstacle.SnapAngle45(currentRotation);
+            UpdateGhostPreview();
+        }
+        curBtnX += 76;
+
         GUI.backgroundColor = new Color(1f, 0.85f, 0.2f, 0.9f);
         if (GUI.Button(new Rect(curBtnX, btnY, 54, btnH), "⟳ 45°"))
         {
@@ -3051,7 +3505,7 @@ public class MapBuilderEditor : EditorWindow
 
         Handles.EndGUI();
 
-        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow)
+        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar)
         {
             float slotWidth = GetSlotWidth(currentObjectType);
             float slotLength = (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow) ? 26.0f : SlotLength;
@@ -3238,6 +3692,13 @@ public class MapBuilderEditor : EditorWindow
                     wallStartPoint = cursorPosition;
                 }
             }
+            SceneView.RepaintAll();
+            return;
+        }
+
+        if (currentObjectType == ObjectType.PassengerCar)
+        {
+            selectedPassengerCar = CreatePassengerCar(cursorPosition, currentRotation, passengerCarColor);
             SceneView.RepaintAll();
             return;
         }
@@ -3584,6 +4045,20 @@ public class MapBuilderEditor : EditorWindow
             sr.sprite = roadArrowSprite != null ? roadArrowSprite : yellowArrowSprite;
             sr.color = isPreview ? new Color(roadArrowColor.r, roadArrowColor.g, roadArrowColor.b, 0.75f) : roadArrowColor;
             sr.sortingOrder = isPreview ? 40 : 2;
+            return;
+        }
+
+        if (type == ObjectType.PassengerCar)
+        {
+            GameObject car = new GameObject("Preview_PassengerCar");
+            car.transform.SetParent(parent, false);
+            car.transform.localPosition = Vector3.zero;
+            car.transform.localRotation = Quaternion.identity;
+
+            SpriteRenderer sr = car.AddComponent<SpriteRenderer>();
+            sr.sprite = passengerCarSprite;
+            sr.color = isPreview ? new Color(passengerCarColor.r, passengerCarColor.g, passengerCarColor.b, 0.75f) : passengerCarColor;
+            sr.sortingOrder = isPreview ? 40 : 6;
             return;
         }
 

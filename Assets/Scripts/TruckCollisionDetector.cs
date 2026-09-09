@@ -129,7 +129,9 @@ public class TruckCollisionDetector : MonoBehaviour
                name.IndexOf("Barrier", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Pole", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Barrel", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.IndexOf("Cone", System.StringComparison.OrdinalIgnoreCase) >= 0;
+               name.IndexOf("Cone", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Car", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Auto", System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static bool IsMarkingName(string name)
@@ -266,6 +268,7 @@ public class TruckCollisionDetector : MonoBehaviour
             return "припаркованный грузовик";
         }
         if (combinedName.Contains("Cone")) return "конус";
+        if (combinedName.Contains("Car") || combinedName.Contains("Auto") || combinedName.Contains("PassengerCar")) return "легковую машину";
         if (combinedName.Contains("Boundary") || combinedName.Contains("Border") || combinedName.Contains("Fence")) return "границу площадки";
         if (combinedName.Contains("Barrier") || combinedName.Contains("Wall")) return "стену";
         if (combinedName.Contains("Barrel")) return "бочку";
