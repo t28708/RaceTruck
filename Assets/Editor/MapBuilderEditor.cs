@@ -20,7 +20,8 @@ public class MapBuilderEditor : EditorWindow
         TargetParkingNarrow = 7,  // 8. Целевое место парковки (3.5м, Единственное)
         RoadArrow = 8,            // 9. Стрелка направления (Указания на дороге)
         Wall = 9,                 // 10. Стена-препятствие (Любой угол)
-        PassengerCar = 10         // 11. Легковая машина (0°, 45°, 90°)
+        PassengerCar = 10,        // 11. Легковая машина (0°, 45°, 90°)
+        Eraser = 11               // 12. 🧹 Ластик / Удаление (Клик по объекту)
     }
 
     public const string CustomMapsFolder = "Assets/Scenes/CustomMaps";
@@ -115,7 +116,8 @@ public class MapBuilderEditor : EditorWindow
         "8. Целевое место парковки (3.5м, Единственное)",
         "9. Стрелка направления (Указания на дороге)",
         "10. Стена-препятствие (Любой угол)",
-        "11. Легковая машина (0°, 45°, 90°)"
+        "11. Легковая машина (0°, 45°, 90°)",
+        "12. 🧹 Ластик / Удаление (Клик по объекту)"
     };
 
     [MenuItem("Tools/Map Builder/Open Editor", false, 1)]
@@ -302,7 +304,7 @@ public class MapBuilderEditor : EditorWindow
     private Vector2 GetMagneticSnappedPosition(Vector2 rawPos, float rot)
     {
         // Only apply magnetic snap for parking stalls (StandardEmpty, StandardParked, TargetParking)
-        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar) return rawPos;
+        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.Eraser) return rawPos;
 
         GameObject workspace = GameObject.Find(WorkspaceRootName);
         if (workspace == null) return rawPos;
@@ -364,7 +366,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void SnapCursorToGrid()
     {
-        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar) return;
+        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.Eraser) return;
 
         float rem = Mathf.Abs(currentRotation) % 90f;
         if (rem > 1.0f && rem < 89.0f)
@@ -1193,6 +1195,157 @@ public class MapBuilderEditor : EditorWindow
 
     #endregion
 
+    #region Eraser Tool
+
+    public bool EraseAtPosition(Vector2 worldPos, float radius = 2.0f)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null) return false;
+
+        bool erased = false;
+        string erasedName = "";
+
+        // 1. Check Marking Lines (highest precision, thin lines)
+        RoadMarkingLine hitLine = FindMarkingLineNear(worldPos, 1.8f, out _);
+        if (hitLine != null)
+        {
+            erasedName = hitLine.gameObject.name;
+            SafeDestroyObject(hitLine.gameObject);
+            selectedMarkingLine = null;
+            erased = true;
+        }
+
+        // 2. Check Wall Obstacles
+        if (!erased)
+        {
+            WallObstacle hitWall = FindWallNear(worldPos, 1.8f, out _);
+            if (hitWall != null)
+            {
+                erasedName = hitWall.gameObject.name;
+                SafeDestroyObject(hitWall.gameObject);
+                selectedWall = null;
+                erased = true;
+            }
+        }
+
+        // 3. Check Passenger Cars
+        if (!erased)
+        {
+            PassengerCarObstacle hitCar = FindPassengerCarNear(worldPos, 2.5f);
+            if (hitCar != null)
+            {
+                erasedName = hitCar.gameObject.name;
+                SafeDestroyObject(hitCar.gameObject);
+                selectedPassengerCar = null;
+                erased = true;
+            }
+        }
+
+        // 4. Check Road Direction Arrows
+        if (!erased)
+        {
+            RoadDirectionArrow hitArrow = FindRoadArrowNear(worldPos, 2.0f);
+            if (hitArrow != null)
+            {
+                erasedName = hitArrow.gameObject.name;
+                SafeDestroyObject(hitArrow.gameObject);
+                selectedRoadArrow = null;
+                erased = true;
+            }
+        }
+
+        // 5. Check Parking Slots in MapBuilder_Slots
+        if (!erased)
+        {
+            Transform slotsContainer = workspace.transform.Find(SlotsContainerName);
+            if (slotsContainer != null)
+            {
+                Transform bestSlot = null;
+                float bestDist = 4.0f;
+                for (int i = 0; i < slotsContainer.childCount; i++)
+                {
+                    Transform child = slotsContainer.GetChild(i);
+                    Vector2 childPos = new Vector2(child.position.x, child.position.y);
+                    Vector2 localDiff = Quaternion.Euler(0f, 0f, -child.eulerAngles.z) * (worldPos - childPos);
+                    float halfW = child.name.Contains("Narrow") ? (NarrowSlotWidth * 0.5f + 0.6f) : (SlotWidth * 0.5f + 0.6f);
+                    float halfL = (SlotLength * 0.5f + 0.6f);
+
+                    if (Mathf.Abs(localDiff.x) <= halfW && Mathf.Abs(localDiff.y) <= halfL)
+                    {
+                        float d = Vector2.Distance(childPos, worldPos);
+                        if (d < bestDist)
+                        {
+                            bestDist = d;
+                            bestSlot = child;
+                        }
+                    }
+                }
+
+                if (bestSlot != null)
+                {
+                    erasedName = bestSlot.gameObject.name;
+                    SafeDestroyObject(bestSlot.gameObject);
+                    erased = true;
+                }
+            }
+        }
+
+        // 6. Check Target Parking or Player Truck Start in workspace
+        if (!erased)
+        {
+            Transform targetParking = workspace.transform.Find("TargetParkingZone");
+            if (targetParking != null && Vector2.Distance(new Vector2(targetParking.position.x, targetParking.position.y), worldPos) < 3.5f)
+            {
+                erasedName = "Целевая парковка";
+                SafeDestroyObject(targetParking.gameObject);
+                erased = true;
+            }
+            else
+            {
+                Transform tractor = workspace.transform.Find("Tractor");
+                Transform trailer = workspace.transform.Find("Trailer");
+                if (tractor != null && Vector2.Distance(new Vector2(tractor.position.x, tractor.position.y), worldPos) < 4.0f)
+                {
+                    erasedName = "Старт Трака";
+                    SafeDestroyObject(tractor.gameObject);
+                    if (trailer != null) SafeDestroyObject(trailer.gameObject);
+                    erased = true;
+                }
+                else if (trailer != null && Vector2.Distance(new Vector2(trailer.position.x, trailer.position.y), worldPos) < 4.0f)
+                {
+                    erasedName = "Старт Трака (Прицеп)";
+                    SafeDestroyObject(trailer.gameObject);
+                    if (tractor != null) SafeDestroyObject(tractor.gameObject);
+                    erased = true;
+                }
+            }
+        }
+
+        if (erased)
+        {
+            SafeMarkSceneDirty();
+            SceneView.RepaintAll();
+            Repaint();
+            if (SceneView.lastActiveSceneView != null)
+            {
+                SceneView.lastActiveSceneView.ShowNotification(new GUIContent($"🧹 Удалено: {erasedName}"));
+            }
+            Debug.Log($"<color=#ff6666>[MapBuilder] Ластик удалил: {erasedName} в ({worldPos.x:F1}, {worldPos.y:F1})</color>");
+            return true;
+        }
+        else
+        {
+            if (SceneView.lastActiveSceneView != null)
+            {
+                SceneView.lastActiveSceneView.ShowNotification(new GUIContent("🧹 Ластик: в этой точке нет объектов"));
+            }
+        }
+
+        return false;
+    }
+
+    #endregion
+
     #region Workspace & Compact Rest Area Ground Plane
 
     public void EnsureCleanWorkPlane(bool clearExistingScene)
@@ -1978,6 +2131,27 @@ public class MapBuilderEditor : EditorWindow
         }
         EditorGUILayout.EndVertical();
 
+        // Eraser Configuration Section
+        EditorGUILayout.Space(6);
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("🧹 Ластик / Удаление объектов (Клик по объекту):", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox("В режиме ластика кликните ЛКМ по любому объекту на карте (линии разметки, стене, легковой машине, стрелке, парковочному месту), чтобы удалить его.\nТакже можно нажать Enter или Del для удаления объекта под курсором ластика.", MessageType.Info);
+        
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Удалить под курсором (Enter)", GUILayout.Height(26)))
+        {
+            EraseAtPosition(cursorPosition);
+        }
+        if (GUILayout.Button("Очистить все линии", GUILayout.Height(26)))
+        {
+            if (EditorUtility.DisplayDialog("Очистить линии", "Удалить все нарисованные линии разметки?", "Да, удалить", "Отмена"))
+            {
+                ClearAllMarkingLines();
+            }
+        }
+        EditorGUILayout.EndHorizontal();
+        EditorGUILayout.EndVertical();
+
 
         EditorGUILayout.Space(10);
         EditorGUILayout.LabelField("Действия:", EditorStyles.boldLabel);
@@ -2070,7 +2244,7 @@ public class MapBuilderEditor : EditorWindow
             if (EditorGUI.EndChangeCheck())
             {
                 Vector2 rawPos = new Vector2(newPos.x, newPos.y);
-                cursorPosition = (currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.PassengerCar) ? rawPos : GetMagneticSnappedPosition(rawPos, currentRotation);
+                cursorPosition = (currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.Eraser) ? rawPos : GetMagneticSnappedPosition(rawPos, currentRotation);
                 UpdateGhostPreview();
                 Repaint();
             }
@@ -2236,6 +2410,11 @@ public class MapBuilderEditor : EditorWindow
                         cursorPosition = rawPos;
                     }
                 }
+                else if (currentObjectType == ObjectType.Eraser)
+                {
+                    cursorPosition = rawPos;
+                    EraseAtPosition(rawPos);
+                }
                 else
                 {
                     cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
@@ -2319,6 +2498,11 @@ public class MapBuilderEditor : EditorWindow
                     {
                         cursorPosition = rawPos;
                     }
+                }
+                else if (currentObjectType == ObjectType.Eraser)
+                {
+                    cursorPosition = rawPos;
+                    EraseAtPosition(rawPos);
                 }
                 else
                 {
@@ -2732,6 +2916,57 @@ public class MapBuilderEditor : EditorWindow
                     handled = true;
                 }
             }
+            else if (currentObjectType == ObjectType.Eraser)
+            {
+                float step = e.shift ? 2.0f : (e.alt || e.control ? 0.1f : 0.5f);
+                Vector2 moveDelta = Vector2.zero;
+
+                switch (e.keyCode)
+                {
+                    case KeyCode.W:
+                    case KeyCode.UpArrow:
+                        moveDelta = new Vector2(0f, step);
+                        break;
+                    case KeyCode.S:
+                    case KeyCode.DownArrow:
+                        moveDelta = new Vector2(0f, -step);
+                        break;
+                    case KeyCode.A:
+                    case KeyCode.LeftArrow:
+                        moveDelta = new Vector2(-step, 0f);
+                        break;
+                    case KeyCode.D:
+                    case KeyCode.RightArrow:
+                        moveDelta = new Vector2(step, 0f);
+                        break;
+
+                    case KeyCode.Return:
+                    case KeyCode.KeypadEnter:
+                    case KeyCode.Space:
+                    case KeyCode.Delete:
+                    case KeyCode.Backspace:
+                        EraseAtPosition(cursorPosition);
+                        handled = true;
+                        break;
+
+                    case KeyCode.C:
+                        CycleObjectType();
+                        handled = true;
+                        break;
+
+                    case KeyCode.F:
+                        FocusSceneView();
+                        handled = true;
+                        break;
+                }
+
+                if (moveDelta != Vector2.zero)
+                {
+                    cursorPosition += moveDelta;
+                    UpdateGhostPreview();
+                    handled = true;
+                }
+            }
             else if (currentObjectType == ObjectType.TruckStartPoint)
             {
                 // Fine-grained keyboard control for Truck Start point (0.5m / 2m / 0.1m)
@@ -2937,6 +3172,17 @@ public class MapBuilderEditor : EditorWindow
 
         // Draw interactive Passenger Cars handles & preview in Scene View
         DrawPassengerCarsHandles(sceneView);
+
+        // Draw interactive Eraser handles in Scene View
+        if (currentObjectType == ObjectType.Eraser)
+        {
+            Vector3 p = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
+            Handles.color = new Color(1.0f, 0.25f, 0.25f, 0.85f);
+            Handles.DrawWireDisc(p, Vector3.forward, 1.8f);
+            Handles.DrawLine(p - new Vector3(0.6f, 0f, 0f), p + new Vector3(0.6f, 0f, 0f));
+            Handles.DrawLine(p - new Vector3(0f, 0.6f, 0f), p + new Vector3(0f, 0.6f, 0f));
+            Handles.Label(p + new Vector3(1.2f, 1.2f, 0f), "🧹 ЛАСТИК (Кликните по объекту для удаления)", EditorStyles.boldLabel);
+        }
 
         // Ensure ghost preview is in correct position & rotation
         if (ghostPreviewObj != null)
@@ -3211,7 +3457,7 @@ public class MapBuilderEditor : EditorWindow
     private void MoveCursor(Vector2 delta)
     {
         cursorPosition += delta;
-        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall)
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.Eraser)
         {
             SnapCursorToGrid();
         }
@@ -3242,12 +3488,12 @@ public class MapBuilderEditor : EditorWindow
 
     private void CycleObjectType()
     {
-        currentObjectType = (ObjectType)(((int)currentObjectType + 1) % 11);
+        currentObjectType = (ObjectType)(((int)currentObjectType + 1) % 12);
         if (currentObjectType == ObjectType.PassengerCar)
         {
             currentRotation = PassengerCarObstacle.SnapAngle45(currentRotation);
         }
-        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar)
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.Eraser)
         {
             SnapCursorToGrid();
         }
@@ -3346,6 +3592,18 @@ public class MapBuilderEditor : EditorWindow
             GUI.Label(new Rect(24, 104, 330, 18), "[Клик/Мышь] Переместить призрачную машину", helpStyle);
             GUI.Label(new Rect(24, 122, 330, 18), "[Enter] Установить машину | [R] Поворот 45°", helpStyle);
             GUI.Label(new Rect(24, 140, 330, 18), "[Клик на машину] Выбрать | [Del] Удалить выбранную", helpStyle);
+        }
+        else if (currentObjectType == ObjectType.Eraser)
+        {
+            GUI.Label(new Rect(24, 40, 330, 20), "Режим: <color=#ff5555>🧹 Ластик / Удаление объектов</color>", textStyle);
+            GUI.Label(new Rect(24, 60, 330, 20), $"Позиция ластика: ({cursorPosition.x:F1}, {cursorPosition.y:F1})", textStyle);
+            GUI.Label(new Rect(24, 80, 330, 20), "<color=#ffaaaa>Кликните по любому объекту для удаления</color>", textStyle);
+
+            GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
+            helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
+            GUI.Label(new Rect(24, 104, 330, 18), "[ЛКМ на карте] Удалить объект под курсором", helpStyle);
+            GUI.Label(new Rect(24, 122, 330, 18), "[Enter / Space / Del] Удалить объект в позиции ластика", helpStyle);
+            GUI.Label(new Rect(24, 140, 330, 18), "[WASD/Стрелки] Переместить ластик | [C] Сменить", helpStyle);
         }
         else
         {
@@ -3483,6 +3741,15 @@ public class MapBuilderEditor : EditorWindow
         }
         curBtnX += 76;
 
+        bool isEraser = currentObjectType == ObjectType.Eraser;
+        GUI.backgroundColor = isEraser ? new Color(1f, 0.35f, 0.35f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY, 84, btnH), "🧹 12. Ластик"))
+        {
+            currentObjectType = ObjectType.Eraser;
+            UpdateGhostPreview();
+        }
+        curBtnX += 86;
+
         GUI.backgroundColor = new Color(1f, 0.85f, 0.2f, 0.9f);
         if (GUI.Button(new Rect(curBtnX, btnY, 54, btnH), "⟳ 45°"))
         {
@@ -3536,7 +3803,7 @@ public class MapBuilderEditor : EditorWindow
 
         Handles.EndGUI();
 
-        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar)
+        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.Eraser)
         {
             float slotWidth = GetSlotWidth(currentObjectType);
             float slotLength = (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow) ? 26.0f : SlotLength;
@@ -3748,6 +4015,13 @@ public class MapBuilderEditor : EditorWindow
                 passengerCarColor = GetRandomCarColor();
                 UpdateGhostPreview();
             }
+            SceneView.RepaintAll();
+            return;
+        }
+
+        if (currentObjectType == ObjectType.Eraser)
+        {
+            EraseAtPosition(cursorPosition);
             SceneView.RepaintAll();
             return;
         }
@@ -4077,7 +4351,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void BuildObjectHierarchy(Transform parent, ObjectType type, bool isPreview)
     {
-        if (type == ObjectType.MarkingLine || type == ObjectType.Wall)
+        if (type == ObjectType.MarkingLine || type == ObjectType.Wall || type == ObjectType.Eraser)
         {
             return;
         }
