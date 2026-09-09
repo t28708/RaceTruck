@@ -1017,6 +1017,25 @@ public class MapBuilderEditor : EditorWindow
 
     #region Passenger Cars Management
 
+    public static readonly Color[] CarColorPalette = new Color[]
+    {
+        Color.white,                                 // Белый
+        new Color(0.82f, 0.84f, 0.88f, 1f),          // Серебристый / Серый металлик
+        new Color(0.88f, 0.15f, 0.15f, 1f),          // Красный
+        new Color(0.18f, 0.48f, 0.88f, 1f),          // Синий
+        new Color(0.15f, 0.70f, 0.85f, 1f),          // Голубой / Cyan
+        new Color(0.96f, 0.82f, 0.12f, 1f),          // Желтый
+        new Color(0.95f, 0.48f, 0.10f, 1f),          // Оранжевый
+        new Color(0.18f, 0.65f, 0.28f, 1f),          // Зеленый
+        new Color(0.60f, 0.15f, 0.25f, 1f),          // Бордовый / Вишневый
+        new Color(0.40f, 0.20f, 0.60f, 1f),          // Фиолетовый
+    };
+
+    public static Color GetRandomCarColor()
+    {
+        return CarColorPalette[UnityEngine.Random.Range(0, CarColorPalette.Length)];
+    }
+
     public PassengerCarObstacle CreatePassengerCar(Vector2 pos, float rot, Color? color = null)
     {
         GameObject workspace = GameObject.Find(WorkspaceRootName);
@@ -1035,12 +1054,22 @@ public class MapBuilderEditor : EditorWindow
             container = containerGo.transform;
         }
 
+        // If there is already an existing car at this position, remove it to replace with the new one
+        for (int i = container.childCount - 1; i >= 0; i--)
+        {
+            Transform existingChild = container.GetChild(i);
+            if (Vector2.Distance(new Vector2(existingChild.position.x, existingChild.position.y), pos) < 1.6f)
+            {
+                SafeDestroyObject(existingChild.gameObject);
+            }
+        }
+
         int index = container.childCount + 1;
         GameObject carGo = new GameObject($"PassengerCar_{index}");
         carGo.transform.SetParent(container, false);
 
         PassengerCarObstacle car = carGo.AddComponent<PassengerCarObstacle>();
-        Color col = color ?? passengerCarColor;
+        Color col = color ?? GetRandomCarColor();
         float snappedRot = PassengerCarObstacle.SnapAngle45(rot);
         car.Setup(pos, snappedRot, col, passengerCarSprite);
 
@@ -1877,16 +1906,18 @@ public class MapBuilderEditor : EditorWindow
         EditorGUILayout.LabelField("Быстрая палитра цветов:", EditorStyles.miniLabel);
         EditorGUILayout.BeginHorizontal();
         if (GUILayout.Button("Белый", GUILayout.Height(22))) { SetCarColor(Color.white); }
-        if (GUILayout.Button("Черный", GUILayout.Height(22))) { SetCarColor(new Color(0.20f, 0.20f, 0.22f, 1f)); }
-        if (GUILayout.Button("Красный", GUILayout.Height(22))) { SetCarColor(new Color(0.85f, 0.15f, 0.15f, 1f)); }
-        if (GUILayout.Button("Синий", GUILayout.Height(22))) { SetCarColor(new Color(0.15f, 0.45f, 0.85f, 1f)); }
+        if (GUILayout.Button("Серебристый", GUILayout.Height(22))) { SetCarColor(new Color(0.82f, 0.84f, 0.88f, 1f)); }
+        if (GUILayout.Button("Красный", GUILayout.Height(22))) { SetCarColor(new Color(0.88f, 0.15f, 0.15f, 1f)); }
+        if (GUILayout.Button("Синий", GUILayout.Height(22))) { SetCarColor(new Color(0.18f, 0.48f, 0.88f, 1f)); }
+        if (GUILayout.Button("Голубой", GUILayout.Height(22))) { SetCarColor(new Color(0.15f, 0.70f, 0.85f, 1f)); }
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button("Серебристый", GUILayout.Height(22))) { SetCarColor(new Color(0.78f, 0.80f, 0.84f, 1f)); }
-        if (GUILayout.Button("Желтый", GUILayout.Height(22))) { SetCarColor(new Color(0.95f, 0.82f, 0.12f, 1f)); }
-        if (GUILayout.Button("Зеленый", GUILayout.Height(22))) { SetCarColor(new Color(0.15f, 0.60f, 0.25f, 1f)); }
+        if (GUILayout.Button("Желтый", GUILayout.Height(22))) { SetCarColor(new Color(0.96f, 0.82f, 0.12f, 1f)); }
         if (GUILayout.Button("Оранжевый", GUILayout.Height(22))) { SetCarColor(new Color(0.95f, 0.48f, 0.10f, 1f)); }
+        if (GUILayout.Button("Зеленый", GUILayout.Height(22))) { SetCarColor(new Color(0.18f, 0.65f, 0.28f, 1f)); }
+        if (GUILayout.Button("Бордовый", GUILayout.Height(22))) { SetCarColor(new Color(0.60f, 0.15f, 0.25f, 1f)); }
+        if (GUILayout.Button("🎲 Случайный", GUILayout.Height(22))) { SetCarColor(GetRandomCarColor()); }
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.Space(2);
@@ -1908,7 +1939,7 @@ public class MapBuilderEditor : EditorWindow
         EditorGUILayout.BeginHorizontal();
         if (GUILayout.Button("Поставить машину (Enter)", GUILayout.Height(26)))
         {
-            selectedPassengerCar = CreatePassengerCar(cursorPosition, currentRotation, passengerCarColor);
+            PlaceCurrentObject();
         }
         if (GUILayout.Button("Очистить все легковые", GUILayout.Height(26)))
         {
@@ -2649,14 +2680,7 @@ public class MapBuilderEditor : EditorWindow
                     case KeyCode.Return:
                     case KeyCode.KeypadEnter:
                     case KeyCode.Space:
-                        selectedPassengerCar = CreatePassengerCar(cursorPosition, currentRotation, passengerCarColor);
-                        if (autoAdvanceAfterPlacement)
-                        {
-                            float carStep = 2.75f;
-                            Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
-                            cursorPosition += new Vector2(rightDir.x, rightDir.y) * carStep;
-                            UpdateGhostPreview();
-                        }
+                        PlaceCurrentObject();
                         if (SceneView.lastActiveSceneView != null)
                         {
                             SceneView.lastActiveSceneView.ShowNotification(new GUIContent($"🚗 Легковая машина установлена ({currentRotation:F0}°)"));
@@ -3601,6 +3625,15 @@ public class MapBuilderEditor : EditorWindow
         // Blazing fast position and rotation update: zero GC allocation, 120+ FPS
         ghostPreviewObj.transform.position = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
         ghostPreviewObj.transform.rotation = Quaternion.Euler(0f, 0f, currentRotation);
+
+        if (currentObjectType == ObjectType.PassengerCar && ghostPreviewObj.transform.childCount > 0)
+        {
+            SpriteRenderer sr = ghostPreviewObj.GetComponentInChildren<SpriteRenderer>();
+            if (sr != null)
+            {
+                sr.color = new Color(passengerCarColor.r, passengerCarColor.g, passengerCarColor.b, 0.45f);
+            }
+        }
     }
 
     private void DestroyGhostPreview()
@@ -3705,12 +3738,14 @@ public class MapBuilderEditor : EditorWindow
 
         if (currentObjectType == ObjectType.PassengerCar)
         {
-            selectedPassengerCar = CreatePassengerCar(cursorPosition, currentRotation, passengerCarColor);
+            Color placedColor = passengerCarColor;
+            selectedPassengerCar = CreatePassengerCar(cursorPosition, currentRotation, placedColor);
             if (autoAdvanceAfterPlacement)
             {
                 float carStep = 2.75f;
                 Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
                 cursorPosition += new Vector2(rightDir.x, rightDir.y) * carStep;
+                passengerCarColor = GetRandomCarColor();
                 UpdateGhostPreview();
             }
             SceneView.RepaintAll();
@@ -4071,7 +4106,7 @@ public class MapBuilderEditor : EditorWindow
 
             SpriteRenderer sr = car.AddComponent<SpriteRenderer>();
             sr.sprite = passengerCarSprite;
-            sr.color = isPreview ? new Color(passengerCarColor.r, passengerCarColor.g, passengerCarColor.b, 0.75f) : passengerCarColor;
+            sr.color = isPreview ? new Color(passengerCarColor.r, passengerCarColor.g, passengerCarColor.b, 0.45f) : passengerCarColor;
             sr.sortingOrder = isPreview ? 40 : 6;
             return;
         }
