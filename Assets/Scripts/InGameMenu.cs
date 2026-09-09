@@ -144,7 +144,7 @@ public class InGameMenu : MonoBehaviour
         Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
 
-        // 1. Top-Left Menu Button (Lowered down and enlarged for comfortable mobile touch)
+        // 1. Top-Left Menu Button (Lowered down to Y: -180 so it doesn't touch the steering slider)
         Transform existingBtn = canvasGo.transform.Find("TopLeft_MenuButton");
         if (existingBtn == null)
         {
@@ -155,7 +155,7 @@ public class InGameMenu : MonoBehaviour
             btnRt.anchorMin = new Vector2(0f, 1f);
             btnRt.anchorMax = new Vector2(0f, 1f);
             btnRt.pivot = new Vector2(0f, 1f);
-            btnRt.anchoredPosition = new Vector2(30f, -85f);
+            btnRt.anchoredPosition = new Vector2(30f, -180f);
             btnRt.sizeDelta = new Vector2(210f, 68f);
 
             Image btnImg = topMenuBtnGo.AddComponent<Image>();
@@ -196,7 +196,7 @@ public class InGameMenu : MonoBehaviour
                 btnRt.anchorMin = new Vector2(0f, 1f);
                 btnRt.anchorMax = new Vector2(0f, 1f);
                 btnRt.pivot = new Vector2(0f, 1f);
-                btnRt.anchoredPosition = new Vector2(30f, -85f);
+                btnRt.anchoredPosition = new Vector2(30f, -180f);
                 btnRt.sizeDelta = new Vector2(210f, 68f);
             }
             Text t = topMenuBtnGo.GetComponentInChildren<Text>();

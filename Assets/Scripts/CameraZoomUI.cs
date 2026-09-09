@@ -91,6 +91,16 @@ public class CameraZoomUI : MonoBehaviour
 
     public void FindComponents()
     {
+        RectTransform rt = GetComponent<RectTransform>();
+        if (rt != null)
+        {
+            rt.anchorMin = new Vector2(1f, 1f);
+            rt.anchorMax = new Vector2(1f, 1f);
+            rt.pivot = new Vector2(1f, 1f);
+            rt.anchoredPosition = new Vector2(-30f, -180f);
+            rt.sizeDelta = new Vector2(210f, 68f);
+        }
+
         if (zoomLabel == null)
         {
             Transform t = transform.Find("ZoomLabel");
@@ -258,7 +268,7 @@ public class CameraZoomUI : MonoBehaviour
         Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
 
-        // Container
+        // Container (Positioned at Y: -180, exactly matching Menu Button height on the left)
         GameObject widgetGo = new GameObject("CameraZoomWidget");
         widgetGo.transform.SetParent(canvasGo.transform, false);
 
@@ -266,8 +276,8 @@ public class CameraZoomUI : MonoBehaviour
         widgetRt.anchorMin = new Vector2(1f, 1f);
         widgetRt.anchorMax = new Vector2(1f, 1f);
         widgetRt.pivot = new Vector2(1f, 1f);
-        widgetRt.anchoredPosition = new Vector2(-25f, -25f);
-        widgetRt.sizeDelta = new Vector2(210f, 54f);
+        widgetRt.anchoredPosition = new Vector2(-30f, -180f);
+        widgetRt.sizeDelta = new Vector2(210f, 68f);
 
         Image bg = widgetGo.AddComponent<Image>();
         bg.color = new Color(0.10f, 0.12f, 0.16f, 0.88f);
