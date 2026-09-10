@@ -814,4 +814,5 @@ public class MapSelectMenu : MonoBehaviour
         rt.sizeDelta = Vector2.zero;
         rt.anchoredPosition = Vector2.zero;
     }
+    #endregion
 }
