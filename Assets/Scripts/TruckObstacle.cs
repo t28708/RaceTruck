@@ -69,7 +69,7 @@ public class TruckObstacle : MonoBehaviour
         if (srTrailer == null) srTrailer = trailerGo.AddComponent<SpriteRenderer>();
         if (activeTrailerSprite != null) srTrailer.sprite = activeTrailerSprite;
         srTrailer.color = Color.white; // Always pure crisp white for trailer (never tinted blue/transparent)
-        srTrailer.sortingOrder = sortingOrder;
+        srTrailer.sortingOrder = 10;
 
         BoxCollider2D colTrailer = trailerGo.GetComponent<BoxCollider2D>();
         if (colTrailer == null) colTrailer = trailerGo.AddComponent<BoxCollider2D>();
@@ -98,7 +98,7 @@ public class TruckObstacle : MonoBehaviour
         if (srTractor == null) srTractor = tractorGo.AddComponent<SpriteRenderer>();
         if (activeTractorSprite != null) srTractor.sprite = activeTractorSprite;
         srTractor.color = Color.white;
-        srTractor.sortingOrder = sortingOrder;
+        srTractor.sortingOrder = 8;
 
         BoxCollider2D colTractor = tractorGo.GetComponent<BoxCollider2D>();
         if (colTractor == null) colTractor = tractorGo.AddComponent<BoxCollider2D>();

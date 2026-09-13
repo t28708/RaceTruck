@@ -312,7 +312,7 @@ public static class GenerateKrogerRingRoadMap
         trGo.transform.localPosition = new Vector3(0f, 2.0f, 0f);
         SpriteRenderer srTr = trGo.AddComponent<SpriteRenderer>();
         srTr.sprite = trailerSp;
-        srTr.color = new Color(0.88f, 0.88f, 0.90f, 1.0f);
+        srTr.color = Color.white;
         srTr.sortingOrder = 10;
 
         BoxCollider2D colTr = trGo.AddComponent<BoxCollider2D>();
@@ -326,7 +326,7 @@ public static class GenerateKrogerRingRoadMap
         SpriteRenderer srTc = tcGo.AddComponent<SpriteRenderer>();
         srTc.sprite = tractorSp;
         srTc.color = new Color(0.20f, 0.50f, 0.90f, 1.0f);
-        srTc.sortingOrder = 11;
+        srTc.sortingOrder = 8;
 
         BoxCollider2D colTc = tcGo.AddComponent<BoxCollider2D>();
         colTc.size = new Vector2(2.6f, 8.2f);
@@ -394,7 +394,7 @@ public static class GenerateKrogerRingRoadMap
 
         SpriteRenderer srTractor = tractorGo.AddComponent<SpriteRenderer>();
         srTractor.sprite = tractorSp;
-        srTractor.sortingOrder = 20;
+        srTractor.sortingOrder = 8;
 
         Rigidbody2D rbTractor = tractorGo.AddComponent<Rigidbody2D>();
         rbTractor.gravityScale = 0f;
@@ -416,7 +416,7 @@ public static class GenerateKrogerRingRoadMap
 
         SpriteRenderer srTrailer = trailerGo.AddComponent<SpriteRenderer>();
         srTrailer.sprite = trailerSp;
-        srTrailer.sortingOrder = 18;
+        srTrailer.sortingOrder = 10;
 
         Rigidbody2D rbTrailer = trailerGo.AddComponent<Rigidbody2D>();
         rbTrailer.gravityScale = 0f;

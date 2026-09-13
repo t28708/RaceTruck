@@ -5336,12 +5336,12 @@ public class MapBuilderEditor : EditorWindow
         {
             GameObject trailer = new GameObject("Preview_Trailer");
             trailer.transform.SetParent(parent, false);
-            trailer.transform.localPosition = new Vector3(0f, 2.7f, 0f);
+            trailer.transform.localPosition = new Vector3(0f, -2.9f, 0f);
             trailer.transform.localRotation = Quaternion.identity;
             SpriteRenderer srTrailer = trailer.AddComponent<SpriteRenderer>();
             srTrailer.sprite = trailerSprite;
             srTrailer.color = isPreview ? new Color(1f, 1f, 1f, 0.65f) : Color.white;
-            srTrailer.sortingOrder = isPreview ? 48 : 5;
+            srTrailer.sortingOrder = isPreview ? 50 : 10;
             if (trailerSprite != null && trailerSprite.rect.width > 0)
             {
                 float sx = 2.58f / (trailerSprite.rect.width / trailerSprite.pixelsPerUnit);
@@ -5351,14 +5351,14 @@ public class MapBuilderEditor : EditorWindow
 
             GameObject tractor = new GameObject("Preview_Tractor");
             tractor.transform.SetParent(parent, false);
-            tractor.transform.localPosition = new Vector3(0f, -4.0f, 0f);
+            tractor.transform.localPosition = new Vector3(0f, 6.8f, 0f);
             tractor.transform.localRotation = Quaternion.identity;
             SpriteRenderer srTractor = tractor.AddComponent<SpriteRenderer>();
             srTractor.sprite = tractorSprite;
             Color cabC = standaloneTruckColor;
             if (isPreview) cabC.a = 0.7f;
             srTractor.color = cabC;
-            srTractor.sortingOrder = isPreview ? 49 : 6;
+            srTractor.sortingOrder = isPreview ? 48 : 8;
             if (tractorSprite != null && tractorSprite.rect.width > 0)
             {
                 float sx = 2.55f / (tractorSprite.rect.width / tractorSprite.pixelsPerUnit);
@@ -5426,7 +5426,7 @@ public class MapBuilderEditor : EditorWindow
             SpriteRenderer srTractor = tractor.AddComponent<SpriteRenderer>();
             srTractor.sprite = tractorHDSprite != null ? tractorHDSprite : tractorSprite;
             srTractor.color = new Color(0.3f, 1f, 0.5f, 0.75f);
-            srTractor.sortingOrder = truckSortOrder + 1;
+            srTractor.sortingOrder = truckSortOrder - 2;
             return;
         }
 
@@ -5506,8 +5506,8 @@ public class MapBuilderEditor : EditorWindow
             trailer.transform.localRotation = Quaternion.identity;
             SpriteRenderer srTrailer = trailer.AddComponent<SpriteRenderer>();
             srTrailer.sprite = trailerSprite;
-            srTrailer.color = truckColor;
-            srTrailer.sortingOrder = truckSortOrder;
+            srTrailer.color = isPreview ? new Color(1f, 1f, 1f, 0.65f) : Color.white;
+            srTrailer.sortingOrder = isPreview ? 50 : 10;
 
             if (!isPreview)
             {
@@ -5522,14 +5522,17 @@ public class MapBuilderEditor : EditorWindow
             tractor.transform.localRotation = Quaternion.identity;
             SpriteRenderer srTractor = tractor.AddComponent<SpriteRenderer>();
             srTractor.sprite = tractorSprite;
-            srTractor.color = truckColor;
-            srTractor.sortingOrder = truckSortOrder;
+            srTractor.color = isPreview ? new Color(0.7f, 0.9f, 1f, 0.7f) : Color.white;
+            srTractor.sortingOrder = isPreview ? 48 : 8;
 
             if (!isPreview)
             {
                 BoxCollider2D colTractor = tractor.AddComponent<BoxCollider2D>();
                 colTractor.size = new Vector2(2.55f, 8.2f);
                 colTractor.isTrigger = true;
+
+                ParkedTruckVisuals.SetupTractorVisuals(tractor.transform);
+                ParkedTruckVisuals.SetupTrailerVisuals(trailer.transform);
             }
         }
     }

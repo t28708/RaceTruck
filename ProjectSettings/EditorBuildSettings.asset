@@ -38,13 +38,13 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Map_13.unity
     guid: b875e09bcfb43a34fb5968c9f7eae8e9
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/CustomMaps/Map_14_kroger_ring_road.unity
     guid: a14b7c8d9e0f1a2b3c4d5e6f7a8b9c0d
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Map_2.unity
     guid: d700819544484f1419854be1d2bec925
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/CustomMaps/Map_20-big-FACILITY.unity
     guid: 1d0d9949403462e4696db379e7090ca7
   - enabled: 1
@@ -57,8 +57,14 @@ EditorBuildSettings:
     path: Assets/Scenes/CustomMaps/Map_4-rest-area.unity
     guid: b4b8b566c5b02d2418b1e6f4d52fdbf1
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_4.unity
-    guid: 215e9ff7004ad5f4dafce7ca18eec561
+    path: Assets/Scenes/CustomMaps/Map_4-V1.unity
+    guid: 93e3bc384d0d58445adb525c619b3a1b
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_4-V2.unity
+    guid: 29fe71d84ca63694184e1b7b151c134f
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_4-V3.unity
+    guid: 4f237584803bcbf40be36cddb483f669
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Map_5.unity
     guid: 4f5311bb6b51ea34583f782f984f4260

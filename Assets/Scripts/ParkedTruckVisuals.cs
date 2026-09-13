@@ -103,6 +103,7 @@ public class ParkedTruckVisuals : MonoBehaviour
             {
                 sr.color = new Color(sr.color.r, sr.color.g, sr.color.b, 1.0f);
             }
+            sr.sortingOrder = 8;
         }
 
         BoxCollider2D col = tractorTr.GetComponent<BoxCollider2D>();
@@ -142,6 +143,7 @@ public class ParkedTruckVisuals : MonoBehaviour
             }
             // Always ensure pure crisp white for trailer (never tinted blue)
             sr.color = Color.white;
+            sr.sortingOrder = 10;
         }
 
         BoxCollider2D col = trailerTr.GetComponent<BoxCollider2D>();

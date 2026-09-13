@@ -26,11 +26,11 @@ public class CameraFollow : MonoBehaviour
     [Tooltip("Default initial camera zoom")]
     [SerializeField] private float defaultZoom = 16f;
 
-    [Header("Zoom Multiplier (1x - 6x)")]
+    [Header("Zoom Multiplier (1x - 10x)")]
     [SerializeField] private int zoomMultiplier = 1;
 
     public const int MinZoomMultiplier = 1;
-    public const int MaxZoomMultiplier = 6;
+    public const int MaxZoomMultiplier = 10;
 
     [Header("Camera Framing Offset")]
     [Tooltip("Fixed camera offset along tractor forward axis (locked to reverse framing: -6.5f)")]
@@ -58,13 +58,14 @@ public class CameraFollow : MonoBehaviour
     public float CurrentShift => currentShift;
 
     /// <summary>
-    /// Converts zoom level (1..6) to actual zoom scale factor:
+    /// Converts zoom level (1..10) to actual zoom scale factor:
     /// Level 1 -> 1.0x (16m orthographic size)
     /// Level 2 -> 1.5x (24m)
     /// Level 3 -> 2.0x (32m)
     /// Level 4 -> 2.5x (40m)
     /// Level 5 -> 3.0x (48m)
-    /// Level 6 -> 3.5x (56m)
+    /// ...
+    /// Level 10 -> 5.5x (88m)
     /// </summary>
     public static float GetActualZoomScale(int mult)
     {
@@ -274,7 +275,7 @@ public class CameraFollow : MonoBehaviour
             StepZoom(-1);
         }
 
-        // Pinching fingers together (pinch in, delta < 0) -> Zoom Out wider (+1 multiplier step: e.g. 1x -> 2x -> 3x -> 4x -> 5x -> 6x)
+        // Pinching fingers together (pinch in, delta < 0) -> Zoom Out wider (+1 multiplier step: e.g. 1x -> 2x -> ... -> 10x)
         while (pinchAccumulator <= -PinchStepThreshold)
         {
             pinchAccumulator += PinchStepThreshold;
