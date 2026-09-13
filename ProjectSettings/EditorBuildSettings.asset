@@ -9,14 +9,8 @@ EditorBuildSettings:
     path: Assets/Scenes/MainMenu.unity
     guid: 7d2cb1d16335597449f588b0249828a0
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_1.unity
+    path: Assets/Scenes/CustomMaps/Alley dock V1.unity
     guid: e0d491081e79d5747b5ffff47cf69718
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_10_parallel_parking-2.unity
-    guid: 61ddc80e1ad92dd409d353befef3a0cf
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_10_parallel_parking.unity
-    guid: cfd6cd167e3413c459e83800852203c5
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Map_11_angle_back-smaller.unity
     guid: f68081eb28d450b40abd3de4467c1ee2
@@ -38,15 +32,12 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Map_13.unity
     guid: b875e09bcfb43a34fb5968c9f7eae8e9
-  - enabled: 0
+  - enabled: 1
     path: Assets/Scenes/CustomMaps/Map_14_kroger_ring_road.unity
     guid: a14b7c8d9e0f1a2b3c4d5e6f7a8b9c0d
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Map_2.unity
     guid: d700819544484f1419854be1d2bec925
-  - enabled: 0
-    path: Assets/Scenes/CustomMaps/Map_20-big-FACILITY.unity
-    guid: 1d0d9949403462e4696db379e7090ca7
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Map_3.unity
     guid: 967b977f6fea5e544a95c64592b277a2
@@ -83,6 +74,18 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Map_8-kroger.unity
     guid: 36f9dc1e765ddd54085d2f319e8377d0
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Parallel parking V1.unity
+    guid: 42bf7609b95ede344984c7f4d3cf6b2f
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Parallel parking V2.unity
+    guid: 4abdeb6fbbfc3d24a8431ff02967e3ef
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Parallel parking V3.unity
+    guid: cfd6cd167e3413c459e83800852203c5
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Parallel parking V4.unity
+    guid: 61ddc80e1ad92dd409d353befef3a0cf
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0

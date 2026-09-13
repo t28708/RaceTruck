@@ -159,6 +159,15 @@ public class TruckController : MonoBehaviour
         EnsureLevelSwitcher();
         EnsureMapBoundaries();
         EnsurePlayerTractorVisuals();
+        EnsureAudioController();
+    }
+
+    private void EnsureAudioController()
+    {
+        if (GetComponent<TruckAudioController>() == null)
+        {
+            gameObject.AddComponent<TruckAudioController>();
+        }
     }
 
     private void EnsureEventSystem()

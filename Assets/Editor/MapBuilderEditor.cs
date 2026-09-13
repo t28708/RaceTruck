@@ -8,6 +8,14 @@ using UnityEngine.Rendering.Universal;
 
 public class MapBuilderEditor : EditorWindow
 {
+    public static MapBuilderEditor Instance { get; private set; }
+
+    public void SetMapName(string newName)
+    {
+        mapName = newName;
+        Repaint();
+    }
+
     public static bool IsPropType(ObjectType type)
     {
         return type == ObjectType.TrafficCone ||
@@ -211,6 +219,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void OnEnable()
     {
+        Instance = this;
         LoadSprites();
         SceneView.duringSceneGui -= OnSceneGUI;
         SceneView.duringSceneGui += OnSceneGUI;
@@ -224,6 +233,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void OnDisable()
     {
+        if (Instance == this) Instance = null;
         SceneView.duringSceneGui -= OnSceneGUI;
         EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
         DestroyGhostPreview();
@@ -617,7 +627,7 @@ public class MapBuilderEditor : EditorWindow
 
     public void SetMapDimensions(float newWidth, float newHeight)
     {
-        mapWidth = Mathf.Clamp(newWidth, 18.0f, 150.0f);
+        mapWidth = Mathf.Clamp(newWidth, 15.0f, 150.0f);
         mapHeight = Mathf.Clamp(newHeight, 25.0f, 150.0f);
 
         GameObject workspace = GameObject.Find(WorkspaceRootName);
@@ -2052,6 +2062,10 @@ public class MapBuilderEditor : EditorWindow
         {
             SaveCurrentMap();
         }
+        if (GUILayout.Button("✏️ Переименовать карту", GUILayout.Height(28)))
+        {
+            RenameMapDialog.Open(mapName);
+        }
         if (GUILayout.Button("📂 Мои сохранённые карты", GUILayout.Height(28)))
         {
             SavedMapsWindow.Open();
@@ -2073,7 +2087,7 @@ public class MapBuilderEditor : EditorWindow
         
         EditorGUI.BeginChangeCheck();
         float newH = EditorGUILayout.Slider("Высота карты (м) [ / ]", mapHeight, 25f, 120f);
-        float newW = EditorGUILayout.Slider("Ширина карты (м)", mapWidth, 18f, 120f);
+        float newW = EditorGUILayout.Slider("Ширина карты (м)", mapWidth, 15f, 120f);
         if (EditorGUI.EndChangeCheck())
         {
             SetMapDimensions(newW, newH);
@@ -5198,6 +5212,7 @@ public class MapBuilderEditor : EditorWindow
         tractor.AddComponent<TruckCollisionDetector>();
         TruckController truckController = tractor.AddComponent<TruckController>();
         truckController.SetupWheelReferences(frontLeftWheel.transform, frontRightWheel.transform);
+        tractor.AddComponent<TruckAudioController>();
 
         // 2. Trailer
         GameObject trailer = new GameObject("Trailer");
@@ -5545,6 +5560,19 @@ public class SavedMapsWindow : EditorWindow
     private Vector2 scrollPos;
     private List<string> mapScenePaths = new List<string>();
 
+    public static void RefreshOpenWindows()
+    {
+        SavedMapsWindow[] windows = Resources.FindObjectsOfTypeAll<SavedMapsWindow>();
+        foreach (var w in windows)
+        {
+            if (w != null)
+            {
+                w.RefreshMapList();
+                w.Repaint();
+            }
+        }
+    }
+
     public static void Open()
     {
         SavedMapsWindow window = GetWindow<SavedMapsWindow>("Сохранённые карты");
@@ -5565,7 +5593,7 @@ public class SavedMapsWindow : EditorWindow
         RefreshMapList();
     }
 
-    private void RefreshMapList()
+    public void RefreshMapList()
     {
         mapScenePaths.Clear();
         MapBuilderEditor.EnsureFolder(MapBuilderEditor.CustomMapsFolder);
@@ -5633,6 +5661,12 @@ public class SavedMapsWindow : EditorWindow
                 MapBuilderEditor.LoadAndEditMap(path);
             }
 
+            GUI.backgroundColor = new Color(0.95f, 0.85f, 0.35f, 1f);
+            if (GUILayout.Button("🏷 Переименовать", GUILayout.Height(26)))
+            {
+                RenameMapDialog.Open(mapName, path);
+            }
+
             GUI.backgroundColor = new Color(0.3f, 0.9f, 0.3f, 1f);
             if (GUILayout.Button("▶ Играть", GUILayout.Width(65), GUILayout.Height(26)))
             {
@@ -5659,5 +5693,194 @@ public class SavedMapsWindow : EditorWindow
         }
 
         EditorGUILayout.EndScrollView();
+    }
+}
+
+public class RenameMapDialog : EditorWindow
+{
+    private string oldMapName = "";
+    private string oldScenePath = "";
+    private string newMapName = "";
+    private string errorText = "";
+    private bool focusSet = false;
+
+    public static void Open(string currentMapName, string scenePath = null)
+    {
+        RenameMapDialog window = CreateInstance<RenameMapDialog>();
+        window.titleContent = new GUIContent("Переименование карты");
+        window.oldMapName = currentMapName ?? "";
+        window.newMapName = currentMapName ?? "";
+        window.oldScenePath = scenePath;
+        window.minSize = new Vector2(400, 160);
+        window.maxSize = new Vector2(460, 175);
+
+        Resolution res = Screen.currentResolution;
+        window.position = new Rect((res.width - 420) * 0.5f, (res.height - 170) * 0.5f, 420, 170);
+        window.ShowUtility();
+    }
+
+    private void OnGUI()
+    {
+        EditorGUILayout.Space(10);
+        EditorGUILayout.LabelField("✏️ Переименование карты", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField($"Старое название: <b>{oldMapName}</b>", new GUIStyle(EditorStyles.label) { richText = true });
+        EditorGUILayout.Space(6);
+
+        GUI.SetNextControlName("RenameInputField");
+        newMapName = EditorGUILayout.TextField("Новое название", newMapName);
+
+        if (!focusSet)
+        {
+            EditorGUI.FocusTextInControl("RenameInputField");
+            focusSet = true;
+        }
+
+        if (!string.IsNullOrEmpty(errorText))
+        {
+            EditorGUILayout.Space(2);
+            EditorGUILayout.HelpBox(errorText, MessageType.Error);
+        }
+
+        EditorGUILayout.Space(12);
+
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.FlexibleSpace();
+
+        GUI.backgroundColor = new Color(0.2f, 0.85f, 1f, 1f);
+        if (GUILayout.Button("Переименовать", GUILayout.Width(130), GUILayout.Height(28)))
+        {
+            DoRename();
+        }
+
+        GUI.backgroundColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+        if (GUILayout.Button("Отмена", GUILayout.Width(90), GUILayout.Height(28)))
+        {
+            Close();
+        }
+        GUI.backgroundColor = Color.white;
+        EditorGUILayout.EndHorizontal();
+
+        Event e = Event.current;
+        if (e.type == EventType.KeyDown)
+        {
+            if (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter)
+            {
+                DoRename();
+                e.Use();
+            }
+            else if (e.keyCode == KeyCode.Escape)
+            {
+                Close();
+                e.Use();
+            }
+        }
+    }
+
+    private void DoRename()
+    {
+        string trimmedNew = (newMapName ?? "").Trim();
+        if (string.IsNullOrEmpty(trimmedNew))
+        {
+            errorText = "Название карты не может быть пустым!";
+            return;
+        }
+
+        char[] invalids = Path.GetInvalidFileNameChars();
+        if (trimmedNew.IndexOfAny(invalids) >= 0)
+        {
+            errorText = "Название содержит недопустимые символы для имени файла!";
+            return;
+        }
+
+        if (trimmedNew == oldMapName)
+        {
+            Close();
+            return;
+        }
+
+        string resolvedOldPath = oldScenePath;
+        if (string.IsNullOrEmpty(resolvedOldPath))
+        {
+            string activeScenePath = UnityEngine.SceneManagement.SceneManager.GetActiveScene().path;
+            if (!string.IsNullOrEmpty(activeScenePath) && Path.GetFileNameWithoutExtension(activeScenePath) == oldMapName)
+            {
+                resolvedOldPath = activeScenePath.Replace("\\", "/");
+            }
+            else
+            {
+                string candidate = $"{MapBuilderEditor.CustomMapsFolder}/{oldMapName}.unity";
+                if (File.Exists(candidate))
+                {
+                    resolvedOldPath = candidate;
+                }
+            }
+        }
+
+        string newScenePath = $"{MapBuilderEditor.CustomMapsFolder}/{trimmedNew}.unity";
+
+        if (!string.IsNullOrEmpty(resolvedOldPath) && File.Exists(resolvedOldPath))
+        {
+            if (File.Exists(newScenePath))
+            {
+                errorText = $"Карта с именем '{trimmedNew}' уже существует!";
+                return;
+            }
+
+            bool wasActiveScene = (UnityEngine.SceneManagement.SceneManager.GetActiveScene().path.Replace("\\", "/") == resolvedOldPath.Replace("\\", "/"));
+            if (wasActiveScene)
+            {
+                EditorSceneManager.SaveOpenScenes();
+            }
+
+            string moveError = AssetDatabase.MoveAsset(resolvedOldPath, newScenePath);
+            if (!string.IsNullOrEmpty(moveError))
+            {
+                errorText = $"Ошибка переименования: {moveError}";
+                return;
+            }
+
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            if (wasActiveScene)
+            {
+                EditorSceneManager.OpenScene(newScenePath, OpenSceneMode.Single);
+            }
+
+            var scenes = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
+            bool buildChanged = false;
+            for (int i = 0; i < scenes.Count; i++)
+            {
+                if (scenes[i].path.Replace("\\", "/") == resolvedOldPath.Replace("\\", "/"))
+                {
+                    scenes[i] = new EditorBuildSettingsScene(newScenePath, scenes[i].enabled);
+                    buildChanged = true;
+                }
+            }
+            if (buildChanged)
+            {
+                EditorBuildSettings.scenes = scenes.ToArray();
+            }
+
+            MyMapMenu.RegenerateMenu();
+            Debug.Log($"<color=#33ff99>[MapBuilder] Карта '{oldMapName}' успешно переименована в '{trimmedNew}'</color>");
+        }
+
+        MapBuilderEditor mb = MapBuilderEditor.Instance;
+        if (mb == null)
+        {
+            MapBuilderEditor[] mbs = Resources.FindObjectsOfTypeAll<MapBuilderEditor>();
+            if (mbs.Length > 0) mb = mbs[0];
+        }
+        if (mb != null)
+        {
+            mb.SetMapName(trimmedNew);
+            mb.Repaint();
+        }
+
+        SavedMapsWindow.RefreshOpenWindows();
+
+        Close();
+        GUIUtility.ExitGUI();
     }
 }
