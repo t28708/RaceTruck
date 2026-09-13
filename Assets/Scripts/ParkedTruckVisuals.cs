@@ -10,6 +10,8 @@ using UnityEngine;
 public class ParkedTruckVisuals : MonoBehaviour
 {
     private static Sprite cachedTireSprite;
+    private static Sprite cachedTrailerSprite;
+    private static Sprite cachedTractorSprite;
     private static Material cachedSpriteMaterial;
 
     private void Awake()
@@ -30,25 +32,6 @@ public class ParkedTruckVisuals : MonoBehaviour
     [ContextMenu("Refresh Parked Truck Visuals")]
     public void EnsureVisuals()
     {
-        // Load tire sprite if needed
-        if (cachedTireSprite == null)
-        {
-            cachedTireSprite = Resources.Load<Sprite>("GeneratedSprites/Tire");
-            if (cachedTireSprite == null)
-            {
-                // Fallback: search all loaded sprites
-                Sprite[] allSprites = Resources.FindObjectsOfTypeAll<Sprite>();
-                foreach (var s in allSprites)
-                {
-                    if (s.name == "Tire")
-                    {
-                        cachedTireSprite = s;
-                        break;
-                    }
-                }
-            }
-        }
-
         // 1. Scan for all parked stalls in scene
         GameObject[] stalls = GameObject.FindGameObjectsWithTag("Untagged");
         foreach (var go in stalls)
@@ -63,14 +46,15 @@ public class ParkedTruckVisuals : MonoBehaviour
         SpriteRenderer[] allRenderers = Object.FindObjectsByType<SpriteRenderer>(FindObjectsSortMode.None);
         foreach (var sr in allRenderers)
         {
-            if (sr.gameObject.name == "Tractor" && sr.GetComponent<TruckController>() == null)
+            string n = sr.gameObject.name;
+            if ((n == "Tractor" || n == "Preview_Tractor") && sr.GetComponent<TruckController>() == null)
             {
-                // Parked Tractor
+                if (n == "Preview_Tractor") sr.gameObject.name = "Tractor";
                 SetupTractorVisuals(sr.transform);
             }
-            else if (sr.gameObject.name == "Trailer")
+            else if (n == "Trailer" || n == "Preview_Trailer")
             {
-                // Check if this trailer belongs to player
+                if (n == "Preview_Trailer") sr.gameObject.name = "Trailer";
                 bool isPlayerTrailer = false;
                 TruckController playerController = TruckController.Instance ?? Object.FindFirstObjectByType<TruckController>();
                 if (playerController != null && playerController.TrailerRb != null && playerController.TrailerRb.gameObject == sr.gameObject)
@@ -91,12 +75,14 @@ public class ParkedTruckVisuals : MonoBehaviour
         for (int i = 0; i < stallTr.childCount; i++)
         {
             Transform child = stallTr.GetChild(i);
-            if (child.name == "Tractor")
+            if (child.name == "Tractor" || child.name == "Preview_Tractor")
             {
+                if (child.name == "Preview_Tractor") child.name = "Tractor";
                 SetupTractorVisuals(child);
             }
-            else if (child.name == "Trailer")
+            else if (child.name == "Trailer" || child.name == "Preview_Trailer")
             {
+                if (child.name == "Preview_Trailer") child.name = "Trailer";
                 SetupTrailerVisuals(child);
             }
         }
@@ -105,6 +91,25 @@ public class ParkedTruckVisuals : MonoBehaviour
     public static void SetupTractorVisuals(Transform tractorTr)
     {
         if (tractorTr == null) return;
+
+        SpriteRenderer sr = tractorTr.GetComponent<SpriteRenderer>();
+        if (sr != null)
+        {
+            if (sr.sprite == null)
+            {
+                sr.sprite = GetTractorSprite();
+            }
+            if (sr.color.a < 0.95f)
+            {
+                sr.color = new Color(sr.color.r, sr.color.g, sr.color.b, 1.0f);
+            }
+        }
+
+        BoxCollider2D col = tractorTr.GetComponent<BoxCollider2D>();
+        if (col == null) col = tractorTr.gameObject.AddComponent<BoxCollider2D>();
+        col.size = new Vector2(2.55f, 8.2f);
+        col.offset = Vector2.zero;
+        col.isTrigger = true;
 
         Sprite tireSprite = GetTireSprite();
         Material mat = GetDefaultSpriteMaterial();
@@ -127,6 +132,23 @@ public class ParkedTruckVisuals : MonoBehaviour
     public static void SetupTrailerVisuals(Transform trailerTr)
     {
         if (trailerTr == null) return;
+
+        SpriteRenderer sr = trailerTr.GetComponent<SpriteRenderer>();
+        if (sr != null)
+        {
+            if (sr.sprite == null)
+            {
+                sr.sprite = GetTrailerSprite();
+            }
+            // Always ensure pure crisp white for trailer (never tinted blue)
+            sr.color = Color.white;
+        }
+
+        BoxCollider2D col = trailerTr.GetComponent<BoxCollider2D>();
+        if (col == null) col = trailerTr.gameObject.AddComponent<BoxCollider2D>();
+        col.size = new Vector2(2.58f, 15.9f);
+        col.offset = Vector2.zero;
+        col.isTrigger = true;
 
         Sprite tireSprite = GetTireSprite();
         Material mat = GetDefaultSpriteMaterial();
@@ -227,6 +249,36 @@ public class ParkedTruckVisuals : MonoBehaviour
             if (s.name == "Tire")
             {
                 cachedTireSprite = s;
+                return s;
+            }
+        }
+        return null;
+    }
+
+    private static Sprite GetTrailerSprite()
+    {
+        if (cachedTrailerSprite != null) return cachedTrailerSprite;
+        Sprite[] allSprites = Resources.FindObjectsOfTypeAll<Sprite>();
+        foreach (var s in allSprites)
+        {
+            if (s.name == "Trailer")
+            {
+                cachedTrailerSprite = s;
+                return s;
+            }
+        }
+        return null;
+    }
+
+    private static Sprite GetTractorSprite()
+    {
+        if (cachedTractorSprite != null) return cachedTractorSprite;
+        Sprite[] allSprites = Resources.FindObjectsOfTypeAll<Sprite>();
+        foreach (var s in allSprites)
+        {
+            if (s.name == "Tractor")
+            {
+                cachedTractorSprite = s;
                 return s;
             }
         }

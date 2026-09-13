@@ -39,8 +39,14 @@ EditorBuildSettings:
     path: Assets/Scenes/CustomMaps/Map_13.unity
     guid: b875e09bcfb43a34fb5968c9f7eae8e9
   - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_14_kroger_ring_road.unity
+    guid: a14b7c8d9e0f1a2b3c4d5e6f7a8b9c0d
+  - enabled: 1
     path: Assets/Scenes/CustomMaps/Map_2.unity
     guid: d700819544484f1419854be1d2bec925
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_20-big-FACILITY.unity
+    guid: 1d0d9949403462e4696db379e7090ca7
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Map_3.unity
     guid: 967b977f6fea5e544a95c64592b277a2
@@ -50,6 +56,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Map_4-rest-area.unity
     guid: b4b8b566c5b02d2418b1e6f4d52fdbf1
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Map_4.unity
+    guid: 215e9ff7004ad5f4dafce7ca18eec561
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Map_5.unity
     guid: 4f5311bb6b51ea34583f782f984f4260

@@ -8,6 +8,30 @@ using UnityEngine.Rendering.Universal;
 
 public class MapBuilderEditor : EditorWindow
 {
+    public static bool IsPropType(ObjectType type)
+    {
+        return type == ObjectType.TrafficCone ||
+               type == ObjectType.FireHydrant ||
+               type == ObjectType.CheckinBooth ||
+               type == ObjectType.ConcreteBarrier ||
+               type == ObjectType.HazardBarrel ||
+               type == ObjectType.TireStack;
+    }
+
+    public static PropType ObjectTypeToPropType(ObjectType type)
+    {
+        switch (type)
+        {
+            case ObjectType.TrafficCone: return PropType.TrafficCone;
+            case ObjectType.FireHydrant: return PropType.FireHydrant;
+            case ObjectType.CheckinBooth: return PropType.CheckinBooth;
+            case ObjectType.ConcreteBarrier: return PropType.ConcreteBarrier;
+            case ObjectType.HazardBarrel: return PropType.HazardBarrel;
+            case ObjectType.TireStack: return PropType.TireStack;
+            default: return PropType.TrafficCone;
+        }
+    }
+
     public enum ObjectType
     {
         StandardEmpty = 0,        // 1. Стандартное без трака (4.5м)
@@ -21,7 +45,14 @@ public class MapBuilderEditor : EditorWindow
         RoadArrow = 8,            // 9. Стрелка направления (Указания на дороге)
         Wall = 9,                 // 10. Стена-препятствие (Любой угол)
         PassengerCar = 10,        // 11. Легковая машина (0°, 45°, 90°)
-        Eraser = 11               // 12. 🧹 Ластик / Удаление (Клик по объекту)
+        StandaloneTruck = 11,     // 12. 🚛 Трак с прицепом (Любой угол)
+        TrafficCone = 12,         // 13. 🔶 Конус (0.5×0.5м)
+        FireHydrant = 13,         // 14. 🚒 Гидрант (0.7×0.7м)
+        CheckinBooth = 14,        // 15. 🏢 Будка КПП (4.2×3.4м)
+        ConcreteBarrier = 15,     // 16. 🧱 Бетонный блок (2.5×0.7м)
+        HazardBarrel = 16,        // 17. 🛢️ Бочка (0.8×0.8м)
+        TireStack = 17,           // 18. 🔘 Стопка шин (1.1×1.1м)
+        Eraser = 18               // 19. 🧹 Ластик / Удаление (Клик по объекту)
     }
 
     public const string CustomMapsFolder = "Assets/Scenes/CustomMaps";
@@ -32,6 +63,8 @@ public class MapBuilderEditor : EditorWindow
     private const string RoadArrowsContainerName = "MapBuilder_RoadArrows";
     private const string WallsContainerName = "MapBuilder_Walls";
     private const string PassengerCarsContainerName = "MapBuilder_PassengerCars";
+    private const string StandaloneTrucksContainerName = "MapBuilder_TruckObstacles";
+    private const string PropsContainerName = "MapBuilder_Props";
     private const string GhostPreviewName = "__MapBuilder_GhostPreview__";
 
     public const float SlotWidth = 4.5f;         // Фиксированная ширина стандартного места (4.5м)
@@ -88,6 +121,13 @@ public class MapBuilderEditor : EditorWindow
     [SerializeField] private Color passengerCarColor = Color.white;
     [SerializeField] private PassengerCarObstacle selectedPassengerCar = null;
 
+    // Standalone Truck tool state (any angle, solid obstacle)
+    [SerializeField] private Color standaloneTruckColor = Color.white;
+    [SerializeField] private StandaloneTruckObstacle selectedStandaloneTruck = null;
+
+    // Prop Obstacles tool state (any angle)
+    [SerializeField] private PropObstacle selectedProp = null;
+
     private GameObject ghostPreviewObj;
     private ObjectType lastBuiltPreviewType = (ObjectType)(-1);
     private Sprite asphaltSprite;
@@ -100,6 +140,12 @@ public class MapBuilderEditor : EditorWindow
     private Sprite roadArrowSprite;
     private Sprite passengerCarSprite;
     private Sprite wheelSprite;
+    private Sprite trafficConeSprite;
+    private Sprite fireHydrantSprite;
+    private Sprite checkinBoothSprite;
+    private Sprite concreteBarrierSprite;
+    private Sprite hazardBarrelSprite;
+    private Sprite tireStackSprite;
     private Sprite pedalGasSprite;
     private Sprite pedalBrakeSprite;
     private Sprite steeringWheelSprite;
@@ -117,7 +163,14 @@ public class MapBuilderEditor : EditorWindow
         "9. Стрелка направления (Указания на дороге)",
         "10. Стена-препятствие (Любой угол)",
         "11. Легковая машина (0°, 45°, 90°)",
-        "12. 🧹 Ластик / Удаление (Клик по объекту)"
+        "12. 🚛 Трак с прицепом (Любой угол)",
+        "13. 🔶 Конус (0.5×0.5м)",
+        "14. 🚒 Гидрант (0.7×0.7м)",
+        "15. 🏢 Будка КПП (4.2×3.4м)",
+        "16. 🧱 Бетонный блок (2.5×0.7м)",
+        "17. 🛢️ Бочка (0.8×0.8м)",
+        "18. 🔘 Стопка шин (1.1×1.1м)",
+        "19. 🧹 Ластик / Удаление (Клик по объекту)"
     };
 
     [MenuItem("Tools/Map Builder/Open Editor", false, 1)]
@@ -413,6 +466,14 @@ public class MapBuilderEditor : EditorWindow
         roadArrowSprite = LoadOrCreateSprite(SpritesDir + "/RoadArrow.png", CreateRoadArrowTexture);
         passengerCarSprite = LoadOrCreateSprite(SpritesDir + "/PassengerCar.png", null);
         wheelSprite = LoadOrCreateSprite(SpritesDir + "/Tire.png", () => CreateSolidTexture(16, 32, new Color(0.15f, 0.15f, 0.15f)));
+        trafficConeSprite = LoadOrCreateSprite(SpritesDir + "/Prop_TrafficCone.png", null);
+        if (trafficConeSprite == null) trafficConeSprite = LoadOrCreateSprite(SpritesDir + "/TrafficCone.png", null);
+        fireHydrantSprite = LoadOrCreateSprite(SpritesDir + "/Prop_FireHydrant.png", null);
+        checkinBoothSprite = LoadOrCreateSprite(SpritesDir + "/Prop_CheckinBooth.png", null);
+        concreteBarrierSprite = LoadOrCreateSprite(SpritesDir + "/Prop_ConcreteBarrier.png", null);
+        hazardBarrelSprite = LoadOrCreateSprite(SpritesDir + "/Prop_Barrel.png", null);
+        if (hazardBarrelSprite == null) hazardBarrelSprite = LoadOrCreateSprite(SpritesDir + "/Barrel.png", null);
+        tireStackSprite = LoadOrCreateSprite(SpritesDir + "/Prop_TireStack.png", null);
         pedalGasSprite = LoadOrCreateSprite(SpritesDir + "/PedalGas.png", null);
         pedalBrakeSprite = LoadOrCreateSprite(SpritesDir + "/PedalBrake.png", null);
         steeringWheelSprite = LoadOrCreateSprite(SpritesDir + "/SteeringWheelRealistic.png", null);
@@ -757,6 +818,36 @@ public class MapBuilderEditor : EditorWindow
                 }
             }
 
+            Transform truckObstaclesContainer = workspace.transform.Find(StandaloneTrucksContainerName);
+            if (truckObstaclesContainer != null)
+            {
+                if (!EditorApplication.isPlaying) Undo.RegisterFullObjectHierarchyUndo(truckObstaclesContainer.gameObject, "Shift Truck Obstacles");
+                for (int i = 0; i < truckObstaclesContainer.childCount; i++)
+                {
+                    StandaloneTruckObstacle sto = truckObstaclesContainer.GetChild(i).GetComponent<StandaloneTruckObstacle>();
+                    if (sto != null)
+                    {
+                        sto.position += delta;
+                        sto.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+                    }
+                }
+            }
+
+            Transform propsContainer = workspace.transform.Find(PropsContainerName);
+            if (propsContainer != null)
+            {
+                if (!EditorApplication.isPlaying) Undo.RegisterFullObjectHierarchyUndo(propsContainer.gameObject, "Shift Props");
+                for (int i = 0; i < propsContainer.childCount; i++)
+                {
+                    PropObstacle prop = propsContainer.GetChild(i).GetComponent<PropObstacle>();
+                    if (prop != null)
+                    {
+                        prop.position += delta;
+                        prop.UpdateTransformAndVisual(GetPropSprite(prop.propType));
+                    }
+                }
+            }
+
             cursorPosition += delta;
             UpdateGhostPreview();
             SafeMarkSceneDirty();
@@ -1017,6 +1108,8 @@ public class MapBuilderEditor : EditorWindow
         isDrawingWall = false;
     }
 
+    #endregion
+
     #region Passenger Cars Management
 
     public static readonly Color[] CarColorPalette = new Color[]
@@ -1159,6 +1252,249 @@ public class MapBuilderEditor : EditorWindow
         SceneView.RepaintAll();
     }
 
+    #region Standalone Truck Obstacle Management
+
+    public GameObject GetOrCreateWorkspace()
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null)
+        {
+            EnsureCleanWorkPlane(clearExistingScene: false);
+            workspace = GameObject.Find(WorkspaceRootName);
+        }
+        return workspace;
+    }
+
+    public StandaloneTruckObstacle CreateStandaloneTruck(Vector2 pos, float rotAngle, Color cabCol)
+    {
+        GameObject workspace = GetOrCreateWorkspace();
+        Transform container = workspace.transform.Find(StandaloneTrucksContainerName);
+        if (container == null)
+        {
+            GameObject contGo = new GameObject(StandaloneTrucksContainerName);
+            contGo.transform.SetParent(workspace.transform, false);
+            container = contGo.transform;
+        }
+
+        int count = container.childCount + 1;
+        GameObject truckGo = new GameObject($"TruckObstacle_{count}");
+        truckGo.transform.SetParent(container, false);
+
+        if (!EditorApplication.isPlaying)
+        {
+            Undo.RegisterCreatedObjectUndo(truckGo, "Create Standalone Truck Obstacle");
+        }
+
+        StandaloneTruckObstacle truck = truckGo.AddComponent<StandaloneTruckObstacle>();
+        truck.position = pos;
+        truck.rotationAngle = rotAngle;
+        truck.tractorColor = cabCol;
+
+        truck.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+        SafeMarkSceneDirty();
+        SceneView.RepaintAll();
+
+        Debug.Log($"<color=#33ccff>[MapBuilder] Добавлен грузовик-препятствие {truckGo.name} в ({pos.x:F1}, {pos.y:F1}), угол: {rotAngle:F0}°</color>");
+        return truck;
+    }
+
+    public void ClearAllStandaloneTrucks()
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace != null)
+        {
+            Transform container = workspace.transform.Find(StandaloneTrucksContainerName);
+            if (container != null)
+            {
+                if (!EditorApplication.isPlaying)
+                {
+                    Undo.RegisterFullObjectHierarchyUndo(container.gameObject, "Clear All Standalone Trucks");
+                }
+                for (int i = container.childCount - 1; i >= 0; i--)
+                {
+                    SafeDestroyObject(container.GetChild(i).gameObject);
+                }
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+        }
+        selectedStandaloneTruck = null;
+        SceneView.RepaintAll();
+    }
+
+    private StandaloneTruckObstacle FindStandaloneTruckNear(Vector2 worldPos, float maxDist)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null) return null;
+        Transform container = workspace.transform.Find(StandaloneTrucksContainerName);
+        if (container == null) return null;
+
+        StandaloneTruckObstacle bestTruck = null;
+        float bestDist = maxDist;
+        for (int i = 0; i < container.childCount; i++)
+        {
+            StandaloneTruckObstacle truck = container.GetChild(i).GetComponent<StandaloneTruckObstacle>();
+            if (truck == null) continue;
+
+            float dist = Vector2.Distance(worldPos, truck.position);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestTruck = truck;
+            }
+        }
+        return bestTruck;
+    }
+
+    private void SetStandaloneTruckColor(Color col)
+    {
+        standaloneTruckColor = col;
+        if (selectedStandaloneTruck != null)
+        {
+            Undo.RecordObject(selectedStandaloneTruck, "Change Standalone Truck Color");
+            selectedStandaloneTruck.tractorColor = col;
+            selectedStandaloneTruck.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+            SafeMarkSceneDirty();
+        }
+        UpdateGhostPreview();
+        SceneView.RepaintAll();
+    }
+
+    private void SetStandaloneTruckRotation(float angle)
+    {
+        currentRotation = (angle % 360f + 360f) % 360f;
+        if (selectedStandaloneTruck != null)
+        {
+            Undo.RecordObject(selectedStandaloneTruck, "Rotate Standalone Truck");
+            selectedStandaloneTruck.rotationAngle = currentRotation;
+            selectedStandaloneTruck.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+            SafeMarkSceneDirty();
+        }
+        UpdateGhostPreview();
+        SceneView.RepaintAll();
+    }
+
+    #endregion
+
+    #region Prop Obstacles Management
+
+    public Sprite GetPropSprite(PropType type)
+    {
+        switch (type)
+        {
+            case PropType.TrafficCone: return trafficConeSprite;
+            case PropType.FireHydrant: return fireHydrantSprite;
+            case PropType.CheckinBooth: return checkinBoothSprite;
+            case PropType.ConcreteBarrier: return concreteBarrierSprite;
+            case PropType.HazardBarrel: return hazardBarrelSprite;
+            case PropType.TireStack: return tireStackSprite;
+            default: return null;
+        }
+    }
+
+    public PropObstacle CreateProp(PropType type, Vector2 pos, float rotAngle)
+    {
+        GameObject workspace = GetOrCreateWorkspace();
+        Transform container = workspace.transform.Find(PropsContainerName);
+        if (container == null)
+        {
+            GameObject contGo = new GameObject(PropsContainerName);
+            contGo.transform.SetParent(workspace.transform, false);
+            container = contGo.transform;
+        }
+
+        int count = container.childCount + 1;
+        GameObject propGo = new GameObject($"Prop_{type}_{count}");
+        propGo.transform.SetParent(container, false);
+
+        if (!EditorApplication.isPlaying)
+        {
+            Undo.RegisterCreatedObjectUndo(propGo, $"Create Prop {type}");
+        }
+
+        PropObstacle prop = propGo.AddComponent<PropObstacle>();
+        prop.propType = type;
+        prop.position = pos;
+        prop.rotationAngle = rotAngle;
+
+        prop.UpdateTransformAndVisual(GetPropSprite(type));
+        SafeMarkSceneDirty();
+        SceneView.RepaintAll();
+
+        Debug.Log($"<color=#ffaa33>[MapBuilder] Добавлен объект {PropObstacle.GetDisplayName(type)} ({propGo.name}) в ({pos.x:F1}, {pos.y:F1}), угол: {rotAngle:F0}°</color>");
+        return prop;
+    }
+
+    public void ClearAllProps(PropType? typeFilter = null)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace != null)
+        {
+            Transform container = workspace.transform.Find(PropsContainerName);
+            if (container != null)
+            {
+                if (!EditorApplication.isPlaying)
+                {
+                    Undo.RegisterFullObjectHierarchyUndo(container.gameObject, "Clear Props");
+                }
+                for (int i = container.childCount - 1; i >= 0; i--)
+                {
+                    Transform child = container.GetChild(i);
+                    PropObstacle p = child.GetComponent<PropObstacle>();
+                    if (p != null)
+                    {
+                        if (typeFilter == null || p.propType == typeFilter.Value)
+                        {
+                            SafeDestroyObject(child.gameObject);
+                        }
+                    }
+                }
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+        }
+        selectedProp = null;
+        SceneView.RepaintAll();
+    }
+
+    private PropObstacle FindPropNear(Vector2 worldPos, float maxDist)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null) return null;
+        Transform container = workspace.transform.Find(PropsContainerName);
+        if (container == null) return null;
+
+        PropObstacle bestProp = null;
+        float bestDist = maxDist;
+        for (int i = 0; i < container.childCount; i++)
+        {
+            PropObstacle prop = container.GetChild(i).GetComponent<PropObstacle>();
+            if (prop == null) continue;
+
+            float dist = Vector2.Distance(worldPos, prop.position);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                bestProp = prop;
+            }
+        }
+        return bestProp;
+    }
+
+    private void SetPropRotation(float angle)
+    {
+        currentRotation = (angle % 360f + 360f) % 360f;
+        if (selectedProp != null)
+        {
+            Undo.RecordObject(selectedProp, "Rotate Prop");
+            selectedProp.rotationAngle = currentRotation;
+            selectedProp.UpdateTransformAndVisual(GetPropSprite(selectedProp.propType));
+            SafeMarkSceneDirty();
+        }
+        UpdateGhostPreview();
+        SceneView.RepaintAll();
+    }
+
     #endregion
 
 
@@ -1237,6 +1573,32 @@ public class MapBuilderEditor : EditorWindow
                 erasedName = hitCar.gameObject.name;
                 SafeDestroyObject(hitCar.gameObject);
                 selectedPassengerCar = null;
+                erased = true;
+            }
+        }
+
+        // 3.1 Check Standalone Trucks
+        if (!erased)
+        {
+            StandaloneTruckObstacle hitTruck = FindStandaloneTruckNear(worldPos, 4.0f);
+            if (hitTruck != null)
+            {
+                erasedName = hitTruck.gameObject.name;
+                SafeDestroyObject(hitTruck.gameObject);
+                selectedStandaloneTruck = null;
+                erased = true;
+            }
+        }
+
+        // 3.2 Check Props (Cones, Hydrants, Barriers, Barrels, Tire Stacks, Booths)
+        if (!erased)
+        {
+            PropObstacle hitProp = FindPropNear(worldPos, 2.0f);
+            if (hitProp != null)
+            {
+                erasedName = hitProp.gameObject.name;
+                SafeDestroyObject(hitProp.gameObject);
+                selectedProp = null;
                 erased = true;
             }
         }
@@ -2131,6 +2493,68 @@ public class MapBuilderEditor : EditorWindow
         }
         EditorGUILayout.EndVertical();
 
+        // Standalone Truck Obstacle Inspector Settings
+        EditorGUILayout.Space(6);
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("🚛 Трак с прицепом (Препятствие)", EditorStyles.boldLabel);
+        standaloneTruckColor = EditorGUILayout.ColorField("Цвет тягача", standaloneTruckColor);
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Повернуть -45°", GUILayout.Height(24))) SetStandaloneTruckRotation(currentRotation - 45f);
+        if (GUILayout.Button("Повернуть +45°", GUILayout.Height(24))) SetStandaloneTruckRotation(currentRotation + 45f);
+        if (GUILayout.Button("Повернуть 180°", GUILayout.Height(24))) SetStandaloneTruckRotation(currentRotation + 180f);
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        GUI.backgroundColor = new Color(1f, 0.4f, 0.4f);
+        if (GUILayout.Button("Очистить все траки-препятствия", GUILayout.Height(24)))
+        {
+            if (EditorUtility.DisplayDialog("Очистить траки-препятствия", "Удалить все отдельные грузовики-препятствия на карте?", "Да, удалить", "Отмена"))
+            {
+                ClearAllStandaloneTrucks();
+            }
+        }
+        if (selectedStandaloneTruck != null && GUILayout.Button("Удалить выбранный", GUILayout.Height(24)))
+        {
+            SafeDestroyObject(selectedStandaloneTruck.gameObject);
+            selectedStandaloneTruck = null;
+            SafeMarkSceneDirty();
+            SceneView.RepaintAll();
+        }
+        GUI.backgroundColor = Color.white;
+        EditorGUILayout.EndHorizontal();
+        EditorGUILayout.EndVertical();
+
+        // Props Inspector Settings
+        EditorGUILayout.Space(6);
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("📦 Элементы карты (Конусы, Барьеры, Будки и др.)", EditorStyles.boldLabel);
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Поворот -45°", GUILayout.Height(24))) SetPropRotation(currentRotation - 45f);
+        if (GUILayout.Button("Поворот +45°", GUILayout.Height(24))) SetPropRotation(currentRotation + 45f);
+        if (GUILayout.Button("Поворот 90°", GUILayout.Height(24))) SetPropRotation(currentRotation + 90f);
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        GUI.backgroundColor = new Color(1f, 0.4f, 0.4f);
+        if (GUILayout.Button("Очистить все пропсы", GUILayout.Height(24)))
+        {
+            if (EditorUtility.DisplayDialog("Очистить элементы карты", "Удалить все конусы, гидранты, барьеры, бочки и шины?", "Да, удалить", "Отмена"))
+            {
+                ClearAllProps();
+            }
+        }
+        if (selectedProp != null && GUILayout.Button("Удалить выбранный", GUILayout.Height(24)))
+        {
+            SafeDestroyObject(selectedProp.gameObject);
+            selectedProp = null;
+            SafeMarkSceneDirty();
+            SceneView.RepaintAll();
+        }
+        GUI.backgroundColor = Color.white;
+        EditorGUILayout.EndHorizontal();
+        EditorGUILayout.EndVertical();
+
         // Eraser Configuration Section
         EditorGUILayout.Space(6);
         EditorGUILayout.BeginVertical(EditorStyles.helpBox);
@@ -2244,7 +2668,7 @@ public class MapBuilderEditor : EditorWindow
             if (EditorGUI.EndChangeCheck())
             {
                 Vector2 rawPos = new Vector2(newPos.x, newPos.y);
-                cursorPosition = (currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.Eraser) ? rawPos : GetMagneticSnappedPosition(rawPos, currentRotation);
+                cursorPosition = (currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || IsPropType(currentObjectType) || currentObjectType == ObjectType.Eraser) ? rawPos : GetMagneticSnappedPosition(rawPos, currentRotation);
                 UpdateGhostPreview();
                 Repaint();
             }
@@ -2309,6 +2733,42 @@ public class MapBuilderEditor : EditorWindow
                 selectedPassengerCar.position = new Vector2(newPos.x, newPos.y);
                 selectedPassengerCar.UpdateTransformAndVisual(passengerCarSprite);
                 cursorPosition = selectedPassengerCar.position;
+                SafeMarkSceneDirty();
+                Repaint();
+            }
+        }
+        else if (currentObjectType == ObjectType.StandaloneTruck && selectedStandaloneTruck != null)
+        {
+            EditorGUI.BeginChangeCheck();
+            Vector3 curPos3 = new Vector3(selectedStandaloneTruck.position.x, selectedStandaloneTruck.position.y, 0f);
+            Quaternion curRotQ = Quaternion.Euler(0f, 0f, selectedStandaloneTruck.rotationAngle);
+
+            Vector3 newPos = Handles.PositionHandle(curPos3, curRotQ);
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(selectedStandaloneTruck.transform, "Move Standalone Truck");
+                selectedStandaloneTruck.position = new Vector2(newPos.x, newPos.y);
+                selectedStandaloneTruck.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+                cursorPosition = selectedStandaloneTruck.position;
+                SafeMarkSceneDirty();
+                Repaint();
+            }
+        }
+        else if (IsPropType(currentObjectType) && selectedProp != null)
+        {
+            EditorGUI.BeginChangeCheck();
+            Vector3 curPos3 = new Vector3(selectedProp.position.x, selectedProp.position.y, 0f);
+            Quaternion curRotQ = Quaternion.Euler(0f, 0f, selectedProp.rotationAngle);
+
+            Vector3 newPos = Handles.PositionHandle(curPos3, curRotQ);
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(selectedProp.transform, "Move Prop");
+                selectedProp.position = new Vector2(newPos.x, newPos.y);
+                selectedProp.UpdateTransformAndVisual(GetPropSprite(selectedProp.propType));
+                cursorPosition = selectedProp.position;
                 SafeMarkSceneDirty();
                 Repaint();
             }
@@ -2410,6 +2870,37 @@ public class MapBuilderEditor : EditorWindow
                         cursorPosition = rawPos;
                     }
                 }
+                else if (currentObjectType == ObjectType.StandaloneTruck)
+                {
+                    StandaloneTruckObstacle hitTruck = FindStandaloneTruckNear(rawPos, 4.0f);
+                    if (hitTruck != null)
+                    {
+                        selectedStandaloneTruck = hitTruck;
+                        cursorPosition = hitTruck.position;
+                        currentRotation = hitTruck.rotationAngle;
+                        standaloneTruckColor = hitTruck.tractorColor;
+                    }
+                    else
+                    {
+                        selectedStandaloneTruck = null;
+                        cursorPosition = rawPos;
+                    }
+                }
+                else if (IsPropType(currentObjectType))
+                {
+                    PropObstacle hitProp = FindPropNear(rawPos, 2.0f);
+                    if (hitProp != null)
+                    {
+                        selectedProp = hitProp;
+                        cursorPosition = hitProp.position;
+                        currentRotation = hitProp.rotationAngle;
+                    }
+                    else
+                    {
+                        selectedProp = null;
+                        cursorPosition = rawPos;
+                    }
+                }
                 else if (currentObjectType == ObjectType.Eraser)
                 {
                     cursorPosition = rawPos;
@@ -2491,6 +2982,36 @@ public class MapBuilderEditor : EditorWindow
                         Undo.RecordObject(selectedPassengerCar.transform, "Move Passenger Car");
                         selectedPassengerCar.position = rawPos;
                         selectedPassengerCar.UpdateTransformAndVisual(passengerCarSprite);
+                        cursorPosition = rawPos;
+                        SafeMarkSceneDirty();
+                    }
+                    else
+                    {
+                        cursorPosition = rawPos;
+                    }
+                }
+                else if (currentObjectType == ObjectType.StandaloneTruck)
+                {
+                    if (selectedStandaloneTruck != null)
+                    {
+                        Undo.RecordObject(selectedStandaloneTruck.transform, "Move Standalone Truck");
+                        selectedStandaloneTruck.position = rawPos;
+                        selectedStandaloneTruck.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+                        cursorPosition = rawPos;
+                        SafeMarkSceneDirty();
+                    }
+                    else
+                    {
+                        cursorPosition = rawPos;
+                    }
+                }
+                else if (IsPropType(currentObjectType))
+                {
+                    if (selectedProp != null)
+                    {
+                        Undo.RecordObject(selectedProp.transform, "Move Prop");
+                        selectedProp.position = rawPos;
+                        selectedProp.UpdateTransformAndVisual(GetPropSprite(selectedProp.propType));
                         cursorPosition = rawPos;
                         SafeMarkSceneDirty();
                     }
@@ -2916,6 +3437,205 @@ public class MapBuilderEditor : EditorWindow
                     handled = true;
                 }
             }
+            else if (currentObjectType == ObjectType.StandaloneTruck)
+            {
+                float step = e.shift ? 2.0f : (e.alt || e.control ? 0.1f : 0.5f);
+                Vector2 moveDelta = Vector2.zero;
+
+                switch (e.keyCode)
+                {
+                    case KeyCode.W:
+                    case KeyCode.UpArrow:
+                        moveDelta = new Vector2(0f, step);
+                        break;
+                    case KeyCode.S:
+                    case KeyCode.DownArrow:
+                        moveDelta = new Vector2(0f, -step);
+                        break;
+                    case KeyCode.A:
+                    case KeyCode.LeftArrow:
+                        moveDelta = new Vector2(-step, 0f);
+                        break;
+                    case KeyCode.D:
+                    case KeyCode.RightArrow:
+                        moveDelta = new Vector2(step, 0f);
+                        break;
+
+                    case KeyCode.R:
+                        float rotDelta = e.shift ? -15f : 15f;
+                        if (selectedStandaloneTruck != null)
+                        {
+                            Undo.RecordObject(selectedStandaloneTruck.transform, "Rotate Standalone Truck");
+                            selectedStandaloneTruck.rotationAngle = (selectedStandaloneTruck.rotationAngle + rotDelta) % 360f;
+                            if (selectedStandaloneTruck.rotationAngle < 0f) selectedStandaloneTruck.rotationAngle += 360f;
+                            selectedStandaloneTruck.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+                            currentRotation = selectedStandaloneTruck.rotationAngle;
+                            SafeMarkSceneDirty();
+                        }
+                        else
+                        {
+                            currentRotation = (currentRotation + rotDelta) % 360f;
+                            if (currentRotation < 0f) currentRotation += 360f;
+                        }
+                        UpdateGhostPreview();
+                        handled = true;
+                        break;
+
+                    case KeyCode.Return:
+                    case KeyCode.KeypadEnter:
+                    case KeyCode.Space:
+                        PlaceCurrentObject();
+                        if (SceneView.lastActiveSceneView != null)
+                        {
+                            SceneView.lastActiveSceneView.ShowNotification(new GUIContent($"🚛 Грузовик установлен ({currentRotation:F0}°)"));
+                        }
+                        handled = true;
+                        break;
+
+                    case KeyCode.Delete:
+                    case KeyCode.Backspace:
+                        if (selectedStandaloneTruck != null)
+                        {
+                            SafeDestroyObject(selectedStandaloneTruck.gameObject);
+                            selectedStandaloneTruck = null;
+                            handled = true;
+                        }
+                        break;
+
+                    case KeyCode.Escape:
+                        selectedStandaloneTruck = null;
+                        handled = true;
+                        break;
+
+                    case KeyCode.C:
+                        CycleObjectType();
+                        handled = true;
+                        break;
+
+                    case KeyCode.F:
+                        FocusSceneView();
+                        handled = true;
+                        break;
+                }
+
+                if (moveDelta != Vector2.zero)
+                {
+                    if (selectedStandaloneTruck != null)
+                    {
+                        Undo.RecordObject(selectedStandaloneTruck.transform, "Move Standalone Truck");
+                        selectedStandaloneTruck.position += moveDelta;
+                        selectedStandaloneTruck.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+                        cursorPosition = selectedStandaloneTruck.position;
+                        SafeMarkSceneDirty();
+                    }
+                    else
+                    {
+                        cursorPosition += moveDelta;
+                    }
+                    UpdateGhostPreview();
+                    handled = true;
+                }
+            }
+            else if (IsPropType(currentObjectType))
+            {
+                float step = e.shift ? 2.0f : (e.alt || e.control ? 0.1f : 0.5f);
+                Vector2 moveDelta = Vector2.zero;
+
+                switch (e.keyCode)
+                {
+                    case KeyCode.W:
+                    case KeyCode.UpArrow:
+                        moveDelta = new Vector2(0f, step);
+                        break;
+                    case KeyCode.S:
+                    case KeyCode.DownArrow:
+                        moveDelta = new Vector2(0f, -step);
+                        break;
+                    case KeyCode.A:
+                    case KeyCode.LeftArrow:
+                        moveDelta = new Vector2(-step, 0f);
+                        break;
+                    case KeyCode.D:
+                    case KeyCode.RightArrow:
+                        moveDelta = new Vector2(step, 0f);
+                        break;
+
+                    case KeyCode.R:
+                        float rotDelta = e.shift ? -45f : 45f;
+                        if (selectedProp != null)
+                        {
+                            Undo.RecordObject(selectedProp.transform, "Rotate Prop");
+                            selectedProp.rotationAngle = (selectedProp.rotationAngle + rotDelta) % 360f;
+                            if (selectedProp.rotationAngle < 0f) selectedProp.rotationAngle += 360f;
+                            selectedProp.UpdateTransformAndVisual(GetPropSprite(selectedProp.propType));
+                            currentRotation = selectedProp.rotationAngle;
+                            SafeMarkSceneDirty();
+                        }
+                        else
+                        {
+                            currentRotation = (currentRotation + rotDelta) % 360f;
+                            if (currentRotation < 0f) currentRotation += 360f;
+                        }
+                        UpdateGhostPreview();
+                        handled = true;
+                        break;
+
+                    case KeyCode.Return:
+                    case KeyCode.KeypadEnter:
+                    case KeyCode.Space:
+                        PlaceCurrentObject();
+                        if (SceneView.lastActiveSceneView != null)
+                        {
+                            string pName = PropObstacle.GetDisplayName(ObjectTypeToPropType(currentObjectType));
+                            SceneView.lastActiveSceneView.ShowNotification(new GUIContent($"📦 {pName} установлен ({currentRotation:F0}°)"));
+                        }
+                        handled = true;
+                        break;
+
+                    case KeyCode.Delete:
+                    case KeyCode.Backspace:
+                        if (selectedProp != null)
+                        {
+                            SafeDestroyObject(selectedProp.gameObject);
+                            selectedProp = null;
+                            handled = true;
+                        }
+                        break;
+
+                    case KeyCode.Escape:
+                        selectedProp = null;
+                        handled = true;
+                        break;
+
+                    case KeyCode.C:
+                        CycleObjectType();
+                        handled = true;
+                        break;
+
+                    case KeyCode.F:
+                        FocusSceneView();
+                        handled = true;
+                        break;
+                }
+
+                if (moveDelta != Vector2.zero)
+                {
+                    if (selectedProp != null)
+                    {
+                        Undo.RecordObject(selectedProp.transform, "Move Prop");
+                        selectedProp.position += moveDelta;
+                        selectedProp.UpdateTransformAndVisual(GetPropSprite(selectedProp.propType));
+                        cursorPosition = selectedProp.position;
+                        SafeMarkSceneDirty();
+                    }
+                    else
+                    {
+                        cursorPosition += moveDelta;
+                    }
+                    UpdateGhostPreview();
+                    handled = true;
+                }
+            }
             else if (currentObjectType == ObjectType.Eraser)
             {
                 float step = e.shift ? 2.0f : (e.alt || e.control ? 0.1f : 0.5f);
@@ -3176,6 +3896,12 @@ public class MapBuilderEditor : EditorWindow
         // Draw interactive Passenger Cars handles & preview in Scene View
         DrawPassengerCarsHandles(sceneView);
 
+        // Draw interactive Standalone Trucks handles & preview in Scene View
+        DrawStandaloneTrucksHandles(sceneView);
+
+        // Draw interactive Props handles & preview in Scene View
+        DrawPropsHandles(sceneView);
+
         // Draw interactive Eraser handles in Scene View
         if (currentObjectType == ObjectType.Eraser)
         {
@@ -3323,6 +4049,64 @@ public class MapBuilderEditor : EditorWindow
         }
     }
 
+
+    private void DrawStandaloneTrucksHandles(SceneView sceneView)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        Transform container = workspace != null ? workspace.transform.Find(StandaloneTrucksContainerName) : null;
+        if (container != null)
+        {
+            for (int i = 0; i < container.childCount; i++)
+            {
+                StandaloneTruckObstacle truck = container.GetChild(i).GetComponent<StandaloneTruckObstacle>();
+                if (truck == null) continue;
+
+                bool isSelected = (selectedStandaloneTruck == truck);
+                Vector3 p = new Vector3(truck.position.x, truck.position.y, 0f);
+
+                if (isSelected)
+                {
+                    Handles.color = new Color(0.2f, 0.8f, 1f, 0.95f);
+                    Handles.DrawWireDisc(p, Vector3.forward, 4.0f);
+                    Handles.Label(p + new Vector3(2f, 2f, 0f), $"★ {truck.name} ({truck.rotationAngle:F0}°)", EditorStyles.boldLabel);
+                }
+                else if (currentObjectType == ObjectType.StandaloneTruck)
+                {
+                    Handles.color = new Color(0.2f, 0.8f, 1f, 0.4f);
+                    Handles.DrawWireDisc(p, Vector3.forward, 2.5f);
+                }
+            }
+        }
+    }
+
+    private void DrawPropsHandles(SceneView sceneView)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        Transform container = workspace != null ? workspace.transform.Find(PropsContainerName) : null;
+        if (container != null)
+        {
+            for (int i = 0; i < container.childCount; i++)
+            {
+                PropObstacle prop = container.GetChild(i).GetComponent<PropObstacle>();
+                if (prop == null) continue;
+
+                bool isSelected = (selectedProp == prop);
+                Vector3 p = new Vector3(prop.position.x, prop.position.y, 0f);
+
+                if (isSelected)
+                {
+                    Handles.color = new Color(1f, 0.7f, 0.2f, 0.95f);
+                    Handles.DrawWireDisc(p, Vector3.forward, 1.8f);
+                    Handles.Label(p + new Vector3(1f, 1f, 0f), $"★ {PropObstacle.GetDisplayName(prop.propType)} ({prop.rotationAngle:F0}°)", EditorStyles.boldLabel);
+                }
+                else if (IsPropType(currentObjectType))
+                {
+                    Handles.color = new Color(1f, 0.7f, 0.2f, 0.35f);
+                    Handles.DrawWireDisc(p, Vector3.forward, 1.2f);
+                }
+            }
+        }
+    }
 
     private void DrawPassengerCarsHandles(SceneView sceneView)
     {
@@ -3481,6 +4265,32 @@ public class MapBuilderEditor : EditorWindow
                 SafeMarkSceneDirty();
             }
         }
+        else if (currentObjectType == ObjectType.StandaloneTruck)
+        {
+            float rotDelta = angleDelta >= 0 ? 15f : -15f;
+            currentRotation = (currentRotation + rotDelta) % 360f;
+            if (currentRotation < 0f) currentRotation += 360f;
+            if (selectedStandaloneTruck != null)
+            {
+                Undo.RecordObject(selectedStandaloneTruck, "Rotate Standalone Truck");
+                selectedStandaloneTruck.rotationAngle = currentRotation;
+                selectedStandaloneTruck.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+                SafeMarkSceneDirty();
+            }
+        }
+        else if (IsPropType(currentObjectType))
+        {
+            float rotDelta = angleDelta >= 0 ? 45f : -45f;
+            currentRotation = (currentRotation + rotDelta) % 360f;
+            if (currentRotation < 0f) currentRotation += 360f;
+            if (selectedProp != null)
+            {
+                Undo.RecordObject(selectedProp, "Rotate Prop");
+                selectedProp.rotationAngle = currentRotation;
+                selectedProp.UpdateTransformAndVisual(GetPropSprite(selectedProp.propType));
+                SafeMarkSceneDirty();
+            }
+        }
         else
         {
             currentRotation = (currentRotation + angleDelta) % 360f;
@@ -3491,7 +4301,8 @@ public class MapBuilderEditor : EditorWindow
 
     private void CycleObjectType()
     {
-        currentObjectType = (ObjectType)(((int)currentObjectType + 1) % 12);
+        int count = System.Enum.GetValues(typeof(ObjectType)).Length;
+        currentObjectType = (ObjectType)(((int)currentObjectType + 1) % count);
         if (currentObjectType == ObjectType.PassengerCar)
         {
             currentRotation = PassengerCarObstacle.SnapAngle45(currentRotation);
@@ -3595,6 +4406,31 @@ public class MapBuilderEditor : EditorWindow
             GUI.Label(new Rect(24, 104, 330, 18), "[Клик/Мышь] Переместить призрачную машину", helpStyle);
             GUI.Label(new Rect(24, 122, 330, 18), "[Enter] Установить машину | [R] Поворот 45°", helpStyle);
             GUI.Label(new Rect(24, 140, 330, 18), "[Клик на машину] Выбрать | [Del] Удалить выбранную", helpStyle);
+        }
+        else if (currentObjectType == ObjectType.StandaloneTruck)
+        {
+            GUI.Label(new Rect(24, 40, 330, 20), "Режим: <color=#33ccff>🚛 Грузовик с прицепом (Любой угол)</color>", textStyle);
+            GUI.Label(new Rect(24, 60, 330, 20), selectedStandaloneTruck != null ? $"Выделен: {selectedStandaloneTruck.name} | Угол: {selectedStandaloneTruck.rotationAngle:F0}°" : $"Позиция: ({cursorPosition.x:F1}, {cursorPosition.y:F1}) | Угол: {currentRotation:F0}°", textStyle);
+            GUI.Label(new Rect(24, 80, 330, 20), "[R] Поворот 15° | [Enter/Клик] Поставить | [Del] Удалить", textStyle);
+
+            GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
+            helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
+            GUI.Label(new Rect(24, 104, 330, 18), "[Клик/Мышь] Переместить призрачный грузовик", helpStyle);
+            GUI.Label(new Rect(24, 122, 330, 18), "[Enter] Установить грузовик | [R] Поворот 15°", helpStyle);
+            GUI.Label(new Rect(24, 140, 330, 18), "[Клик на грузовик] Выбрать | [Del] Удалить выбранный", helpStyle);
+        }
+        else if (IsPropType(currentObjectType))
+        {
+            string pName = PropObstacle.GetDisplayName(ObjectTypeToPropType(currentObjectType));
+            GUI.Label(new Rect(24, 40, 330, 20), $"Режим: <color=#ffaa33>{pName}</color>", textStyle);
+            GUI.Label(new Rect(24, 60, 330, 20), selectedProp != null ? $"Выделен: {selectedProp.name} | Угол: {selectedProp.rotationAngle:F0}°" : $"Позиция: ({cursorPosition.x:F1}, {cursorPosition.y:F1}) | Угол: {currentRotation:F0}°", textStyle);
+            GUI.Label(new Rect(24, 80, 330, 20), "[R] Поворот 45° | [Enter/Клик] Поставить | [Del] Удалить", textStyle);
+
+            GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
+            helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
+            GUI.Label(new Rect(24, 104, 330, 18), "[Клик/Мышь] Переместить объект на карте", helpStyle);
+            GUI.Label(new Rect(24, 122, 330, 18), "[Enter] Установить объект | [R] Поворот 45°", helpStyle);
+            GUI.Label(new Rect(24, 140, 330, 18), "[Клик на объект] Выбрать | [Del] Удалить", helpStyle);
         }
         else if (currentObjectType == ObjectType.Eraser)
         {
@@ -3744,6 +4580,69 @@ public class MapBuilderEditor : EditorWindow
         }
         curBtnX += 76;
 
+        bool isTruck = currentObjectType == ObjectType.StandaloneTruck;
+        GUI.backgroundColor = isTruck ? new Color(0.2f, 0.8f, 1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🚛 12. Трак"))
+        {
+            currentObjectType = ObjectType.StandaloneTruck;
+            UpdateGhostPreview();
+        }
+        curBtnX += 76;
+
+        bool isCone = currentObjectType == ObjectType.TrafficCone;
+        GUI.backgroundColor = isCone ? new Color(1f, 0.6f, 0.1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY, 76, btnH), "🔶 13. Конус"))
+        {
+            currentObjectType = ObjectType.TrafficCone;
+            UpdateGhostPreview();
+        }
+        curBtnX += 78;
+
+        bool isHydrant = currentObjectType == ObjectType.FireHydrant;
+        GUI.backgroundColor = isHydrant ? new Color(1f, 0.3f, 0.3f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY, 82, btnH), "🚒 14. Гидрант"))
+        {
+            currentObjectType = ObjectType.FireHydrant;
+            UpdateGhostPreview();
+        }
+        curBtnX += 84;
+
+        bool isBooth = currentObjectType == ObjectType.CheckinBooth;
+        GUI.backgroundColor = isBooth ? new Color(0.3f, 0.7f, 0.9f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY, 68, btnH), "🏢 15. КПП"))
+        {
+            currentObjectType = ObjectType.CheckinBooth;
+            UpdateGhostPreview();
+        }
+        curBtnX += 70;
+
+        bool isBarrier = currentObjectType == ObjectType.ConcreteBarrier;
+        GUI.backgroundColor = isBarrier ? new Color(0.7f, 0.7f, 0.7f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY, 72, btnH), "🧱 16. Блок"))
+        {
+            currentObjectType = ObjectType.ConcreteBarrier;
+            UpdateGhostPreview();
+        }
+        curBtnX += 74;
+
+        bool isBarrel = currentObjectType == ObjectType.HazardBarrel;
+        GUI.backgroundColor = isBarrel ? new Color(0.9f, 0.5f, 0.1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY, 76, btnH), "🛢️ 17. Бочка"))
+        {
+            currentObjectType = ObjectType.HazardBarrel;
+            UpdateGhostPreview();
+        }
+        curBtnX += 78;
+
+        bool isTire = currentObjectType == ObjectType.TireStack;
+        GUI.backgroundColor = isTire ? new Color(0.5f, 0.5f, 0.5f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🔘 18. Шины"))
+        {
+            currentObjectType = ObjectType.TireStack;
+            UpdateGhostPreview();
+        }
+        curBtnX += 76;
+
         bool isEraser = currentObjectType == ObjectType.Eraser;
         GUI.backgroundColor = isEraser ? new Color(1f, 0.35f, 0.35f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
         if (GUI.Button(new Rect(curBtnX, btnY, 84, btnH), "🧹 12. Ластик"))
@@ -3806,7 +4705,7 @@ public class MapBuilderEditor : EditorWindow
 
         Handles.EndGUI();
 
-        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.Eraser)
+        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser)
         {
             float slotWidth = GetSlotWidth(currentObjectType);
             float slotLength = (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow) ? 26.0f : SlotLength;
@@ -3902,6 +4801,20 @@ public class MapBuilderEditor : EditorWindow
             if (sr != null)
             {
                 sr.color = new Color(passengerCarColor.r, passengerCarColor.g, passengerCarColor.b, 0.45f);
+            }
+        }
+        else if (currentObjectType == ObjectType.StandaloneTruck && ghostPreviewObj.transform.childCount > 0)
+        {
+            Transform tractorTr = ghostPreviewObj.transform.Find("Preview_Tractor");
+            if (tractorTr != null)
+            {
+                SpriteRenderer sr = tractorTr.GetComponent<SpriteRenderer>();
+                if (sr != null)
+                {
+                    Color c = standaloneTruckColor;
+                    c.a = 0.7f;
+                    sr.color = c;
+                }
             }
         }
     }
@@ -4016,6 +4929,37 @@ public class MapBuilderEditor : EditorWindow
                 Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
                 cursorPosition += new Vector2(rightDir.x, rightDir.y) * carStep;
                 passengerCarColor = GetRandomCarColor();
+                UpdateGhostPreview();
+            }
+            SceneView.RepaintAll();
+            return;
+        }
+
+        if (currentObjectType == ObjectType.StandaloneTruck)
+        {
+            Color cabCol = standaloneTruckColor;
+            selectedStandaloneTruck = CreateStandaloneTruck(cursorPosition, currentRotation, cabCol);
+            if (autoAdvanceAfterPlacement)
+            {
+                float step = 4.5f;
+                Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
+                cursorPosition += new Vector2(rightDir.x, rightDir.y) * step;
+                UpdateGhostPreview();
+            }
+            SceneView.RepaintAll();
+            return;
+        }
+
+        if (IsPropType(currentObjectType))
+        {
+            PropType pType = ObjectTypeToPropType(currentObjectType);
+            selectedProp = CreateProp(pType, cursorPosition, currentRotation);
+            if (autoAdvanceAfterPlacement)
+            {
+                Vector2 sz = PropObstacle.GetPropSize(pType);
+                float step = Mathf.Max(sz.x, sz.y) + 0.5f;
+                Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
+                cursorPosition += new Vector2(rightDir.x, rightDir.y) * step;
                 UpdateGhostPreview();
             }
             SceneView.RepaintAll();
@@ -4385,6 +5329,69 @@ public class MapBuilderEditor : EditorWindow
             sr.sprite = passengerCarSprite;
             sr.color = isPreview ? new Color(passengerCarColor.r, passengerCarColor.g, passengerCarColor.b, 0.45f) : passengerCarColor;
             sr.sortingOrder = isPreview ? 40 : 6;
+            return;
+        }
+
+        if (type == ObjectType.StandaloneTruck)
+        {
+            GameObject trailer = new GameObject("Preview_Trailer");
+            trailer.transform.SetParent(parent, false);
+            trailer.transform.localPosition = new Vector3(0f, 2.7f, 0f);
+            trailer.transform.localRotation = Quaternion.identity;
+            SpriteRenderer srTrailer = trailer.AddComponent<SpriteRenderer>();
+            srTrailer.sprite = trailerSprite;
+            srTrailer.color = isPreview ? new Color(1f, 1f, 1f, 0.65f) : Color.white;
+            srTrailer.sortingOrder = isPreview ? 48 : 5;
+            if (trailerSprite != null && trailerSprite.rect.width > 0)
+            {
+                float sx = 2.58f / (trailerSprite.rect.width / trailerSprite.pixelsPerUnit);
+                float sy = 15.9f / (trailerSprite.rect.height / trailerSprite.pixelsPerUnit);
+                trailer.transform.localScale = new Vector3(sx, sy, 1f);
+            }
+
+            GameObject tractor = new GameObject("Preview_Tractor");
+            tractor.transform.SetParent(parent, false);
+            tractor.transform.localPosition = new Vector3(0f, -4.0f, 0f);
+            tractor.transform.localRotation = Quaternion.identity;
+            SpriteRenderer srTractor = tractor.AddComponent<SpriteRenderer>();
+            srTractor.sprite = tractorSprite;
+            Color cabC = standaloneTruckColor;
+            if (isPreview) cabC.a = 0.7f;
+            srTractor.color = cabC;
+            srTractor.sortingOrder = isPreview ? 49 : 6;
+            if (tractorSprite != null && tractorSprite.rect.width > 0)
+            {
+                float sx = 2.55f / (tractorSprite.rect.width / tractorSprite.pixelsPerUnit);
+                float sy = 8.2f / (tractorSprite.rect.height / tractorSprite.pixelsPerUnit);
+                tractor.transform.localScale = new Vector3(sx, sy, 1f);
+            }
+            return;
+        }
+
+        if (IsPropType(type))
+        {
+            PropType pType = ObjectTypeToPropType(type);
+            GameObject propGo = new GameObject($"Preview_Prop_{pType}");
+            propGo.transform.SetParent(parent, false);
+            propGo.transform.localPosition = Vector3.zero;
+            propGo.transform.localRotation = Quaternion.identity;
+
+            SpriteRenderer sr = propGo.AddComponent<SpriteRenderer>();
+            sr.sprite = GetPropSprite(pType);
+            sr.color = isPreview ? new Color(1f, 1f, 1f, 0.75f) : Color.white;
+            sr.sortingOrder = isPreview ? 48 : 5;
+
+            Vector2 sz = PropObstacle.GetPropSize(pType);
+            if (sr.sprite != null && sr.sprite.rect.width > 0)
+            {
+                float sx = sz.x / (sr.sprite.rect.width / sr.sprite.pixelsPerUnit);
+                float sy = sz.y / (sr.sprite.rect.height / sr.sprite.pixelsPerUnit);
+                propGo.transform.localScale = new Vector3(sx, sy, 1f);
+            }
+            else
+            {
+                propGo.transform.localScale = new Vector3(sz.x, sz.y, 1f);
+            }
             return;
         }
 

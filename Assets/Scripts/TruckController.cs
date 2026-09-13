@@ -138,6 +138,7 @@ public class TruckController : MonoBehaviour
         maxForwardSpeedKmh = 10.0f;
         maxReverseSpeedKmh = 10.0f;
         maxArticulationAngle = 107.3f;
+        EnsurePlayerTractorVisuals();
     }
 
     private void OnValidate()
@@ -145,6 +146,7 @@ public class TruckController : MonoBehaviour
         maxForwardSpeedKmh = 10.0f;
         maxReverseSpeedKmh = 10.0f;
         maxArticulationAngle = 107.3f;
+        EnsurePlayerTractorVisuals();
     }
 
     private void Start()
@@ -156,6 +158,7 @@ public class TruckController : MonoBehaviour
         InitializePositions();
         EnsureLevelSwitcher();
         EnsureMapBoundaries();
+        EnsurePlayerTractorVisuals();
     }
 
     private void EnsureEventSystem()
@@ -167,19 +170,30 @@ public class TruckController : MonoBehaviour
             es = esGo.AddComponent<UnityEngine.EventSystems.EventSystem>();
         }
 
+        es.gameObject.SetActive(true);
+        es.enabled = true;
+
 #if ENABLE_INPUT_SYSTEM
         var standalone = es.GetComponent<UnityEngine.EventSystems.StandaloneInputModule>();
         if (standalone != null) Destroy(standalone);
 
-        if (es.GetComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>() == null)
+        var inputModule = es.GetComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+        if (inputModule == null)
         {
-            es.gameObject.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+            inputModule = es.gameObject.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+        }
+        if (inputModule != null)
+        {
+            inputModule.enabled = true;
+            inputModule.AssignDefaultActions();
         }
 #else
-        if (es.GetComponent<UnityEngine.EventSystems.StandaloneInputModule>() == null)
+        var standaloneModule = es.GetComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+        if (standaloneModule == null)
         {
-            es.gameObject.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+            standaloneModule = es.gameObject.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
         }
+        standaloneModule.enabled = true;
 #endif
     }
 
@@ -1336,5 +1350,24 @@ public class TruckController : MonoBehaviour
             trailerCollider = trailerRb.GetComponent<BoxCollider2D>();
         }
         InitializePositions();
+    }
+
+    private void EnsurePlayerTractorVisuals()
+    {
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        if (sr != null)
+        {
+            Sprite[] allSprites = Resources.FindObjectsOfTypeAll<Sprite>();
+            foreach (var s in allSprites)
+            {
+                if (s.name == "Tractor_HD")
+                {
+                    sr.sprite = s;
+                    break;
+                }
+            }
+            sr.color = Color.white;
+            sr.sortingOrder = 8;
+        }
     }
 }

@@ -122,14 +122,19 @@ public class InGameMenu : MonoBehaviour
     public void GoToMainMenu()
     {
         SetMenuOpen(false);
-        if (MapSelectMenu.Instance != null)
+#if UNITY_EDITOR
+        string mainMenuPath = "Assets/Scenes/MainMenu.unity";
+        if (File.Exists(mainMenuPath))
         {
-            MapSelectMenu.Instance.OpenMenu();
+            try
+            {
+                UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(mainMenuPath, new LoadSceneParameters(LoadSceneMode.Single));
+                return;
+            }
+            catch (Exception) {}
         }
-        else
-        {
-            SceneManager.LoadScene("MainMenu");
-        }
+#endif
+        SceneManager.LoadScene("MainMenu");
     }
 
     public void EnsureUI()

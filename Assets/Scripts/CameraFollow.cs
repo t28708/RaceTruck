@@ -10,6 +10,9 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private Transform tractorTarget;
     [SerializeField] private Transform trailerTarget;
 
+    public Transform TractorTarget { get => tractorTarget; set => tractorTarget = value; }
+    public Transform TrailerTarget { get => trailerTarget; set => trailerTarget = value; }
+
     [Header("Camera Tracking")]
     [Tooltip("If true, camera rigidly locks to tractor and rotates with it. Tractor is strictly centered and points UP.")]
     [SerializeField] private bool rotateWithTruck = true;

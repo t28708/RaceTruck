@@ -296,7 +296,10 @@ public class ParkingTargetZone : MonoBehaviour
     {
         if (isParkedSuccessfully) return;
         isParkedSuccessfully = true;
-        Debug.Log("<color=#55ff55>[ParkingTargetZone] 🏆 ЗАДАНИЕ ВЫПОЛНЕНО! Трак и прицеп полностью внутри целевой зоны!</color>");
+        string currentScene = SceneManager.GetActiveScene().name;
+        PlayerPrefs.SetInt("MapCompleted_" + currentScene, 1);
+        PlayerPrefs.Save();
+        Debug.Log($"<color=#55ff55>[ParkingTargetZone] 🏆 ЗАДАНИЕ ВЫПОЛНЕНО! Карта '{currentScene}' отмечена как пройденная!</color>");
         ShowWinUI();
     }
 
@@ -410,21 +413,19 @@ public class ParkingTargetZone : MonoBehaviour
             winCanvasGo.SetActive(false);
         }
 
-        if (MapSelectMenu.Instance != null)
+#if UNITY_EDITOR
+        string mainMenuPath = "Assets/Scenes/MainMenu.unity";
+        if (System.IO.File.Exists(mainMenuPath))
         {
-            MapSelectMenu.Instance.OpenMenu();
-        }
-        else
-        {
-            if (Application.CanStreamedLevelBeLoaded("MainMenu"))
+            try
             {
-                SceneManager.LoadScene("MainMenu");
+                UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(mainMenuPath, new LoadSceneParameters(LoadSceneMode.Single));
+                return;
             }
-            else
-            {
-                SceneManager.LoadScene(SceneManager.GetActiveScene().name);
-            }
+            catch (Exception) {}
         }
+#endif
+        SceneManager.LoadScene("MainMenu");
     }
 
     private GameObject CreateModalButton(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Color color, string label, Font font, int fontSize)

@@ -11,37 +11,44 @@ using UnityEngine.InputSystem.UI;
 #endif
 
 /// <summary>
-/// Start & Level Selection Menu matching the Arcade Tech SVG specification.
-/// Features:
-/// 1. Main Modes Screen:
-///    - CDL PRACTICE MODE (special glowing amber button)
-///    - ALLEY DOCK, ANGLE BACK, OFF SET BACK, PARALLEL PARKING, STRAIGHT BACK
-/// 2. CDL Practice Mode Submenu:
-///    - Dynamic 2-column scrollable grid of all custom maps (present and future).
-///    - Identical arcade tech styling.
-///    - Massive golden/amber BACK button returning to the main mode selector.
+/// Start & Level Selection Menu:
+/// Displays all available levels in a direct scrollable grid on startup.
+/// Shows a thumbs up (👍) and completion status for levels that have been completed.
 /// </summary>
 public class MapSelectMenu : MonoBehaviour
 {
-    public static MapSelectMenu Instance { get; private set; }
+    public static MapSelectMenu Instance
+    {
+        get
+        {
+            if (_instance == null)
+            {
+                _instance = FindFirstObjectByType<MapSelectMenu>();
+                if (_instance == null)
+                {
+                    GameObject go = new GameObject("MapSelectMenuController");
+                    _instance = go.AddComponent<MapSelectMenu>();
+                }
+            }
+            return _instance;
+        }
+        private set => _instance = value;
+    }
+    private static MapSelectMenu _instance;
 
     [Header("State")]
     [SerializeField] private bool isMenuOpen = false;
-    [SerializeField] private bool isInSubmenu = false;
 
     private List<string> availableMaps = new List<string>();
 
     private GameObject menuCanvasGo;
-    private GameObject mainModesContainerGo;
-    private GameObject submenuContainerGo;
-    private Transform submenuCardsContainer;
+    private Transform mapCardsContainer;
     private Text headerTitleText;
     private GameObject topButtonGo;
 
     private Dictionary<string, Sprite> cachedSprites = new Dictionary<string, Sprite>();
 
     public bool IsMenuOpen => isMenuOpen;
-    public bool IsInSubmenu => isInSubmenu;
 
     private void Awake()
     {
@@ -83,14 +90,7 @@ public class MapSelectMenu : MonoBehaviour
 
         if (togglePressed)
         {
-            if (isInSubmenu)
-            {
-                ShowMainModesView();
-            }
-            else
-            {
-                ToggleMenu();
-            }
+            ToggleMenu();
         }
     }
 
@@ -119,9 +119,25 @@ public class MapSelectMenu : MonoBehaviour
 
         isMenuOpen = open;
 
+        if (isMenuOpen)
+        {
+            EnsureEventSystem();
+        }
+
+        if (menuCanvasGo == null)
+        {
+            BuildUI();
+        }
+
         if (menuCanvasGo != null)
         {
             menuCanvasGo.SetActive(isMenuOpen);
+            if (isMenuOpen)
+            {
+                Canvas cv = menuCanvasGo.GetComponent<Canvas>();
+                if (cv != null) cv.enabled = true;
+                menuCanvasGo.transform.SetAsLastSibling();
+            }
         }
 
         if (topButtonGo != null)
@@ -132,26 +148,8 @@ public class MapSelectMenu : MonoBehaviour
         if (isMenuOpen)
         {
             RefreshMapsList();
-            ShowMainModesView();
+            PopulateCards();
         }
-    }
-
-    public void ShowMainModesView()
-    {
-        isInSubmenu = false;
-        if (headerTitleText != null) headerTitleText.text = "SELECT GAME MODE";
-        if (mainModesContainerGo != null) mainModesContainerGo.SetActive(true);
-        if (submenuContainerGo != null) submenuContainerGo.SetActive(false);
-    }
-
-    public void ShowCdlPracticeSubmenu()
-    {
-        isInSubmenu = true;
-        if (headerTitleText != null) headerTitleText.text = "CDL PRACTICE MODE";
-        if (mainModesContainerGo != null) mainModesContainerGo.SetActive(false);
-        if (submenuContainerGo != null) submenuContainerGo.SetActive(true);
-
-        PopulateSubmenuCards();
     }
 
     public void RefreshMapsList()
@@ -220,72 +218,6 @@ public class MapSelectMenu : MonoBehaviour
         }
     }
 
-    #region Maneuver Specific Handlers
-    public void LaunchManeuver(string maneuverType)
-    {
-        RefreshMapsList();
-        string targetMap = FindBestMapForManeuver(maneuverType);
-        if (!string.IsNullOrEmpty(targetMap))
-        {
-            LoadMap(targetMap);
-        }
-        else
-        {
-            Debug.LogWarning($"[MapSelectMenu] No specific map found for {maneuverType}, opening CDL Practice mode.");
-            ShowCdlPracticeSubmenu();
-        }
-    }
-
-    private string FindBestMapForManeuver(string maneuver)
-    {
-        maneuver = maneuver.ToLowerInvariant().Replace(" ", "_").Replace("-", "_");
-        
-        // Priority map lookup table
-        string[] candidates = null;
-        if (maneuver.Contains("alley"))
-        {
-            candidates = new string[] { "Map_12_truck_stop_standart", "Map_12_truck_stop_small", "Map_12_truck_stop_left_V3", "Map_1", "Map_3" };
-        }
-        else if (maneuver.Contains("angle"))
-        {
-            candidates = new string[] { "Map_11_angle_back-standart", "Map_11_angle_back-smaller" };
-        }
-        else if (maneuver.Contains("off_set") || maneuver.Contains("offset"))
-        {
-            candidates = new string[] { "Map_4-rest-area", "Map_8-kroger", "Map_4-rest-area-small", "Map_8-kroger-small", "Map_5" };
-        }
-        else if (maneuver.Contains("parallel"))
-        {
-            candidates = new string[] { "Map_10_parallel_parking", "Map_10_parallel_parking-2" };
-        }
-        else if (maneuver.Contains("straight"))
-        {
-            candidates = new string[] { "Map_6-standart-parking-small", "Map_7-standart-parking-smaller", "Map_2" };
-        }
-
-        if (candidates != null)
-        {
-            foreach (string cand in candidates)
-            {
-                if (availableMaps.Contains(cand)) return cand;
-            }
-        }
-
-        // Fuzzy search in available maps
-        foreach (string m in availableMaps)
-        {
-            string lower = m.ToLowerInvariant();
-            if (maneuver.Contains("alley") && (lower.Contains("alley") || lower.Contains("truck_stop"))) return m;
-            if (maneuver.Contains("angle") && lower.Contains("angle")) return m;
-            if (maneuver.Contains("off") && (lower.Contains("off") || lower.Contains("rest") || lower.Contains("kroger"))) return m;
-            if (maneuver.Contains("parallel") && lower.Contains("parallel")) return m;
-            if (maneuver.Contains("straight") && (lower.Contains("straight") || lower.Contains("standart"))) return m;
-        }
-
-        return availableMaps.Count > 0 ? availableMaps[0] : null;
-    }
-    #endregion
-
     #region Sprite & Asset Helpers
     private void LoadUISprites()
     {
@@ -346,18 +278,33 @@ public class MapSelectMenu : MonoBehaviour
         if (es == null)
         {
             GameObject esGo = new GameObject("EventSystem");
-            esGo.AddComponent<EventSystem>();
-#if ENABLE_INPUT_SYSTEM
-            esGo.AddComponent<InputSystemUIInputModule>();
-#else
-            esGo.AddComponent<StandaloneInputModule>();
-#endif
+            es = esGo.AddComponent<EventSystem>();
         }
+
+        es.gameObject.SetActive(true);
+        es.enabled = true;
+
 #if ENABLE_INPUT_SYSTEM
-        else if (es.GetComponent<InputSystemUIInputModule>() == null && es.GetComponent<StandaloneInputModule>() == null)
+        var standalone = es.GetComponent<StandaloneInputModule>();
+        if (standalone != null) Destroy(standalone);
+
+        var inputModule = es.GetComponent<InputSystemUIInputModule>();
+        if (inputModule == null)
         {
-            es.gameObject.AddComponent<InputSystemUIInputModule>();
+            inputModule = es.gameObject.AddComponent<InputSystemUIInputModule>();
         }
+        if (inputModule != null)
+        {
+            inputModule.enabled = true;
+            inputModule.AssignDefaultActions();
+        }
+#else
+        var standaloneModule = es.GetComponent<StandaloneInputModule>();
+        if (standaloneModule == null)
+        {
+            standaloneModule = es.gameObject.AddComponent<StandaloneInputModule>();
+        }
+        standaloneModule.enabled = true;
 #endif
     }
     #endregion
@@ -367,9 +314,14 @@ public class MapSelectMenu : MonoBehaviour
     {
         Font font = GetAppFont();
 
+        if (menuCanvasGo != null)
+        {
+            Destroy(menuCanvasGo);
+        }
+
         // 1. Root Canvas (720x1280 base)
         menuCanvasGo = new GameObject("MapSelectMenuCanvas");
-        menuCanvasGo.transform.SetParent(transform, false);
+        menuCanvasGo.transform.SetParent(null, false);
 
         Canvas canvas = menuCanvasGo.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -402,7 +354,7 @@ public class MapSelectMenu : MonoBehaviour
         RectTransform logoRt = logoGo.GetComponent<RectTransform>();
         logoRt.anchorMin = new Vector2(0, 0.5f);
         logoRt.anchorMax = new Vector2(0, 0.5f);
-        logoRt.pivot = new Vector2(0, 0.5f);
+        logoRt.pivot = new Vector2(0.5f, 0.5f);
         logoRt.sizeDelta = new Vector2(320, 75);
         logoRt.anchoredPosition = new Vector2(0, 0);
         Image logoImg = logoGo.AddComponent<Image>();
@@ -423,14 +375,14 @@ public class MapSelectMenu : MonoBehaviour
         if (ledsSp != null) ledsImg.sprite = ledsSp;
         else ledsImg.color = Color.clear;
 
-        // 4. Central Window Frame (640 x 1000)
+        // 4. Central Window Frame (640 x 1020)
         GameObject centerWindowGo = CreateUIObject("CenterWindowPanel", menuCanvasGo.transform);
         RectTransform centerRt = centerWindowGo.GetComponent<RectTransform>();
         centerRt.anchorMin = new Vector2(0.5f, 0.5f);
         centerRt.anchorMax = new Vector2(0.5f, 0.5f);
         centerRt.pivot = new Vector2(0.5f, 0.5f);
-        centerRt.sizeDelta = new Vector2(640, 1000);
-        centerRt.anchoredPosition = new Vector2(0, -35);
+        centerRt.sizeDelta = new Vector2(640, 1020);
+        centerRt.anchoredPosition = new Vector2(0, -30);
 
         // Frame Graphic
         Image centerImg = centerWindowGo.AddComponent<Image>();
@@ -438,122 +390,41 @@ public class MapSelectMenu : MonoBehaviour
         if (frameSp != null) centerImg.sprite = frameSp;
         else centerImg.color = new Color(0.14f, 0.17f, 0.21f, 1.0f);
 
-        // Header Title Text ("SELECT GAME MODE" / "CDL PRACTICE MODE")
+        // Header Title Text ("ВЫБОР КАРТЫ")
         GameObject titleGo = CreateUIObject("HeaderTitle", centerWindowGo.transform);
         RectTransform titleRt = titleGo.GetComponent<RectTransform>();
         titleRt.anchorMin = new Vector2(0, 1);
         titleRt.anchorMax = new Vector2(1, 1);
         titleRt.pivot = new Vector2(0.5f, 1);
-        titleRt.sizeDelta = new Vector2(0, 80);
-        titleRt.anchoredPosition = new Vector2(0, 0);
+        titleRt.sizeDelta = new Vector2(0, 75);
+        titleRt.anchoredPosition = new Vector2(0, -5);
 
         headerTitleText = titleGo.AddComponent<Text>();
         if (font != null) headerTitleText.font = font;
         headerTitleText.fontSize = 28;
         headerTitleText.fontStyle = FontStyle.Bold;
         headerTitleText.alignment = TextAnchor.MiddleCenter;
-        headerTitleText.color = Color.white;
-        headerTitleText.text = "SELECT GAME MODE";
+        headerTitleText.color = new Color(1f, 0.88f, 0.20f);
+        headerTitleText.text = "ВЫБОР КАРТЫ";
 
-        // Add subtle shadow component
         Shadow textShadow = titleGo.AddComponent<Shadow>();
         textShadow.effectColor = new Color(0, 0, 0, 0.9f);
         textShadow.effectDistance = new Vector2(2, -2);
 
-        // -------------------------------------------------------------
-        // VIEW 1: MainModesContainer (6 Mode Buttons + Checkered Line)
-        // -------------------------------------------------------------
-        mainModesContainerGo = CreateUIObject("MainModesContainer", centerWindowGo.transform);
-        RectTransform mmRt = mainModesContainerGo.GetComponent<RectTransform>();
-        mmRt.anchorMin = Vector2.zero;
-        mmRt.anchorMax = Vector2.one;
-        mmRt.sizeDelta = Vector2.zero;
-        mmRt.anchoredPosition = Vector2.zero;
-
-        // Button Positions: 2 Columns (X: 165, 475), 3 Rows (Y: -175, -325, -475)
-        // Button 1: CDL PRACTICE MODE (Special Glow)
-        CreateModeButton(mainModesContainerGo.transform, "CDL PRACTICE\nMODE", new Vector2(165, -175), true, () =>
-        {
-            ShowCdlPracticeSubmenu();
-        });
-
-        // Button 2: ALLEY DOCK
-        CreateModeButton(mainModesContainerGo.transform, "ALLEY DOCK", new Vector2(475, -175), false, () =>
-        {
-            LaunchManeuver("alley");
-        });
-
-        // Button 3: ANGLE BACK
-        CreateModeButton(mainModesContainerGo.transform, "ANGLE BACK", new Vector2(165, -325), false, () =>
-        {
-            LaunchManeuver("angle");
-        });
-
-        // Button 4: OFF SET BACK
-        CreateModeButton(mainModesContainerGo.transform, "OFF SET BACK", new Vector2(475, -325), false, () =>
-        {
-            LaunchManeuver("offset");
-        });
-
-        // Button 5: PARALLEL PARKING
-        CreateModeButton(mainModesContainerGo.transform, "PARALLEL\nPARKING", new Vector2(165, -475), false, () =>
-        {
-            LaunchManeuver("parallel");
-        });
-
-        // Button 6: STRAIGHT BACK
-        CreateModeButton(mainModesContainerGo.transform, "STRAIGHT BACK", new Vector2(475, -475), false, () =>
-        {
-            LaunchManeuver("straight");
-        });
-
-        // Checkered Divider
-        GameObject divGo = CreateUIObject("CheckeredDivider", mainModesContainerGo.transform);
-        RectTransform divRt = divGo.GetComponent<RectTransform>();
-        divRt.anchorMin = new Vector2(0.5f, 1);
-        divRt.anchorMax = new Vector2(0.5f, 1);
-        divRt.pivot = new Vector2(0.5f, 1);
-        divRt.sizeDelta = new Vector2(580, 18);
-        divRt.anchoredPosition = new Vector2(0, -640);
-        Image divImg = divGo.AddComponent<Image>();
-        Sprite divSp = GetSprite("UI_Checkered_Divider");
-        if (divSp != null) divImg.sprite = divSp;
-        else divImg.color = new Color(0.2f, 0.25f, 0.32f, 0.8f);
-
-        // Resume / In-Game Return Button (Shown only when in gameplay scene)
-        string currentScene = SceneManager.GetActiveScene().name;
-        if (currentScene != "MainMenu")
-        {
-            CreateBackButton(mainModesContainerGo.transform, "RESUME GAME", new Vector2(320, -850), () =>
-            {
-                CloseMenu();
-            });
-        }
-
-        // -------------------------------------------------------------
-        // VIEW 2: SubmenuContainer (CDL Practice Mode Maps + BACK Button)
-        // -------------------------------------------------------------
-        submenuContainerGo = CreateUIObject("SubmenuContainer", centerWindowGo.transform);
-        RectTransform smRt = submenuContainerGo.GetComponent<RectTransform>();
-        smRt.anchorMin = Vector2.zero;
-        smRt.anchorMax = Vector2.one;
-        smRt.sizeDelta = Vector2.zero;
-        smRt.anchoredPosition = Vector2.zero;
-        submenuContainerGo.SetActive(false);
-
-        // Scroll View for Maps (Middle Area: top -100 to bottom -150)
-        GameObject scrollGo = CreateUIObject("MapsScrollView", submenuContainerGo.transform);
+        // 5. Scroll View for Maps (Middle Area)
+        GameObject scrollGo = CreateUIObject("MapsScrollView", centerWindowGo.transform);
         RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
         scrollRt.anchorMin = new Vector2(0, 0);
         scrollRt.anchorMax = new Vector2(1, 1);
-        scrollRt.offsetMin = new Vector2(25, 145);
-        scrollRt.offsetMax = new Vector2(-25, -95);
+
+        scrollRt.offsetMin = new Vector2(25, 30);
+        scrollRt.offsetMax = new Vector2(-25, -85);
 
         ScrollRect scrollRect = scrollGo.AddComponent<ScrollRect>();
         scrollRect.horizontal = false;
         scrollRect.vertical = true;
         scrollRect.movementType = ScrollRect.MovementType.Clamped;
-        scrollRect.scrollSensitivity = 25f;
+        scrollRect.scrollSensitivity = 30f;
 
         // Viewport
         GameObject viewportGo = CreateUIObject("Viewport", scrollGo.transform);
@@ -573,8 +444,8 @@ public class MapSelectMenu : MonoBehaviour
         contentRt.sizeDelta = new Vector2(0, 0);
 
         GridLayoutGroup glg = contentGo.AddComponent<GridLayoutGroup>();
-        glg.cellSize = new Vector2(275, 120);
-        glg.spacing = new Vector2(30, 20);
+        glg.cellSize = new Vector2(275, 125);
+        glg.spacing = new Vector2(25, 20);
         glg.padding = new RectOffset(5, 5, 15, 25);
         glg.childAlignment = TextAnchor.UpperCenter;
 
@@ -583,64 +454,35 @@ public class MapSelectMenu : MonoBehaviour
 
         scrollRect.viewport = viewportGo.GetComponent<RectTransform>();
         scrollRect.content = contentRt;
-        submenuCardsContainer = contentGo.transform;
+        mapCardsContainer = contentGo.transform;
 
-        // Golden/Amber BACK Button at bottom of CDL Submenu
-        CreateBackButton(submenuContainerGo.transform, "BACK", new Vector2(320, -920), () =>
-        {
-            ShowMainModesView();
-        });
+        PopulateCards();
     }
 
-    private GameObject CreateModeButton(Transform parent, string label, Vector2 centerPos, bool isSpecial, UnityEngine.Events.UnityAction onClick)
+    public void RestartCurrentMap()
     {
-        Font font = GetAppFont();
+        SetMenuOpen(false);
+        string currentScene = SceneManager.GetActiveScene().name;
+        string currentPath = SceneManager.GetActiveScene().path;
 
-        GameObject btnGo = CreateUIObject("ModeBtn_" + label.Replace("\n", " "), parent);
-        RectTransform rt = btnGo.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0, 1);
-        rt.anchorMax = new Vector2(0, 1);
-        rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.sizeDelta = new Vector2(275, 128);
-        rt.anchoredPosition = centerPos;
-
-        Image img = btnGo.AddComponent<Image>();
-        Sprite sp = GetSprite(isSpecial ? "UI_Btn_Special" : "UI_Btn_Normal");
-        if (sp != null) img.sprite = sp;
-        else img.color = isSpecial ? new Color(0.24f, 0.18f, 0.12f) : new Color(0.18f, 0.22f, 0.28f);
-
-        Button btn = btnGo.AddComponent<Button>();
-        btn.targetGraphic = img;
-        ColorBlock cb = btn.colors;
-        cb.normalColor = Color.white;
-        cb.highlightedColor = new Color(1.2f, 1.2f, 1.2f, 1f);
-        cb.pressedColor = new Color(0.8f, 0.8f, 0.8f, 1f);
-        btn.colors = cb;
-
-        if (onClick != null) btn.onClick.AddListener(onClick);
-
-        // Text
-        GameObject textGo = CreateUIObject("Label", btnGo.transform);
-        StretchFull(textGo.GetComponent<RectTransform>());
-        textGo.GetComponent<RectTransform>().offsetMin = new Vector2(10, 8);
-        textGo.GetComponent<RectTransform>().offsetMax = new Vector2(-10, -4);
-
-        Text text = textGo.AddComponent<Text>();
-        if (font != null) text.font = font;
-        text.fontSize = label.Contains("\n") ? 20 : 22;
-        text.fontStyle = FontStyle.Bold;
-        text.alignment = TextAnchor.MiddleCenter;
-        text.color = isSpecial ? Color.white : new Color(0.95f, 0.96f, 0.98f);
-        text.text = label;
-
-        Shadow ts = textGo.AddComponent<Shadow>();
-        ts.effectColor = new Color(0, 0, 0, 0.85f);
-        ts.effectDistance = new Vector2(1.5f, -1.5f);
-
-        return btnGo;
+#if UNITY_EDITOR
+        if (!string.IsNullOrEmpty(currentPath) && File.Exists(currentPath))
+        {
+            try
+            {
+                UnityEditor.SceneManagement.EditorSceneManager.LoadSceneInPlayMode(currentPath, new LoadSceneParameters(LoadSceneMode.Single));
+                return;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[MapSelectMenu] EditorSceneManager.LoadSceneInPlayMode error: {ex.Message}");
+            }
+        }
+#endif
+        SceneManager.LoadScene(currentScene);
     }
 
-    private GameObject CreateBackButton(Transform parent, string label, Vector2 centerPos, UnityEngine.Events.UnityAction onClick)
+    private GameObject CreateBackButton(Transform parent, string label, Vector2 centerPos, Vector2 size, UnityEngine.Events.UnityAction onClick)
     {
         Font font = GetAppFont();
 
@@ -649,7 +491,7 @@ public class MapSelectMenu : MonoBehaviour
         rt.anchorMin = new Vector2(0, 1);
         rt.anchorMax = new Vector2(0, 1);
         rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.sizeDelta = new Vector2(240, 105);
+        rt.sizeDelta = size;
         rt.anchoredPosition = centerPos;
 
         Image img = btnGo.AddComponent<Image>();
@@ -665,40 +507,44 @@ public class MapSelectMenu : MonoBehaviour
         cb.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
         btn.colors = cb;
 
-        if (onClick != null) btn.onClick.AddListener(onClick);
+        if (onClick != null)
+        {
+            btn.onClick.AddListener(onClick);
+        }
 
         // Text
         GameObject textGo = CreateUIObject("Label", btnGo.transform);
         StretchFull(textGo.GetComponent<RectTransform>());
-        textGo.GetComponent<RectTransform>().offsetMin = new Vector2(5, 10);
+        textGo.GetComponent<RectTransform>().offsetMin = new Vector2(5, 5);
         textGo.GetComponent<RectTransform>().offsetMax = new Vector2(-5, -5);
 
         Text text = textGo.AddComponent<Text>();
         if (font != null) text.font = font;
-        text.fontSize = 32;
+        text.fontSize = 22;
         text.fontStyle = FontStyle.Bold;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = new Color(0.08f, 0.10f, 0.15f); // Dark bold text on amber
+        text.raycastTarget = false;
         text.text = label;
 
         return btnGo;
     }
 
-    private void PopulateSubmenuCards()
+    private void PopulateCards()
     {
-        if (submenuCardsContainer == null) return;
+        if (mapCardsContainer == null) return;
 
         // Clear previous cards
-        for (int i = submenuCardsContainer.childCount - 1; i >= 0; i--)
+        for (int i = mapCardsContainer.childCount - 1; i >= 0; i--)
         {
-            Destroy(submenuCardsContainer.GetChild(i).gameObject);
+            Destroy(mapCardsContainer.GetChild(i).gameObject);
         }
 
         Font font = GetAppFont();
 
         if (availableMaps.Count == 0)
         {
-            GameObject emptyGo = CreateUIObject("EmptyText", submenuCardsContainer);
+            GameObject emptyGo = CreateUIObject("EmptyText", mapCardsContainer);
             LayoutElement le = emptyGo.AddComponent<LayoutElement>();
             le.minWidth = 550;
             le.minHeight = 150;
@@ -715,16 +561,17 @@ public class MapSelectMenu : MonoBehaviour
         foreach (string mapName in availableMaps)
         {
             string capturedName = mapName;
+            bool isCompleted = PlayerPrefs.GetInt("MapCompleted_" + capturedName, 0) == 1;
             string displayName = FormatMapDisplayName(capturedName);
 
-            GameObject cardGo = CreateUIObject($"Card_{capturedName}", submenuCardsContainer);
+            GameObject cardGo = CreateUIObject($"Card_{capturedName}", mapCardsContainer);
             RectTransform cardRt = cardGo.GetComponent<RectTransform>();
-            cardRt.sizeDelta = new Vector2(275, 120);
+            cardRt.sizeDelta = new Vector2(275, 125);
 
             Image cardImg = cardGo.AddComponent<Image>();
-            Sprite sp = GetSprite("UI_Btn_Normal");
+            Sprite sp = GetSprite(isCompleted ? "UI_Btn_Special" : "UI_Btn_Normal");
             if (sp != null) cardImg.sprite = sp;
-            else cardImg.color = new Color(0.18f, 0.22f, 0.28f);
+            else cardImg.color = isCompleted ? new Color(0.18f, 0.28f, 0.18f) : new Color(0.18f, 0.22f, 0.28f);
 
             Button cardBtn = cardGo.AddComponent<Button>();
             cardBtn.targetGraphic = cardImg;
@@ -747,19 +594,36 @@ public class MapSelectMenu : MonoBehaviour
 
             Text text = textGo.AddComponent<Text>();
             if (font != null) text.font = font;
-            text.fontSize = 20;
+            text.fontSize = 19;
             text.fontStyle = FontStyle.Bold;
             text.alignment = TextAnchor.MiddleCenter;
-            text.color = Color.white;
-            text.text = displayName;
+
+            if (isCompleted)
+            {
+                text.color = new Color(1.0f, 0.92f, 0.35f); // Golden yellow
+                text.text = $"👍 {displayName}\n<size=15><color=#55ff88>ВЫПОЛНЕНО</color></size>";
+            }
+            else
+            {
+                text.color = Color.white;
+                text.text = displayName;
+            }
 
             Shadow ts = textGo.AddComponent<Shadow>();
             ts.effectColor = new Color(0, 0, 0, 0.85f);
             ts.effectDistance = new Vector2(1.5f, -1.5f);
+
+            // If completed, add a distinctive outline
+            if (isCompleted)
+            {
+                Outline outline = cardGo.AddComponent<Outline>();
+                outline.effectColor = new Color(0.2f, 0.85f, 0.35f, 0.75f); // Bright green outline
+                outline.effectDistance = new Vector2(2f, -2f);
+            }
         }
     }
 
-    private string FormatMapDisplayName(string rawName)
+    public static string FormatMapDisplayName(string rawName)
     {
         string formatted = rawName.Replace("-", " ").Replace("_", " ").ToUpperInvariant();
         string[] parts = formatted.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
@@ -779,7 +643,7 @@ public class MapSelectMenu : MonoBehaviour
         return formatted;
     }
 
-    private static int NaturalCompare(string a, string b)
+    public static int NaturalCompare(string a, string b)
     {
         int na = ExtractNumber(a);
         int nb = ExtractNumber(b);

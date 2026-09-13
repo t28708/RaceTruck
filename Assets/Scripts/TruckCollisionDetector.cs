@@ -131,7 +131,13 @@ public class TruckCollisionDetector : MonoBehaviour
                name.IndexOf("Barrel", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Cone", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Car", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.IndexOf("Auto", System.StringComparison.OrdinalIgnoreCase) >= 0;
+               name.IndexOf("Auto", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Hydrant", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Booth", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Checkin", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Tire", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Stack", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Prop", System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static bool IsMarkingName(string name)
@@ -167,30 +173,35 @@ public class TruckCollisionDetector : MonoBehaviour
         }
 
         // Check if other belongs to the player's Tractor or Trailer
-        if (TruckController.Instance != null)
+        TruckController playerController = TruckController.Instance ?? Object.FindFirstObjectByType<TruckController>();
+        if (playerController != null)
         {
-            Transform playerTractor = TruckController.Instance.transform;
+            Transform playerTractor = playerController.transform;
             if (other.transform == playerTractor || other.transform.IsChildOf(playerTractor))
             {
                 return true;
             }
 
-            if (TruckController.Instance.TrailerRb != null)
+            if (playerController.TrailerRb != null)
             {
-                Transform playerTrailer = TruckController.Instance.TrailerRb.transform;
+                Transform playerTrailer = playerController.TrailerRb.transform;
                 if (other.transform == playerTrailer || other.transform.IsChildOf(playerTrailer))
                 {
                     return true;
                 }
             }
         }
-        else
+
+        // Obstacles under map builder containers are NEVER player vehicles
+        Transform p = other.transform.parent;
+        while (p != null)
         {
-            // Fallback before TruckController.Instance is initialized
-            if (other.transform.root == transform.root)
+            string pn = p.name;
+            if (pn.StartsWith("MapBuilder_") || pn.StartsWith("Stall_") || pn.StartsWith("TruckObstacle"))
             {
-                return true;
+                return false;
             }
+            p = p.parent;
         }
 
         return false;
@@ -268,10 +279,14 @@ public class TruckCollisionDetector : MonoBehaviour
             return "припаркованный грузовик";
         }
         if (combinedName.Contains("Cone")) return "конус";
+        if (combinedName.Contains("Hydrant")) return "пожарный гидрант";
+        if (combinedName.Contains("Booth") || combinedName.Contains("Checkin")) return "будку КПП";
+        if (combinedName.Contains("Tire") || combinedName.Contains("Stack")) return "стопку шин";
         if (combinedName.Contains("Car") || combinedName.Contains("Auto") || combinedName.Contains("PassengerCar")) return "легковую машину";
         if (combinedName.Contains("Boundary") || combinedName.Contains("Border") || combinedName.Contains("Fence")) return "границу площадки";
-        if (combinedName.Contains("Barrier") || combinedName.Contains("Wall")) return "стену";
+        if (combinedName.Contains("Barrier") || combinedName.Contains("Wall")) return "стену / барьер";
         if (combinedName.Contains("Barrel")) return "бочку";
+        if (combinedName.Contains("Pole")) return "столб";
         if (combinedName.Contains("Bumper")) return "упор рампы";
         if (combinedName.Contains("Hazard")) return "разметку бокса";
         return "препятствие";
