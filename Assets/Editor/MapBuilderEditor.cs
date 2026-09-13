@@ -60,7 +60,8 @@ public class MapBuilderEditor : EditorWindow
         ConcreteBarrier = 15,     // 16. 🧱 Бетонный блок (2.5×0.7м)
         HazardBarrel = 16,        // 17. 🛢️ Бочка (0.8×0.8м)
         TireStack = 17,           // 18. 🔘 Стопка шин (1.1×1.1м)
-        Eraser = 18               // 19. 🧹 Ластик / Удаление (Клик по объекту)
+        Eraser = 18,              // 19. 🧹 Ластик / Удаление (Клик по объекту)
+        RouteLine = 19            // 20. 🛣️ Направляющая линия маршрута (Полилиния / Route)
     }
 
     public const string CustomMapsFolder = "Assets/Scenes/CustomMaps";
@@ -73,6 +74,7 @@ public class MapBuilderEditor : EditorWindow
     private const string PassengerCarsContainerName = "MapBuilder_PassengerCars";
     private const string StandaloneTrucksContainerName = "MapBuilder_TruckObstacles";
     private const string PropsContainerName = "MapBuilder_Props";
+    private const string RoutesContainerName = "MapBuilder_Routes";
     private const string GhostPreviewName = "__MapBuilder_GhostPreview__";
 
     public const float SlotWidth = 4.5f;         // Фиксированная ширина стандартного места (4.5м)
@@ -136,6 +138,17 @@ public class MapBuilderEditor : EditorWindow
     // Prop Obstacles tool state (any angle)
     [SerializeField] private PropObstacle selectedProp = null;
 
+    // Route / Polyline Guide Tool state
+    [SerializeField] private RouteGuideLine selectedRouteLine = null;
+    [SerializeField] private int selectedRoutePointIndex = -1;
+    [SerializeField] private bool isDrawingRouteLine = false;
+    [SerializeField] private float routeLineWidth = 0.30f;
+    [SerializeField] private Color routeLineColor = new Color(1.0f, 0.835f, 0.0f, 0.55f);
+    [SerializeField] private RouteGuideLine.SmoothingMode routeSmoothingMode = RouteGuideLine.SmoothingMode.CatmullRom;
+    [SerializeField] private bool routeShowEndArrow = true;
+    [SerializeField] private float routeArrowSize = 1.0f;
+    [SerializeField] private RouteGuideLine.DisplayMode routeDisplayMode = RouteGuideLine.DisplayMode.AlwaysVisible;
+
     private GameObject ghostPreviewObj;
     private ObjectType lastBuiltPreviewType = (ObjectType)(-1);
     private Sprite asphaltSprite;
@@ -178,7 +191,8 @@ public class MapBuilderEditor : EditorWindow
         "16. 🧱 Бетонный блок (2.5×0.7м)",
         "17. 🛢️ Бочка (0.8×0.8м)",
         "18. 🔘 Стопка шин (1.1×1.1м)",
-        "19. 🧹 Ластик / Удаление (Клик по объекту)"
+        "19. 🧹 Ластик / Удаление (Клик по объекту)",
+        "20. 🛣️ Направляющая линия маршрута (Полилиния / Route)"
     };
 
     [MenuItem("Tools/Map Builder/Open Editor", false, 1)]
@@ -191,7 +205,7 @@ public class MapBuilderEditor : EditorWindow
         window.EnsureCleanWorkPlane(clearExistingScene: false);
         window.SnapCursorToGrid();
         window.UpdateGhostPreview();
-        window.FocusSceneView();
+        window.RestoreOrFocusSceneView();
     }
 
     [MenuItem("Tools/Map Builder/New Clean Map Canvas", false, 2)]
@@ -225,6 +239,8 @@ public class MapBuilderEditor : EditorWindow
         SceneView.duringSceneGui += OnSceneGUI;
         EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
         EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+        EditorSceneManager.sceneOpened -= OnSceneOpened;
+        EditorSceneManager.sceneOpened += OnSceneOpened;
         SnapCursorToGrid();
         UpdateGhostPreview();
         DetectCurrentSceneMapName();
@@ -236,6 +252,7 @@ public class MapBuilderEditor : EditorWindow
         if (Instance == this) Instance = null;
         SceneView.duringSceneGui -= OnSceneGUI;
         EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
+        EditorSceneManager.sceneOpened -= OnSceneOpened;
         DestroyGhostPreview();
         SceneView.RepaintAll();
     }
@@ -249,6 +266,70 @@ public class MapBuilderEditor : EditorWindow
         else if (state == PlayModeStateChange.EnteredEditMode)
         {
             UpdateGhostPreview();
+        }
+    }
+
+    private void OnSceneOpened(UnityEngine.SceneManagement.Scene scene, OpenSceneMode mode)
+    {
+        if (builderActive && hasSavedCameraView)
+        {
+            ApplySavedSceneViewCamera();
+        }
+    }
+
+    // =========================================================================
+    // SceneView Camera State Persistence Across Maps
+    // Preserves exact zoom scale and centering position when switching maps
+    // =========================================================================
+    private static bool hasSavedCameraView = false;
+    private static Vector3 savedCameraPivot;
+    private static float savedCameraSize;
+    private static Quaternion savedCameraRotation = Quaternion.identity;
+    private static bool savedCameraIn2D = true;
+
+    public static void CaptureCurrentSceneViewCamera()
+    {
+        SceneView sv = SceneView.lastActiveSceneView ?? (SceneView.sceneViews.Count > 0 ? SceneView.sceneViews[0] as SceneView : null);
+        if (sv != null)
+        {
+            savedCameraPivot = sv.pivot;
+            savedCameraSize = sv.size;
+            savedCameraRotation = sv.rotation;
+            savedCameraIn2D = sv.in2DMode;
+            hasSavedCameraView = true;
+        }
+    }
+
+    public static void ApplySavedSceneViewCamera()
+    {
+        if (!hasSavedCameraView) return;
+
+        void DoApply()
+        {
+            SceneView sv = SceneView.lastActiveSceneView ?? (SceneView.sceneViews.Count > 0 ? SceneView.sceneViews[0] as SceneView : null);
+            if (sv != null)
+            {
+                sv.in2DMode = savedCameraIn2D;
+                sv.pivot = savedCameraPivot;
+                sv.size = savedCameraSize;
+                sv.rotation = savedCameraRotation;
+                sv.Repaint();
+            }
+        }
+
+        DoApply();
+        EditorApplication.delayCall += DoApply;
+    }
+
+    public void RestoreOrFocusSceneView()
+    {
+        if (hasSavedCameraView)
+        {
+            ApplySavedSceneViewCamera();
+        }
+        else
+        {
+            FocusSceneView();
         }
     }
 
@@ -367,7 +448,7 @@ public class MapBuilderEditor : EditorWindow
     private Vector2 GetMagneticSnappedPosition(Vector2 rawPos, float rot)
     {
         // Only apply magnetic snap for parking stalls (StandardEmpty, StandardParked, TargetParking)
-        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.Eraser) return rawPos;
+        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine) return rawPos;
 
         GameObject workspace = GameObject.Find(WorkspaceRootName);
         if (workspace == null) return rawPos;
@@ -429,7 +510,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void SnapCursorToGrid()
     {
-        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.Eraser) return;
+        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine) return;
 
         float rem = Mathf.Abs(currentRotation) % 90f;
         if (rem > 1.0f && rem < 89.0f)
@@ -858,6 +939,24 @@ public class MapBuilderEditor : EditorWindow
                 }
             }
 
+            Transform routesContainer = workspace.transform.Find(RoutesContainerName);
+            if (routesContainer != null)
+            {
+                if (!EditorApplication.isPlaying) Undo.RegisterFullObjectHierarchyUndo(routesContainer.gameObject, "Shift Route Lines");
+                for (int i = 0; i < routesContainer.childCount; i++)
+                {
+                    RouteGuideLine rgl = routesContainer.GetChild(i).GetComponent<RouteGuideLine>();
+                    if (rgl != null && rgl.waypoints != null)
+                    {
+                        for (int w = 0; w < rgl.waypoints.Count; w++)
+                        {
+                            rgl.waypoints[w] += delta;
+                        }
+                        rgl.UpdateVisuals();
+                    }
+                }
+            }
+
             cursorPosition += delta;
             UpdateGhostPreview();
             SafeMarkSceneDirty();
@@ -956,6 +1055,114 @@ public class MapBuilderEditor : EditorWindow
             }
         }
         return bestLine;
+    }
+
+    public RouteGuideLine CreateRouteLine(Vector2 firstPoint)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null)
+        {
+            EnsureCleanWorkPlane(clearExistingScene: false);
+            workspace = GameObject.Find(WorkspaceRootName);
+        }
+
+        Transform container = workspace.transform.Find(RoutesContainerName);
+        if (container == null)
+        {
+            GameObject containerGo = new GameObject(RoutesContainerName);
+            containerGo.transform.SetParent(workspace.transform, false);
+            container = containerGo.transform;
+            SafeRegisterCreatedObjectUndo(containerGo, "Create Routes Container");
+        }
+
+        int index = container.childCount + 1;
+        GameObject routeGo = new GameObject($"RouteLine_{index}");
+        routeGo.transform.SetParent(container, false);
+
+        RouteGuideLine routeComp = routeGo.AddComponent<RouteGuideLine>();
+        routeComp.lineWidth = routeLineWidth;
+        routeComp.lineColor = routeLineColor;
+        routeComp.smoothing = routeSmoothingMode;
+        routeComp.showEndArrow = routeShowEndArrow;
+        routeComp.arrowSize = routeArrowSize;
+        routeComp.displayMode = routeDisplayMode;
+        routeComp.sortingOrder = 3;
+        routeComp.waypoints = new List<Vector2> { firstPoint };
+        routeComp.EnsureComponents();
+        routeComp.UpdateVisuals();
+
+        SafeRegisterCreatedObjectUndo(routeGo, $"Create RouteLine_{index}");
+        SafeMarkSceneDirty();
+        SceneView.RepaintAll();
+        return routeComp;
+    }
+
+    public void ClearAllRouteLines()
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace != null)
+        {
+            Transform container = workspace.transform.Find(RoutesContainerName);
+            if (container != null)
+            {
+                if (!EditorApplication.isPlaying)
+                {
+                    Undo.RegisterFullObjectHierarchyUndo(container.gameObject, "Clear All Route Lines");
+                }
+                for (int i = container.childCount - 1; i >= 0; i--)
+                {
+                    SafeDestroyObject(container.GetChild(i).gameObject);
+                }
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+        }
+        selectedRouteLine = null;
+        selectedRoutePointIndex = -1;
+        isDrawingRouteLine = false;
+    }
+
+    private RouteGuideLine FindRouteLineNear(Vector2 worldPos, float maxDist, out int pointIndex)
+    {
+        pointIndex = -1;
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null) return null;
+        Transform container = workspace.transform.Find(RoutesContainerName);
+        if (container == null) return null;
+
+        RouteGuideLine bestRoute = null;
+        float bestDist = maxDist;
+
+        for (int i = 0; i < container.childCount; i++)
+        {
+            RouteGuideLine route = container.GetChild(i).GetComponent<RouteGuideLine>();
+            if (route == null || route.waypoints == null || route.waypoints.Count == 0) continue;
+
+            for (int w = 0; w < route.waypoints.Count; w++)
+            {
+                float d = Vector2.Distance(worldPos, route.waypoints[w]);
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    bestRoute = route;
+                    pointIndex = w;
+                }
+            }
+
+            for (int w = 0; w < route.waypoints.Count - 1; w++)
+            {
+                float dSeg = DistanceToSegment(worldPos, route.waypoints[w], route.waypoints[w + 1]);
+                if (dSeg < bestDist)
+                {
+                    bestDist = dSeg;
+                    bestRoute = route;
+                    float d1 = Vector2.Distance(worldPos, route.waypoints[w]);
+                    float d2 = Vector2.Distance(worldPos, route.waypoints[w + 1]);
+                    pointIndex = (d2 < d1) ? (w + 1) : w;
+                }
+            }
+        }
+        return bestRoute;
     }
 
     public RoadDirectionArrow CreateRoadArrow(Vector2 pos, float rot, float scale = 1.0f, Color? color = null)
@@ -1561,6 +1768,21 @@ public class MapBuilderEditor : EditorWindow
             erased = true;
         }
 
+        // 1.1 Check Route Lines
+        if (!erased)
+        {
+            RouteGuideLine hitRoute = FindRouteLineNear(worldPos, 1.8f, out _);
+            if (hitRoute != null)
+            {
+                erasedName = hitRoute.gameObject.name;
+                SafeDestroyObject(hitRoute.gameObject);
+                selectedRouteLine = null;
+                selectedRoutePointIndex = -1;
+                isDrawingRouteLine = false;
+                erased = true;
+            }
+        }
+
         // 2. Check Wall Obstacles
         if (!erased)
         {
@@ -2013,6 +2235,9 @@ public class MapBuilderEditor : EditorWindow
             EditorApplication.isPlaying = false;
         }
 
+        // Capture current camera centering & zoom scale before opening next map
+        CaptureCurrentSceneViewCamera();
+
         if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
         {
             EditorSceneManager.OpenScene(scenePath);
@@ -2024,7 +2249,7 @@ public class MapBuilderEditor : EditorWindow
             window.EnsureCleanWorkPlane(clearExistingScene: false);
             window.SnapCursorToGrid();
             window.UpdateGhostPreview();
-            window.FocusSceneView();
+            window.RestoreOrFocusSceneView();
         }
     }
 
@@ -2590,6 +2815,161 @@ public class MapBuilderEditor : EditorWindow
         EditorGUILayout.EndHorizontal();
         EditorGUILayout.EndVertical();
 
+        // Route Guide Lines Configuration Section
+        EditorGUILayout.Space(6);
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("🛣️ Направляющая линия маршрута (Route / Polyline):", EditorStyles.boldLabel);
+        
+        routeLineWidth = EditorGUILayout.Slider("Толщина линии (м)", routeLineWidth, 0.08f, 1.20f);
+        routeLineColor = EditorGUILayout.ColorField("Цвет и прозрачность", routeLineColor);
+        routeSmoothingMode = (RouteGuideLine.SmoothingMode)EditorGUILayout.EnumPopup("Сглаживание углов", routeSmoothingMode);
+        routeShowEndArrow = EditorGUILayout.Toggle("Стрелка на конце", routeShowEndArrow);
+        if (routeShowEndArrow)
+        {
+            routeArrowSize = EditorGUILayout.Slider("Размер стрелки", routeArrowSize, 0.4f, 2.5f);
+        }
+        routeDisplayMode = (RouteGuideLine.DisplayMode)EditorGUILayout.EnumPopup("Режим отображения", routeDisplayMode);
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Жёлтая (дефолт)", GUILayout.Height(22))) { routeLineColor = new Color(1.0f, 0.835f, 0.0f, 0.55f); }
+        if (GUILayout.Button("Ярко-жёлтая", GUILayout.Height(22))) { routeLineColor = new Color(1.0f, 0.92f, 0.1f, 0.75f); }
+        if (GUILayout.Button("Зелёная", GUILayout.Height(22))) { routeLineColor = new Color(0.2f, 0.95f, 0.35f, 0.60f); }
+        if (GUILayout.Button("Голубая", GUILayout.Height(22))) { routeLineColor = new Color(0.2f, 0.75f, 1.0f, 0.60f); }
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        if (isDrawingRouteLine)
+        {
+            GUI.backgroundColor = new Color(0.3f, 0.9f, 0.3f, 1f);
+            if (GUILayout.Button("✓ Завершить маршрут (Enter)", GUILayout.Height(26)))
+            {
+                isDrawingRouteLine = false;
+                if (selectedRouteLine != null && selectedRouteLine.waypoints.Count > 0)
+                {
+                    selectedRoutePointIndex = selectedRouteLine.waypoints.Count - 1;
+                }
+            }
+            GUI.backgroundColor = new Color(1f, 0.6f, 0.2f, 1f);
+            if (GUILayout.Button("Отмена (Esc)", GUILayout.Height(26)))
+            {
+                isDrawingRouteLine = false;
+                selectedRouteLine = null;
+                selectedRoutePointIndex = -1;
+            }
+            GUI.backgroundColor = Color.white;
+        }
+        else
+        {
+            if (GUILayout.Button("Начать новый маршрут", GUILayout.Height(26)))
+            {
+                isDrawingRouteLine = true;
+                selectedRouteLine = CreateRouteLine(cursorPosition);
+                selectedRoutePointIndex = 0;
+            }
+        }
+
+        if (GUILayout.Button("Очистить все маршруты", GUILayout.Height(26)))
+        {
+            if (EditorUtility.DisplayDialog("Очистить маршруты", "Удалить все нарисованные направляющие линии маршрута?", "Да, удалить", "Отмена"))
+            {
+                ClearAllRouteLines();
+            }
+        }
+        EditorGUILayout.EndHorizontal();
+
+        if (selectedRouteLine != null)
+        {
+            EditorGUILayout.Space(4);
+            int ptCount = selectedRouteLine.waypoints != null ? selectedRouteLine.waypoints.Count : 0;
+            string ptInfo = selectedRoutePointIndex >= 0 ? $"Точка {selectedRoutePointIndex + 1}/{ptCount}" : "Все точки";
+            EditorGUILayout.HelpBox($"Выделен маршрут: {selectedRouteLine.name}\nВсего точек: {ptCount} | Активная: {ptInfo}\n[Tab/Enter] след. точка, [Del] удалить точку, [WASD] сдвиг.", MessageType.Info);
+
+            EditorGUI.BeginChangeCheck();
+            float editWidth = EditorGUILayout.Slider("Толщина выбранного", selectedRouteLine.lineWidth, 0.08f, 1.20f);
+            Color editColor = EditorGUILayout.ColorField("Цвет выбранного", selectedRouteLine.lineColor);
+            RouteGuideLine.SmoothingMode editSmooth = (RouteGuideLine.SmoothingMode)EditorGUILayout.EnumPopup("Сглаживание", selectedRouteLine.smoothing);
+            bool editArrow = EditorGUILayout.Toggle("Стрелка на конце", selectedRouteLine.showEndArrow);
+            float editArrowSize = selectedRouteLine.arrowSize;
+            if (editArrow)
+            {
+                editArrowSize = EditorGUILayout.Slider("Размер стрелки", selectedRouteLine.arrowSize, 0.4f, 2.5f);
+            }
+            RouteGuideLine.DisplayMode editDisp = (RouteGuideLine.DisplayMode)EditorGUILayout.EnumPopup("Режим отображения", selectedRouteLine.displayMode);
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(selectedRouteLine, "Edit Route Line");
+                selectedRouteLine.lineWidth = editWidth;
+                selectedRouteLine.lineColor = editColor;
+                selectedRouteLine.smoothing = editSmooth;
+                selectedRouteLine.showEndArrow = editArrow;
+                selectedRouteLine.arrowSize = editArrowSize;
+                selectedRouteLine.displayMode = editDisp;
+                selectedRouteLine.UpdateVisuals();
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+
+            if (selectedRoutePointIndex >= 0 && selectedRoutePointIndex < ptCount)
+            {
+                EditorGUI.BeginChangeCheck();
+                Vector2 ptPos = EditorGUILayout.Vector2Field($"Координата точки {selectedRoutePointIndex + 1}", selectedRouteLine.waypoints[selectedRoutePointIndex]);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(selectedRouteLine, "Edit Waypoint Position");
+                    selectedRouteLine.waypoints[selectedRoutePointIndex] = ptPos;
+                    selectedRouteLine.UpdateVisuals();
+                    SafeMarkSceneDirty();
+                    SceneView.RepaintAll();
+                }
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("След. точка (Tab)", GUILayout.Height(24)))
+            {
+                if (ptCount > 0)
+                {
+                    selectedRoutePointIndex = (selectedRoutePointIndex + 1) % ptCount;
+                    cursorPosition = selectedRouteLine.waypoints[selectedRoutePointIndex];
+                    SceneView.RepaintAll();
+                }
+            }
+            if (GUILayout.Button("Удалить точку", GUILayout.Height(24)))
+            {
+                if (selectedRoutePointIndex >= 0 && selectedRoutePointIndex < ptCount && ptCount > 2)
+                {
+                    Undo.RecordObject(selectedRouteLine, "Delete Waypoint");
+                    selectedRouteLine.waypoints.RemoveAt(selectedRoutePointIndex);
+                    selectedRoutePointIndex = Mathf.Clamp(selectedRoutePointIndex, 0, selectedRouteLine.waypoints.Count - 1);
+                    selectedRouteLine.UpdateVisuals();
+                    SafeMarkSceneDirty();
+                    SceneView.RepaintAll();
+                }
+                else
+                {
+                    SafeDestroyObject(selectedRouteLine.gameObject);
+                    selectedRouteLine = null;
+                    selectedRoutePointIndex = -1;
+                    SafeMarkSceneDirty();
+                    SceneView.RepaintAll();
+                }
+            }
+            if (GUILayout.Button("Удалить весь маршрут", GUILayout.Height(24)))
+            {
+                SafeDestroyObject(selectedRouteLine.gameObject);
+                selectedRouteLine = null;
+                selectedRoutePointIndex = -1;
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+            if (GUILayout.Button("Снять выбор", GUILayout.Height(24)))
+            {
+                selectedRouteLine = null;
+                selectedRoutePointIndex = -1;
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+        EditorGUILayout.EndVertical();
 
         EditorGUILayout.Space(10);
         EditorGUILayout.LabelField("Действия:", EditorStyles.boldLabel);
@@ -2646,6 +3026,15 @@ public class MapBuilderEditor : EditorWindow
 
     private void OnSceneGUI(SceneView sceneView)
     {
+        if (sceneView != null)
+        {
+            savedCameraPivot = sceneView.pivot;
+            savedCameraSize = sceneView.size;
+            savedCameraRotation = sceneView.rotation;
+            savedCameraIn2D = sceneView.in2DMode;
+            hasSavedCameraView = true;
+        }
+
         if (!builderActive || EditorApplication.isPlayingOrWillChangePlaymode)
         {
             if (ghostPreviewObj != null && ghostPreviewObj.activeSelf)
@@ -2671,7 +3060,7 @@ public class MapBuilderEditor : EditorWindow
         }
 
         // Interactive 2D Position Handle for Scene View (Free Mouse Movement with Magnetic Snapping)
-        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.Wall && (currentObjectType != ObjectType.RoadArrow || selectedRoadArrow == null) && (currentObjectType != ObjectType.PassengerCar || selectedPassengerCar == null))
+        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.RouteLine && (currentObjectType != ObjectType.RoadArrow || selectedRoadArrow == null) && (currentObjectType != ObjectType.PassengerCar || selectedPassengerCar == null))
         {
             EditorGUI.BeginChangeCheck();
             Vector3 curPos3 = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
@@ -2682,7 +3071,7 @@ public class MapBuilderEditor : EditorWindow
             if (EditorGUI.EndChangeCheck())
             {
                 Vector2 rawPos = new Vector2(newPos.x, newPos.y);
-                cursorPosition = (currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || IsPropType(currentObjectType) || currentObjectType == ObjectType.Eraser) ? rawPos : GetMagneticSnappedPosition(rawPos, currentRotation);
+                cursorPosition = (currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || IsPropType(currentObjectType) || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine) ? rawPos : GetMagneticSnappedPosition(rawPos, currentRotation);
                 UpdateGhostPreview();
                 Repaint();
             }
@@ -2920,6 +3309,55 @@ public class MapBuilderEditor : EditorWindow
                     cursorPosition = rawPos;
                     EraseAtPosition(rawPos);
                 }
+                else if (currentObjectType == ObjectType.RouteLine)
+                {
+                    RouteGuideLine hitRoute = FindRouteLineNear(rawPos, 1.2f, out int hitPtIdx);
+
+                    if (e.clickCount >= 2 && isDrawingRouteLine)
+                    {
+                        isDrawingRouteLine = false;
+                        if (selectedRouteLine != null && selectedRouteLine.waypoints != null && selectedRouteLine.waypoints.Count > 0)
+                        {
+                            selectedRoutePointIndex = selectedRouteLine.waypoints.Count - 1;
+                        }
+                    }
+                    else if (isDrawingRouteLine && selectedRouteLine != null)
+                    {
+                        if (selectedRouteLine.waypoints == null) selectedRouteLine.waypoints = new List<Vector2>();
+
+                        Vector2 lastPt = selectedRouteLine.waypoints.Count > 0 ? selectedRouteLine.waypoints[selectedRouteLine.waypoints.Count - 1] : rawPos;
+                        if (Vector2.Distance(lastPt, rawPos) > 0.2f)
+                        {
+                            Undo.RecordObject(selectedRouteLine, "Add Route Waypoint");
+                            selectedRouteLine.waypoints.Add(rawPos);
+                            selectedRoutePointIndex = selectedRouteLine.waypoints.Count - 1;
+                            selectedRouteLine.UpdateVisuals();
+                            cursorPosition = rawPos;
+                            SafeMarkSceneDirty();
+                        }
+                    }
+                    else if (hitRoute != null)
+                    {
+                        selectedRouteLine = hitRoute;
+                        selectedRoutePointIndex = hitPtIdx;
+                        isDrawingRouteLine = false;
+                        if (selectedRoutePointIndex >= 0 && selectedRoutePointIndex < selectedRouteLine.waypoints.Count)
+                        {
+                            cursorPosition = selectedRouteLine.waypoints[selectedRoutePointIndex];
+                        }
+                        else
+                        {
+                            cursorPosition = rawPos;
+                        }
+                    }
+                    else
+                    {
+                        isDrawingRouteLine = true;
+                        selectedRouteLine = CreateRouteLine(rawPos);
+                        selectedRoutePointIndex = 0;
+                        cursorPosition = rawPos;
+                    }
+                }
                 else
                 {
                     cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
@@ -3038,6 +3476,17 @@ public class MapBuilderEditor : EditorWindow
                 {
                     cursorPosition = rawPos;
                     EraseAtPosition(rawPos);
+                }
+                else if (currentObjectType == ObjectType.RouteLine)
+                {
+                    cursorPosition = rawPos;
+                    if (!isDrawingRouteLine && selectedRouteLine != null && selectedRoutePointIndex >= 0 && selectedRouteLine.waypoints != null && selectedRoutePointIndex < selectedRouteLine.waypoints.Count)
+                    {
+                        Undo.RecordObject(selectedRouteLine, "Move Route Waypoint");
+                        selectedRouteLine.waypoints[selectedRoutePointIndex] = rawPos;
+                        selectedRouteLine.UpdateVisuals();
+                        SafeMarkSceneDirty();
+                    }
                 }
                 else
                 {
@@ -3701,6 +4150,118 @@ public class MapBuilderEditor : EditorWindow
                     handled = true;
                 }
             }
+            else if (currentObjectType == ObjectType.RouteLine)
+            {
+                float step = e.shift ? 2.0f : (e.alt || e.control ? 0.1f : 0.5f);
+                Vector2 moveDelta = Vector2.zero;
+
+                switch (e.keyCode)
+                {
+                    case KeyCode.W:
+                    case KeyCode.UpArrow:
+                        moveDelta = new Vector2(0f, step);
+                        break;
+                    case KeyCode.S:
+                    case KeyCode.DownArrow:
+                        moveDelta = new Vector2(0f, -step);
+                        break;
+                    case KeyCode.A:
+                    case KeyCode.LeftArrow:
+                        moveDelta = new Vector2(-step, 0f);
+                        break;
+                    case KeyCode.D:
+                    case KeyCode.RightArrow:
+                        moveDelta = new Vector2(step, 0f);
+                        break;
+
+                    case KeyCode.Return:
+                    case KeyCode.KeypadEnter:
+                    case KeyCode.Space:
+                        if (isDrawingRouteLine)
+                        {
+                            isDrawingRouteLine = false;
+                            if (selectedRouteLine != null && selectedRouteLine.waypoints != null && selectedRouteLine.waypoints.Count > 0)
+                            {
+                                selectedRoutePointIndex = selectedRouteLine.waypoints.Count - 1;
+                            }
+                        }
+                        else if (selectedRouteLine != null && selectedRouteLine.waypoints != null && selectedRouteLine.waypoints.Count > 0)
+                        {
+                            selectedRoutePointIndex = (selectedRoutePointIndex + 1) % selectedRouteLine.waypoints.Count;
+                            cursorPosition = selectedRouteLine.waypoints[selectedRoutePointIndex];
+                        }
+                        handled = true;
+                        break;
+
+                    case KeyCode.Tab:
+                        if (selectedRouteLine != null && selectedRouteLine.waypoints != null && selectedRouteLine.waypoints.Count > 0)
+                        {
+                            selectedRoutePointIndex = (selectedRoutePointIndex + (e.shift ? -1 : 1) + selectedRouteLine.waypoints.Count) % selectedRouteLine.waypoints.Count;
+                            cursorPosition = selectedRouteLine.waypoints[selectedRoutePointIndex];
+                            handled = true;
+                        }
+                        break;
+
+                    case KeyCode.Delete:
+                    case KeyCode.Backspace:
+                        if (selectedRouteLine != null)
+                        {
+                            if (selectedRoutePointIndex >= 0 && selectedRouteLine.waypoints != null && selectedRoutePointIndex < selectedRouteLine.waypoints.Count && selectedRouteLine.waypoints.Count > 2)
+                            {
+                                Undo.RecordObject(selectedRouteLine, "Delete Route Waypoint");
+                                selectedRouteLine.waypoints.RemoveAt(selectedRoutePointIndex);
+                                selectedRoutePointIndex = Mathf.Clamp(selectedRoutePointIndex, 0, selectedRouteLine.waypoints.Count - 1);
+                                cursorPosition = selectedRouteLine.waypoints[selectedRoutePointIndex];
+                                selectedRouteLine.UpdateVisuals();
+                                SafeMarkSceneDirty();
+                            }
+                            else
+                            {
+                                SafeDestroyObject(selectedRouteLine.gameObject);
+                                selectedRouteLine = null;
+                                selectedRoutePointIndex = -1;
+                                isDrawingRouteLine = false;
+                                SafeMarkSceneDirty();
+                            }
+                            handled = true;
+                        }
+                        break;
+
+                    case KeyCode.Escape:
+                        isDrawingRouteLine = false;
+                        selectedRouteLine = null;
+                        selectedRoutePointIndex = -1;
+                        handled = true;
+                        break;
+
+                    case KeyCode.C:
+                        CycleObjectType();
+                        handled = true;
+                        break;
+
+                    case KeyCode.F:
+                        FocusSceneView();
+                        handled = true;
+                        break;
+                }
+
+                if (moveDelta != Vector2.zero)
+                {
+                    if (!isDrawingRouteLine && selectedRouteLine != null && selectedRoutePointIndex >= 0 && selectedRouteLine.waypoints != null && selectedRoutePointIndex < selectedRouteLine.waypoints.Count)
+                    {
+                        Undo.RecordObject(selectedRouteLine, "Move Route Waypoint");
+                        selectedRouteLine.waypoints[selectedRoutePointIndex] += moveDelta;
+                        cursorPosition = selectedRouteLine.waypoints[selectedRoutePointIndex];
+                        selectedRouteLine.UpdateVisuals();
+                        SafeMarkSceneDirty();
+                    }
+                    else
+                    {
+                        cursorPosition += moveDelta;
+                    }
+                    handled = true;
+                }
+            }
             else if (currentObjectType == ObjectType.TruckStartPoint)
             {
                 // Fine-grained keyboard control for Truck Start point (0.5m / 2m / 0.1m)
@@ -3916,6 +4477,20 @@ public class MapBuilderEditor : EditorWindow
         // Draw interactive Props handles & preview in Scene View
         DrawPropsHandles(sceneView);
 
+        // Draw interactive Route Lines handles & preview in Scene View
+        DrawRouteLinesHandles(sceneView);
+
+        // Draw interactive Route cursor indicator when in route mode
+        if (currentObjectType == ObjectType.RouteLine && !isDrawingRouteLine && selectedRouteLine == null)
+        {
+            Vector3 p = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
+            Handles.color = new Color(1.0f, 0.835f, 0.0f, 0.85f);
+            Handles.DrawWireDisc(p, Vector3.forward, 0.45f);
+            Handles.DrawLine(p - new Vector3(0.6f, 0f, 0f), p + new Vector3(0.6f, 0f, 0f));
+            Handles.DrawLine(p - new Vector3(0f, 0.6f, 0f), p + new Vector3(0f, 0.6f, 0f));
+            Handles.Label(p + new Vector3(0.7f, 0.7f, 0f), "🛣️ МАРШРУТ (Кликните для начала новой линии)", EditorStyles.boldLabel);
+        }
+
         // Draw interactive Eraser handles in Scene View
         if (currentObjectType == ObjectType.Eraser)
         {
@@ -4063,6 +4638,83 @@ public class MapBuilderEditor : EditorWindow
         }
     }
 
+    private void DrawRouteLinesHandles(SceneView sceneView)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        Transform container = workspace != null ? workspace.transform.Find(RoutesContainerName) : null;
+        if (container != null)
+        {
+            for (int i = 0; i < container.childCount; i++)
+            {
+                RouteGuideLine route = container.GetChild(i).GetComponent<RouteGuideLine>();
+                if (route != null)
+                {
+                    DrawSingleRouteLineHandle(route);
+                }
+            }
+        }
+
+        // Preview dotted line to mouse cursor while actively drawing
+        if (currentObjectType == ObjectType.RouteLine && isDrawingRouteLine && selectedRouteLine != null && selectedRouteLine.waypoints != null && selectedRouteLine.waypoints.Count > 0)
+        {
+            Vector2 lastPt = selectedRouteLine.waypoints[selectedRouteLine.waypoints.Count - 1];
+            Vector3 pA = new Vector3(lastPt.x, lastPt.y, 0f);
+            Vector3 pB = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
+            float dist = Vector2.Distance(lastPt, cursorPosition);
+
+            Handles.color = new Color(1.0f, 0.835f, 0.0f, 0.95f);
+            Handles.DrawDottedLine(pA, pB, 4f);
+
+            Handles.color = new Color(0.2f, 1.0f, 0.4f, 0.95f);
+            Handles.DrawSolidDisc(pB, Vector3.forward, 0.30f);
+            Handles.Label(pB + new Vector3(0.4f, 0.4f, 0f), $"Точка {selectedRouteLine.waypoints.Count + 1} ({dist:F1}м) [ЛКМ / Enter]", EditorStyles.boldLabel);
+        }
+    }
+
+    private void DrawSingleRouteLineHandle(RouteGuideLine route)
+    {
+        if (route == null || route.waypoints == null || route.waypoints.Count == 0) return;
+
+        bool isSelected = (selectedRouteLine == route);
+
+        for (int i = 0; i < route.waypoints.Count; i++)
+        {
+            Vector3 ptPos = new Vector3(route.waypoints[i].x, route.waypoints[i].y, 0f);
+            bool isPointSelected = isSelected && (i == selectedRoutePointIndex);
+
+            if (isSelected)
+            {
+                if (isPointSelected)
+                {
+                    EditorGUI.BeginChangeCheck();
+                    Vector3 newPos = Handles.PositionHandle(ptPos, Quaternion.identity);
+                    if (EditorGUI.EndChangeCheck())
+                    {
+                        Undo.RecordObject(route, "Move Route Waypoint");
+                        route.waypoints[i] = new Vector2(newPos.x, newPos.y);
+                        cursorPosition = route.waypoints[i];
+                        route.UpdateVisuals();
+                        SafeMarkSceneDirty();
+                    }
+
+                    Handles.color = new Color(0.2f, 1.0f, 0.4f, 0.95f);
+                    Handles.DrawSolidDisc(ptPos, Vector3.forward, 0.40f);
+                    Handles.Label(ptPos + new Vector3(0.45f, 0.45f, 0f), $"★ Точка {i + 1}", EditorStyles.boldLabel);
+                }
+                else
+                {
+                    Handles.color = new Color(1.0f, 0.85f, 0.1f, 0.90f);
+                    Handles.DrawSolidDisc(ptPos, Vector3.forward, 0.28f);
+                    Handles.Label(ptPos + new Vector3(0.35f, 0.35f, 0f), $"{i + 1}", EditorStyles.miniBoldLabel);
+                }
+            }
+            else if (currentObjectType == ObjectType.RouteLine)
+            {
+                Handles.color = new Color(1.0f, 0.85f, 0.1f, 0.45f);
+                Handles.DrawSolidDisc(ptPos, Vector3.forward, 0.22f);
+            }
+        }
+    }
 
     private void DrawStandaloneTrucksHandles(SceneView sceneView)
     {
@@ -4258,7 +4910,7 @@ public class MapBuilderEditor : EditorWindow
     private void MoveCursor(Vector2 delta)
     {
         cursorPosition += delta;
-        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.Eraser)
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine)
         {
             SnapCursorToGrid();
         }
@@ -4321,7 +4973,7 @@ public class MapBuilderEditor : EditorWindow
         {
             currentRotation = PassengerCarObstacle.SnapAngle45(currentRotation);
         }
-        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.Eraser)
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine)
         {
             SnapCursorToGrid();
         }
@@ -4457,6 +5109,34 @@ public class MapBuilderEditor : EditorWindow
             GUI.Label(new Rect(24, 104, 330, 18), "[ЛКМ на карте] Удалить объект под курсором", helpStyle);
             GUI.Label(new Rect(24, 122, 330, 18), "[Enter / Space / Del] Удалить объект в позиции ластика", helpStyle);
             GUI.Label(new Rect(24, 140, 330, 18), "[WASD/Стрелки] Переместить ластик | [C] Сменить", helpStyle);
+        }
+        else if (currentObjectType == ObjectType.RouteLine)
+        {
+            GUI.Label(new Rect(24, 40, 330, 20), "Режим: <color=#ffd500>🛣️ Направляющая линия маршрута (Route)</color>", textStyle);
+            if (isDrawingRouteLine && selectedRouteLine != null)
+            {
+                int ptCount = selectedRouteLine.waypoints != null ? selectedRouteLine.waypoints.Count : 0;
+                GUI.Label(new Rect(24, 60, 330, 20), $"Рисование: <color=#55ff55>Точек: {ptCount}</color> | [Клик] след. точка", textStyle);
+                GUI.Label(new Rect(24, 80, 330, 20), "[Enter / Двойной клик] Завершить | [Esc] Отмена", textStyle);
+            }
+            else if (selectedRouteLine != null)
+            {
+                int ptCount = selectedRouteLine.waypoints != null ? selectedRouteLine.waypoints.Count : 0;
+                string ptStr = selectedRoutePointIndex >= 0 ? $"Точка {selectedRoutePointIndex + 1}/{ptCount}" : "Все точки";
+                GUI.Label(new Rect(24, 60, 330, 20), $"Выделена: {selectedRouteLine.name} ({ptCount} точек) | {ptStr}", textStyle);
+                GUI.Label(new Rect(24, 80, 330, 20), "[Tab/Enter] Точки | [Del] Удалить | [WASD] Двигать", textStyle);
+            }
+            else
+            {
+                GUI.Label(new Rect(24, 60, 330, 20), "Кликните в любом месте для начала нового маршрута", textStyle);
+                GUI.Label(new Rect(24, 80, 330, 20), "Или кликните по существующей линии для выбора", textStyle);
+            }
+
+            GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
+            helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
+            GUI.Label(new Rect(24, 104, 330, 18), "[ЛКМ] Добавить точку маршрута / Выбрать линию", helpStyle);
+            GUI.Label(new Rect(24, 122, 330, 18), "[Enter / Space] Завершить рисование / Переключить точку", helpStyle);
+            GUI.Label(new Rect(24, 140, 330, 18), "[Del] Удалить точку или линию | [Esc] Снять выбор", helpStyle);
         }
         else
         {
@@ -4659,12 +5339,21 @@ public class MapBuilderEditor : EditorWindow
 
         bool isEraser = currentObjectType == ObjectType.Eraser;
         GUI.backgroundColor = isEraser ? new Color(1f, 0.35f, 0.35f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 84, btnH), "🧹 12. Ластик"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 84, btnH), "🧹 19. Ластик"))
         {
             currentObjectType = ObjectType.Eraser;
             UpdateGhostPreview();
         }
         curBtnX += 86;
+
+        bool isRoute = currentObjectType == ObjectType.RouteLine;
+        GUI.backgroundColor = isRoute ? new Color(1f, 0.85f, 0.1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY, 94, btnH), "🛣️ 20. Маршрут"))
+        {
+            currentObjectType = ObjectType.RouteLine;
+            UpdateGhostPreview();
+        }
+        curBtnX += 96;
 
         GUI.backgroundColor = new Color(1f, 0.85f, 0.2f, 0.9f);
         if (GUI.Button(new Rect(curBtnX, btnY, 54, btnH), "⟳ 45°"))
@@ -4719,7 +5408,7 @@ public class MapBuilderEditor : EditorWindow
 
         Handles.EndGUI();
 
-        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser)
+        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine)
         {
             float slotWidth = GetSlotWidth(currentObjectType);
             float slotLength = (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow) ? 26.0f : SlotLength;
@@ -4983,6 +5672,31 @@ public class MapBuilderEditor : EditorWindow
         if (currentObjectType == ObjectType.Eraser)
         {
             EraseAtPosition(cursorPosition);
+            SceneView.RepaintAll();
+            return;
+        }
+
+        if (currentObjectType == ObjectType.RouteLine)
+        {
+            if (!isDrawingRouteLine || selectedRouteLine == null)
+            {
+                isDrawingRouteLine = true;
+                selectedRouteLine = CreateRouteLine(cursorPosition);
+                selectedRoutePointIndex = 0;
+            }
+            else
+            {
+                if (selectedRouteLine.waypoints == null) selectedRouteLine.waypoints = new List<Vector2>();
+                Vector2 lastPt = selectedRouteLine.waypoints.Count > 0 ? selectedRouteLine.waypoints[selectedRouteLine.waypoints.Count - 1] : cursorPosition;
+                if (Vector2.Distance(lastPt, cursorPosition) > 0.2f)
+                {
+                    Undo.RecordObject(selectedRouteLine, "Add Route Waypoint");
+                    selectedRouteLine.waypoints.Add(cursorPosition);
+                    selectedRoutePointIndex = selectedRouteLine.waypoints.Count - 1;
+                    selectedRouteLine.UpdateVisuals();
+                    SafeMarkSceneDirty();
+                }
+            }
             SceneView.RepaintAll();
             return;
         }
@@ -5313,7 +6027,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void BuildObjectHierarchy(Transform parent, ObjectType type, bool isPreview)
     {
-        if (type == ObjectType.MarkingLine || type == ObjectType.Wall || type == ObjectType.Eraser)
+        if (type == ObjectType.MarkingLine || type == ObjectType.Wall || type == ObjectType.Eraser || type == ObjectType.RouteLine)
         {
             return;
         }
@@ -5601,6 +6315,7 @@ public class SavedMapsWindow : EditorWindow
         if (Directory.Exists(MapBuilderEditor.CustomMapsFolder))
         {
             string[] files = Directory.GetFiles(MapBuilderEditor.CustomMapsFolder, "*.unity");
+            Array.Sort(files, (a, b) => MapSelectMenu.NaturalCompare(Path.GetFileNameWithoutExtension(a), Path.GetFileNameWithoutExtension(b)));
             foreach (string file in files)
             {
                 mapScenePaths.Add(file.Replace("\\", "/"));

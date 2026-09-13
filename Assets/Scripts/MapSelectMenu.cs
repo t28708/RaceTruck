@@ -185,6 +185,8 @@ public class MapSelectMenu : MonoBehaviour
                 availableMaps.Add(sceneName);
             }
         }
+
+        availableMaps.Sort(NaturalCompare);
     }
 
     public void LoadMap(string mapName)
@@ -645,22 +647,49 @@ public class MapSelectMenu : MonoBehaviour
 
     public static int NaturalCompare(string a, string b)
     {
-        int na = ExtractNumber(a);
-        int nb = ExtractNumber(b);
-        if (na != -1 && nb != -1 && na != nb) return na.CompareTo(nb);
-        return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
-    }
+        if (ReferenceEquals(a, b)) return 0;
+        if (a == null) return -1;
+        if (b == null) return 1;
 
-    private static int ExtractNumber(string s)
-    {
-        string numStr = "";
-        foreach (char c in s)
+        int ia = 0, ib = 0;
+        int lenA = a.Length, lenB = b.Length;
+
+        while (ia < lenA && ib < lenB)
         {
-            if (char.IsDigit(c)) numStr += c;
-            else if (numStr.Length > 0) break;
+            char ca = a[ia];
+            char cb = b[ib];
+
+            if (char.IsDigit(ca) && char.IsDigit(cb))
+            {
+                int startA = ia;
+                while (ia < lenA && char.IsDigit(a[ia])) ia++;
+                int startB = ib;
+                while (ib < lenB && char.IsDigit(b[ib])) ib++;
+
+                string numStrA = a.Substring(startA, ia - startA).TrimStart('0');
+                string numStrB = b.Substring(startB, ib - startB).TrimStart('0');
+
+                if (numStrA.Length != numStrB.Length)
+                {
+                    return numStrA.Length.CompareTo(numStrB.Length);
+                }
+
+                int numComp = string.CompareOrdinal(numStrA, numStrB);
+                if (numComp != 0) return numComp;
+
+                int origLenComp = (ia - startA).CompareTo(ib - startB);
+                if (origLenComp != 0) return origLenComp;
+            }
+            else
+            {
+                int charComp = char.ToLowerInvariant(ca).CompareTo(char.ToLowerInvariant(cb));
+                if (charComp != 0) return charComp;
+                ia++;
+                ib++;
+            }
         }
-        if (int.TryParse(numStr, out int val)) return val;
-        return -1;
+
+        return lenA.CompareTo(lenB);
     }
 
     private static GameObject CreateUIObject(string name, Transform parent)

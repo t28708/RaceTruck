@@ -10,70 +10,52 @@ EditorBuildSettings:
     guid: 7d2cb1d16335597449f588b0249828a0
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Alley dock V1.unity
+    guid: 47353e3424589e746bd43d3282dce034
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Alley dock V2.unity
+    guid: c2e7fbe01fa809e45a9f72ba933a079e
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Alley dock V3.unity
+    guid: e99433fc00757524c983c65cc4cd087f
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Alley dock V4.unity
+    guid: e3cbc4e2f61afc94585efa5993ecafc1
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Alley dock V10.unity
     guid: e0d491081e79d5747b5ffff47cf69718
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_11_angle_back-smaller.unity
-    guid: f68081eb28d450b40abd3de4467c1ee2
+    path: Assets/Scenes/CustomMaps/Alley dock V11.unity
+    guid: 679be288a07578b4d9ef7767ab1683e8
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_11_angle_back-standart.unity
+    path: Assets/Scenes/CustomMaps/Alley dock V12.unity
+    guid: 1b8992231bc097848a2142c78336a716
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Alley dock V13.unity
+    guid: 224c8029af684b74cabd89b9a1aeee86
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Alley dock V14.unity
+    guid: 5f831897c975bd640b88ffa49529f1da
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Alley dock V15.unity
+    guid: ec3dd78f649bddf49aeeded0ac8b4c85
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Alley dock V16.unity
+    guid: ce2fbd1f7e2bfd540ae5e529cd3f055c
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Angle back V1.unity
     guid: 0042c9073d63ffd4cbd155d0371b0703
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_12_truck_stop_left_V2.unity
-    guid: 2b4d316e983a2464abe2da60fffd5db1
+    path: Assets/Scenes/CustomMaps/Angle back V2.unity
+    guid: f68081eb28d450b40abd3de4467c1ee2
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_12_truck_stop_left_V3.unity
-    guid: 39cebf0e3b4c7f3478fa6912be497c6a
+    path: Assets/Scenes/CustomMaps/Angle back V3.unity
+    guid: a41784ccda56a674a89a4327efe2247d
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_12_truck_stop_small.unity
-    guid: f8e45dbb8ae60684c8a4b531bb68ae20
+    path: Assets/Scenes/CustomMaps/Facility V1.unity
+    guid: 48cc5de15a61d4a42b1878d6bfa4763c
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_12_truck_stop_standart.unity
-    guid: d0caac1461c9c844a98ca7e7b082a9c3
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_13.unity
-    guid: b875e09bcfb43a34fb5968c9f7eae8e9
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_14_kroger_ring_road.unity
-    guid: a14b7c8d9e0f1a2b3c4d5e6f7a8b9c0d
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_2.unity
-    guid: d700819544484f1419854be1d2bec925
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_3.unity
-    guid: 967b977f6fea5e544a95c64592b277a2
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_4-rest-area-small.unity
-    guid: f8fc8e3a1ebb0c5498524565a61b8229
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_4-rest-area.unity
-    guid: b4b8b566c5b02d2418b1e6f4d52fdbf1
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_4-V1.unity
-    guid: 93e3bc384d0d58445adb525c619b3a1b
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_4-V2.unity
-    guid: 29fe71d84ca63694184e1b7b151c134f
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_4-V3.unity
-    guid: 4f237584803bcbf40be36cddb483f669
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_5.unity
-    guid: 4f5311bb6b51ea34583f782f984f4260
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_6-standart-parking-small.unity
-    guid: 15c25927978c7f448954db50bba9c6c3
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_7-standart-parking-smaller.unity
-    guid: 88fbe4800867d184097bcdcf95b8389f
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_8-kroger-small.unity
-    guid: 67ac0f611aa6fcf44b653865ac215c2a
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_8-kroger-smaller.unity
-    guid: 6ccc74550b454454c9f0b8ff56bc6515
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Map_8-kroger.unity
-    guid: 36f9dc1e765ddd54085d2f319e8377d0
+    path: Assets/Scenes/CustomMaps/Facility V2.unity
+    guid: 6bad0ef03a6bbbb4b82ab4b3580209c4
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Parallel parking V1.unity
     guid: 42bf7609b95ede344984c7f4d3cf6b2f
@@ -86,6 +68,36 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Parallel parking V4.unity
     guid: 61ddc80e1ad92dd409d353befef3a0cf
-  m_configObjects:
-    com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
-  m_UseUCBPForAssetBundles: 0
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Parallel parking V5.unity
+    guid: ff5b63c4e4de6ba488ca9c068d8c8b82
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Parallel parking V6.unity
+    guid: 06385ef42ddd19641b83a32c9c71aef5
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Rest Area V1.unity
+    guid: 606e5cf274da37f44ab7059959d0b234
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Rest Area V2.unity
+    guid: 9820de291047fd34faad22688a1cefe6
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Truck stop V1.unity
+    guid: 6516df22556a41c42884dcde1df5d691
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Truck stop V2.unity
+    guid: 8232a1ec30d907847b073dbdbd62077d
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Truck stop V3.unity
+    guid: 4f03d6561483f2346b4ae7d677c5ccc7
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Truck stop V4.unity
+    guid: 1d300a3fc0187a641b18e3f23a5d5ded
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Truck stop V5.unity
+    guid: db4203f0ab036aa49b8bc9648cb73d82
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Truck stop V6.unity
+    guid: 2b4d316e983a2464abe2da60fffd5db1
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Truck Stop V7.unity
+    guid: 39cebf0e3b4c7f3478fa6912be497c6a

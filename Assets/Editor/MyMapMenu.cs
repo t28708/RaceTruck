@@ -97,6 +97,7 @@ public class MyMapLauncherWindow : EditorWindow
         if (Directory.Exists(MyMapMenu.CustomMapsFolder))
         {
             string[] files = Directory.GetFiles(MyMapMenu.CustomMapsFolder, "*.unity");
+            Array.Sort(files, (a, b) => MapSelectMenu.NaturalCompare(Path.GetFileNameWithoutExtension(a), Path.GetFileNameWithoutExtension(b)));
             foreach (string f in files)
                 maps.Add(Path.GetFileNameWithoutExtension(f));
         }

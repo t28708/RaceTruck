@@ -34,6 +34,7 @@ public static class RegisterScenesInBuild
         if (Directory.Exists(customMapsDir))
         {
             string[] files = Directory.GetFiles(customMapsDir, "*.unity");
+            Array.Sort(files, (a, b) => MapSelectMenu.NaturalCompare(Path.GetFileNameWithoutExtension(a), Path.GetFileNameWithoutExtension(b)));
             foreach (string file in files)
             {
                 string norm = file.Replace("\\", "/");
