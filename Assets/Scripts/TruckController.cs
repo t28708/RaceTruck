@@ -909,13 +909,17 @@ public class TruckController : MonoBehaviour
         {
             borderObj = new GameObject(name);
             borderObj.transform.SetParent(parent, false);
+            borderObj.transform.position = pos;
         }
         else
         {
             borderObj = lineTr.gameObject;
+            // If border already exists with collider (e.g. rotated yard), preserve its transform
+            if (borderObj.GetComponent<BoxCollider2D>() == null)
+            {
+                borderObj.transform.position = pos;
+            }
         }
-
-        borderObj.transform.position = pos;
 
         // Visual bold yellow boundary line
         SpriteRenderer sr = borderObj.GetComponent<SpriteRenderer>();

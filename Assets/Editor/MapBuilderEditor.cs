@@ -50,7 +50,7 @@ public class MapBuilderEditor : EditorWindow
         StandardEmptyNarrow = 5,  // 6. Узкое без трака (3.5м)
         TargetParkingNarrow = 6,  // 7. Целевое место парковки (3.5м, Единственное)
         RoadArrow = 7,            // 8. Стрелка направления (Указания на дороге)
-        Wall = 8,                 // 9. Стена-препятствие (Любой угол)
+        Wall = 8,                 // 9. Стена-препятствие (Прямой угол 90°)
         PassengerCar = 9,         // 10. Легковая машина (0°, 45°, 90°)
         StandaloneTruck = 10,     // 11. 🚛 Трак с прицепом (Любой угол)
         TrafficCone = 11,         // 12. 🔶 Конус (0.5×0.5м)
@@ -60,7 +60,8 @@ public class MapBuilderEditor : EditorWindow
         HazardBarrel = 15,        // 16. 🛢️ Бочка (0.8×0.8м)
         TireStack = 16,           // 17. 🔘 Стопка шин (1.1×1.1м)
         Eraser = 17,              // 18. 🧹 Ластик / Удаление (Клик по объекту)
-        RouteLine = 18            // 19. 🛣️ Направляющая линия маршрута (Полилиния / Route)
+        RouteLine = 18,           // 19. 🛣️ Направляющая линия маршрута (Полилиния / Route)
+        Lawn = 19                 // 20. 🌱 Газон (Замкнутая область 45°/90°)
     }
 
     public const string CustomMapsFolder = "Assets/Scenes/CustomMaps";
@@ -74,6 +75,7 @@ public class MapBuilderEditor : EditorWindow
     private const string StandaloneTrucksContainerName = "MapBuilder_TruckObstacles";
     private const string PropsContainerName = "MapBuilder_Props";
     private const string RoutesContainerName = "MapBuilder_Routes";
+    private const string LawnsContainerName = "MapBuilder_Lawns";
     private const string GhostPreviewName = "__MapBuilder_GhostPreview__";
 
     public const float SlotWidth = 4.5f;         // Фиксированная ширина стандартного места (4.5м)
@@ -94,7 +96,17 @@ public class MapBuilderEditor : EditorWindow
     [SerializeField] private float currentRotation = 0f; // 0, 90, 180, 270 degrees
     [SerializeField] private bool builderActive = true;
     [SerializeField] private bool showVisualGrid = false;
+    public enum DiagonalRoadAxis
+    {
+        Horizontal = 0, // Горизонтальный проезд (вдоль оси X карты)
+        Vertical = 1,   // Вертикальный проезд (вдоль оси Y карты)
+        Auto = 2        // Автоматически по ориентации слота
+    }
+
     [SerializeField] private bool autoAdvanceAfterPlacement = true;
+    [SerializeField] private DiagonalRoadAxis diagonalRoadAxis = DiagonalRoadAxis.Horizontal;
+    [SerializeField] private bool diagonalAlignToMapRotation = false;
+    [SerializeField] private float mapRotation = 0.0f;
     [SerializeField] private bool snapMouseClick = true;
     [SerializeField] private bool showControlsOverlay = true;
     [SerializeField] private string mapName = "MyParkingMap_1";
@@ -136,6 +148,23 @@ public class MapBuilderEditor : EditorWindow
 
     // Prop Obstacles tool state (any angle)
     [SerializeField] private PropObstacle selectedProp = null;
+
+    // Lawn / Grass Area Tool state (Strictly 45° & 90°, closed polygon)
+    [SerializeField] private LawnArea selectedLawn = null;
+    [SerializeField] private int selectedLawnPointIndex = -1;
+    [SerializeField] private bool isDrawingLawn = false;
+    [SerializeField] private List<Vector2> currentLawnDrawingPoints = new List<Vector2>();
+    [SerializeField] private Color lawnGrassColor = Color.white;
+    [SerializeField] private bool lawnUseTexture = true;
+    [SerializeField] private float lawnTextureTileSize = 4.0f;
+    [SerializeField] private bool lawnShowCurb = true;
+    [SerializeField] private float lawnCurbWidth = 0.28f;
+    [SerializeField] private Color lawnCurbColor = Color.white;
+    [SerializeField] private float lawnCornerRadius = 0.5f;
+    [SerializeField] private bool lawnShowCornerMulch = true;
+    [SerializeField] private bool lawnShowFlowers = true;
+    [SerializeField] private bool lawnIsObstacle = true;
+    [SerializeField] private bool lawnAlignToMapRotation = true;
 
     // Route / Polyline Guide Tool state
     [SerializeField] private RouteGuideLine selectedRouteLine = null;
@@ -180,7 +209,7 @@ public class MapBuilderEditor : EditorWindow
         "6. Узкое без трака (3.5м)",
         "7. Целевое место парковки (3.5м, Единственное)",
         "8. Стрелка направления (Указания на дороге)",
-        "9. Стена-препятствие (Любой угол)",
+        "9. Стена-препятствие (Прямой угол 90°)",
         "10. Легковая машина (0°, 45°, 90°)",
         "11. 🚛 Трак с прицепом (Любой угол)",
         "12. 🔶 Конус (0.5×0.5м)",
@@ -190,7 +219,8 @@ public class MapBuilderEditor : EditorWindow
         "16. 🛢️ Бочка (0.8×0.8м)",
         "17. 🔘 Стопка шин (1.1×1.1м)",
         "18. 🧹 Ластик / Удаление (Клик по объекту)",
-        "19. 🛣️ Направляющая линия маршрута (Полилиния / Route)"
+        "19. 🛣️ Направляющая линия маршрута (Полилиния / Route)",
+        "20. 🌱 Газон (Замкнутая область 45°/90°)"
     };
 
     [MenuItem("Tools/Map Builder/Open Editor", false, 1)]
@@ -378,6 +408,7 @@ public class MapBuilderEditor : EditorWindow
         MapData mapData = FindFirstObjectByType<MapData>();
         if (mapData != null)
         {
+            mapRotation = mapData.mapRotation;
             // First check if AsphaltGround SpriteRenderer has size
             Transform groundTr = mapData.transform.Find("AsphaltGround");
             if (groundTr == null)
@@ -498,7 +529,7 @@ public class MapBuilderEditor : EditorWindow
     private Vector2 GetMagneticSnappedPosition(Vector2 rawPos, float rot)
     {
         // Only apply magnetic snap for parking stalls (StandardEmpty, StandardParked, TargetParking)
-        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine) return rawPos;
+        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine || currentObjectType == ObjectType.Lawn) return rawPos;
 
         GameObject workspace = GameObject.Find(WorkspaceRootName);
         if (workspace == null) return rawPos;
@@ -530,11 +561,14 @@ public class MapBuilderEditor : EditorWindow
             float currentWidth = GetSlotWidth(currentObjectType);
             float sideOffset = (childWidth + currentWidth) * 0.5f;
 
-            // Candidate snap points: only direct adjacent neighbor slots (+/- side or +/- 26m end)
+            // Candidate snap points: adjacent slots along road/side or +/- 26m end
+            Vector2 advNext = CalculateNextSlotAdvance(currentObjectType, childAngle, false);
+            Vector2 advPrev = CalculateNextSlotAdvance(currentObjectType, childAngle, true);
+
             Vector2[] candidateSnapPoints = new Vector2[]
             {
-                childPos + childRight * sideOffset, // +1 slot right
-                childPos - childRight * sideOffset, // -1 slot left
+                childPos + advNext,                // +1 slot along road / side
+                childPos + advPrev,                // -1 slot along road / side
                 childPos + childUp * SlotLength,   // end-to-end forward (26.0m)
                 childPos - childUp * SlotLength    // end-to-end backward (26.0m)
             };
@@ -558,9 +592,136 @@ public class MapBuilderEditor : EditorWindow
 
     #region Grid Snapping Math
 
+    public Vector2 GetRoadDirection(float slotAngle)
+    {
+        Vector2 horizAxis = Vector2.right;
+        Vector2 vertAxis = Vector2.up;
+
+        if (diagonalAlignToMapRotation && Mathf.Abs(mapRotation) > 0.01f)
+        {
+            horizAxis = Quaternion.Euler(0f, 0f, mapRotation) * Vector3.right;
+            vertAxis = Quaternion.Euler(0f, 0f, mapRotation) * Vector3.up;
+        }
+
+        if (diagonalRoadAxis == DiagonalRoadAxis.Vertical)
+        {
+            return vertAxis;
+        }
+        else if (diagonalRoadAxis == DiagonalRoadAxis.Horizontal)
+        {
+            return horizAxis;
+        }
+        else // Auto
+        {
+            Vector2 stallForward = (Quaternion.Euler(0f, 0f, slotAngle) * Vector3.up);
+            float dotH = Mathf.Abs(Vector2.Dot(stallForward.normalized, horizAxis.normalized));
+            float dotV = Mathf.Abs(Vector2.Dot(stallForward.normalized, vertAxis.normalized));
+
+            if (dotH <= dotV)
+            {
+                return horizAxis;
+            }
+            else
+            {
+                return vertAxis;
+            }
+        }
+    }
+
+    public Vector2 CalculateNextSlotAdvance(ObjectType slotType, float rotation, bool reverseAdvance)
+    {
+        float slotWidth;
+        if (slotType == ObjectType.PassengerCar)
+        {
+            slotWidth = 2.75f;
+        }
+        else if (slotType == ObjectType.StandaloneTruck)
+        {
+            slotWidth = 4.5f;
+        }
+        else
+        {
+            slotWidth = GetSlotWidth(slotType);
+        }
+
+        Vector2 roadDir = GetRoadDirection(rotation);
+        if (roadDir.sqrMagnitude < 0.001f)
+        {
+            roadDir = Vector2.right;
+        }
+        roadDir.Normalize();
+
+        Vector2 stallForward = (Quaternion.Euler(0f, 0f, rotation) * Vector3.up);
+        Vector2 stallRight = (Quaternion.Euler(0f, 0f, rotation) * Vector3.right);
+
+        // Acute angle between stall length axis and road direction
+        float dotFwd = Mathf.Abs(Vector2.Dot(stallForward.normalized, roadDir));
+        dotFwd = Mathf.Clamp01(dotFwd);
+        float angleToRoadRad = Mathf.Acos(dotFwd);
+        float angleToRoadDeg = angleToRoadRad * Mathf.Rad2Deg;
+
+        // If stall is nearly parallel to road (acute angle < 5 deg), advance sideways along stallRight
+        if (angleToRoadDeg < 5.0f)
+        {
+            float sign = reverseAdvance ? -1f : 1f;
+            return stallRight * (slotWidth * sign);
+        }
+
+        // If stall is perpendicular to road (89° to 91°), standard orthogonal advance along road
+        if (angleToRoadDeg > 89.0f)
+        {
+            float proj = Vector2.Dot(stallRight, roadDir);
+            float orthoSign = proj >= 0f ? 1.0f : -1.0f;
+            if (reverseAdvance) orthoSign = -orthoSign;
+            return roadDir * (slotWidth * orthoSign);
+        }
+
+        // Diagonal parking geometry (Saw-tooth stepped curb pattern)
+        // Step distance along road axis: stepDistance = slotWidth / sin(angleToRoadRad)
+        float sinVal = Mathf.Sin(angleToRoadRad);
+        if (sinVal < 0.05f) sinVal = 1.0f;
+        float stepDistance = slotWidth / sinVal;
+
+        // Determine direction along road (aligned with stall's rightward side)
+        float projRight = Vector2.Dot(stallRight, roadDir);
+        float dirSign = projRight >= 0f ? 1.0f : -1.0f;
+        if (reverseAdvance)
+        {
+            dirSign = -dirSign;
+        }
+
+        return roadDir * (dirSign * stepDistance);
+    }
+
+    private void DrawQuickSelectBtn(string label, ObjectType objType, Color? activeColor = null)
+    {
+        bool isSelected = (currentObjectType == objType);
+        Color prevBg = GUI.backgroundColor;
+        if (isSelected)
+        {
+            GUI.backgroundColor = activeColor ?? new Color(0.2f, 0.8f, 1f, 1f);
+        }
+        else
+        {
+            GUI.backgroundColor = new Color(0.90f, 0.90f, 0.90f, 1f);
+        }
+
+        if (GUILayout.Button(label, GUILayout.Height(isSelected ? 26 : 22)))
+        {
+            currentObjectType = objType;
+            if (currentObjectType != ObjectType.TruckStartPoint)
+            {
+                SnapCursorToGrid();
+            }
+            UpdateGhostPreview();
+            SceneView.RepaintAll();
+        }
+        GUI.backgroundColor = prevBg;
+    }
+
     private void SnapCursorToGrid()
     {
-        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine) return;
+        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine || currentObjectType == ObjectType.Lawn) return;
 
         float rem = Mathf.Abs(currentRotation) % 90f;
         if (rem > 1.0f && rem < 89.0f)
@@ -756,10 +917,14 @@ public class MapBuilderEditor : EditorWindow
 
     #region Map Sizing & Dimension Controls
 
-    public void SetMapDimensions(float newWidth, float newHeight)
+    public void SetMapDimensions(float newWidth, float newHeight, float newRotation = float.NaN)
     {
         mapWidth = Mathf.Clamp(newWidth, 15.0f, 150.0f);
         mapHeight = Mathf.Clamp(newHeight, 25.0f, 250.0f);
+        if (!float.IsNaN(newRotation))
+        {
+            mapRotation = NormalizeAngle(newRotation);
+        }
 
         GameObject workspace = GameObject.Find(WorkspaceRootName);
         if (workspace == null)
@@ -772,15 +937,20 @@ public class MapBuilderEditor : EditorWindow
         {
             MapData mapData = workspace.GetComponent<MapData>();
             if (mapData == null) mapData = workspace.AddComponent<MapData>();
-            mapData.SetDimensions(mapWidth, mapHeight);
+            mapData.SetDimensions(mapWidth, mapHeight, mapRotation);
 
-            Vector3 center = new Vector3(mapWidth * 0.5f, mapHeight * 0.5f, 0f);
+            Quaternion yardRot = Quaternion.Euler(0f, 0f, mapRotation);
+            float halfW = mapWidth * 0.5f;
+            float halfH = mapHeight * 0.5f;
+            Vector3 center = yardRot * new Vector3(halfW, halfH, 0f);
 
-            // 1. Update Asphalt
+            // 1. Update Asphalt Ground
             Transform groundTr = workspace.transform.Find("AsphaltGround");
             if (groundTr != null)
             {
                 groundTr.position = center;
+                groundTr.rotation = yardRot;
+                groundTr.localScale = Vector3.one;
                 SpriteRenderer sr = groundTr.GetComponent<SpriteRenderer>();
                 if (sr != null)
                 {
@@ -792,10 +962,14 @@ public class MapBuilderEditor : EditorWindow
             Transform borderTr = workspace.transform.Find("YardBorders");
             if (borderTr != null)
             {
-                UpdateBorderLine(borderTr, "Border_Bottom", new Vector3(mapWidth * 0.5f, 0f, 0f), new Vector2(mapWidth + 2f, 1.0f), new Vector2(mapWidth + 10f, 4.0f), new Vector2(0f, -1.5f));
-                UpdateBorderLine(borderTr, "Border_Top", new Vector3(mapWidth * 0.5f, mapHeight, 0f), new Vector2(mapWidth + 2f, 1.0f), new Vector2(mapWidth + 10f, 4.0f), new Vector2(0f, 1.5f));
-                UpdateBorderLine(borderTr, "Border_Left", new Vector3(0f, mapHeight * 0.5f, 0f), new Vector2(1.0f, mapHeight + 2f), new Vector2(4.0f, mapHeight + 10f), new Vector2(-1.5f, 0f));
-                UpdateBorderLine(borderTr, "Border_Right", new Vector3(mapWidth, mapHeight * 0.5f, 0f), new Vector2(1.0f, mapHeight + 2f), new Vector2(4.0f, mapHeight + 10f), new Vector2(1.5f, 0f));
+                borderTr.position = center;
+                borderTr.rotation = yardRot;
+                borderTr.localScale = Vector3.one;
+
+                UpdateBorderLine(borderTr, "Border_Bottom", new Vector3(0f, -halfH, 0f), new Vector2(mapWidth + 2f, 1.0f), new Vector2(mapWidth + 10f, 4.0f), new Vector2(0f, -1.5f));
+                UpdateBorderLine(borderTr, "Border_Top", new Vector3(0f, halfH, 0f), new Vector2(mapWidth + 2f, 1.0f), new Vector2(mapWidth + 10f, 4.0f), new Vector2(0f, 1.5f));
+                UpdateBorderLine(borderTr, "Border_Left", new Vector3(-halfW, 0f, 0f), new Vector2(1.0f, mapHeight + 2f), new Vector2(4.0f, mapHeight + 10f), new Vector2(-1.5f, 0f));
+                UpdateBorderLine(borderTr, "Border_Right", new Vector3(halfW, 0f, 0f), new Vector2(1.0f, mapHeight + 2f), new Vector2(4.0f, mapHeight + 10f), new Vector2(1.5f, 0f));
             }
 
             SafeMarkSceneDirty();
@@ -803,12 +977,37 @@ public class MapBuilderEditor : EditorWindow
         }
     }
 
-    private void UpdateBorderLine(Transform parent, string name, Vector3 pos, Vector2 spriteSize, Vector2 colSize, Vector2 colOffset)
+    private static float NormalizeAngle(float angle)
+    {
+        angle = angle % 360f;
+        if (angle > 180f) angle -= 360f;
+        if (angle < -180f) angle += 360f;
+        return angle;
+    }
+
+    public void SetYardRotation(float newAngle)
+    {
+        mapRotation = NormalizeAngle(newAngle);
+        SetMapDimensions(mapWidth, mapHeight, mapRotation);
+        if (SceneView.lastActiveSceneView != null)
+        {
+            SceneView.lastActiveSceneView.ShowNotification(new GUIContent($"🔄 Поворот площадки: {mapRotation:F0}°"));
+        }
+    }
+
+    public void AdjustYardRotation(float deltaAngle)
+    {
+        SetYardRotation(mapRotation + deltaAngle);
+    }
+
+    private void UpdateBorderLine(Transform parent, string name, Vector3 localPos, Vector2 spriteSize, Vector2 colSize, Vector2 colOffset)
     {
         Transform lineTr = parent.Find(name);
         if (lineTr != null)
         {
-            lineTr.position = pos;
+            lineTr.localPosition = localPos;
+            lineTr.localRotation = Quaternion.identity;
+            lineTr.localScale = Vector3.one;
             SpriteRenderer sr = lineTr.GetComponent<SpriteRenderer>();
             if (sr != null)
             {
@@ -823,7 +1022,7 @@ public class MapBuilderEditor : EditorWindow
         }
         else
         {
-            CreateBorderLine(name, parent, pos, spriteSize, colSize, colOffset);
+            CreateBorderLine(name, parent, localPos, spriteSize, colSize, colOffset);
         }
     }
 
@@ -989,7 +1188,25 @@ public class MapBuilderEditor : EditorWindow
                 }
             }
 
-            Transform routesContainer = workspace.transform.Find(RoutesContainerName);
+            Transform lawnsContainer = workspace.transform.Find(LawnsContainerName);
+        if (lawnsContainer != null)
+        {
+            if (!EditorApplication.isPlaying) Undo.RegisterFullObjectHierarchyUndo(lawnsContainer.gameObject, "Shift Lawns");
+            for (int i = 0; i < lawnsContainer.childCount; i++)
+            {
+                LawnArea lawn = lawnsContainer.GetChild(i).GetComponent<LawnArea>();
+                if (lawn != null && lawn.points != null)
+                {
+                    for (int p = 0; p < lawn.points.Count; p++)
+                    {
+                        lawn.points[p] += delta;
+                    }
+                    lawn.UpdateVisuals();
+                }
+            }
+        }
+
+        Transform routesContainer = workspace.transform.Find(RoutesContainerName);
             if (routesContainer != null)
             {
                 if (!EditorApplication.isPlaying) Undo.RegisterFullObjectHierarchyUndo(routesContainer.gameObject, "Shift Route Lines");
@@ -1107,6 +1324,174 @@ public class MapBuilderEditor : EditorWindow
         return bestLine;
     }
 
+    #region Wall Snapping & Lawn Area Management
+
+    public Vector2 SnapWallPointToRightAngle(Vector2 start, Vector2 target)
+    {
+        Vector2 delta = target - start;
+        if (delta.magnitude < 0.05f) return target;
+
+        float baseAngle = mapRotation;
+        float currentAngle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
+        float relAngle = currentAngle - baseAngle;
+
+        float snappedRelAngle = Mathf.Round(relAngle / 90f) * 90f;
+        float finalAngleRad = (snappedRelAngle + baseAngle) * Mathf.Deg2Rad;
+
+        Vector2 dir = new Vector2(Mathf.Cos(finalAngleRad), Mathf.Sin(finalAngleRad));
+        float projectedLength = Vector2.Dot(delta, dir);
+        if (projectedLength < 0.2f) projectedLength = 0.2f;
+
+        return start + dir * projectedLength;
+    }
+
+    public Vector2 SnapPointTo45Degrees(Vector2 start, Vector2 target)
+    {
+        Vector2 delta = target - start;
+        if (delta.magnitude < 0.05f) return target;
+
+        float baseAngle = (mapRotation != 0f && lawnAlignToMapRotation) ? mapRotation : 0f;
+        float currentAngle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
+        float relAngle = currentAngle - baseAngle;
+
+        float snappedRelAngle = Mathf.Round(relAngle / 45f) * 45f;
+        float finalAngleRad = (snappedRelAngle + baseAngle) * Mathf.Deg2Rad;
+
+        Vector2 dir = new Vector2(Mathf.Cos(finalAngleRad), Mathf.Sin(finalAngleRad));
+        float projectedLength = Vector2.Dot(delta, dir);
+        if (projectedLength < 0.2f) projectedLength = 0.2f;
+
+        return start + dir * projectedLength;
+    }
+
+    public LawnArea CreateLawn(List<Vector2> pts)
+    {
+        if (pts == null || pts.Count < 3) return null;
+
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null)
+        {
+            EnsureCleanWorkPlane(clearExistingScene: false);
+            workspace = GameObject.Find(WorkspaceRootName);
+        }
+
+        Transform container = workspace.transform.Find(LawnsContainerName);
+        if (container == null)
+        {
+            GameObject containerGo = new GameObject(LawnsContainerName);
+            containerGo.transform.SetParent(workspace.transform, false);
+            container = containerGo.transform;
+            SafeRegisterCreatedObjectUndo(containerGo, "Create Lawns Container");
+        }
+
+        int index = container.childCount + 1;
+        GameObject lawnGo = new GameObject($"Lawn_{index}");
+        lawnGo.transform.SetParent(container, false);
+        lawnGo.transform.position = Vector3.zero;
+        lawnGo.transform.rotation = Quaternion.identity;
+
+        LawnArea lawn = lawnGo.AddComponent<LawnArea>();
+        lawn.points = new List<Vector2>(pts);
+        lawn.grassColor = lawnGrassColor;
+        lawn.useTexture = lawnUseTexture;
+        lawn.textureTileSize = lawnTextureTileSize;
+        lawn.showCurb = lawnShowCurb;
+        lawn.curbWidth = lawnCurbWidth;
+        lawn.curbColor = lawnCurbColor;
+        lawn.cornerRadius = lawnCornerRadius;
+        lawn.showCornerMulch = lawnShowCornerMulch;
+        lawn.showFlowers = lawnShowFlowers;
+        lawn.isObstacle = lawnIsObstacle;
+        lawn.UpdateVisuals();
+
+        SafeRegisterCreatedObjectUndo(lawnGo, "Create Lawn Area");
+        SafeMarkSceneDirty();
+        return lawn;
+    }
+
+    public void ClearAllLawns()
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace != null)
+        {
+            Transform container = workspace.transform.Find(LawnsContainerName);
+            if (container != null)
+            {
+                if (!EditorApplication.isPlaying)
+                {
+                    Undo.RegisterFullObjectHierarchyUndo(container.gameObject, "Clear All Lawns");
+                }
+                for (int i = container.childCount - 1; i >= 0; i--)
+                {
+                    SafeDestroyObject(container.GetChild(i).gameObject);
+                }
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+        }
+        selectedLawn = null;
+        selectedLawnPointIndex = -1;
+        isDrawingLawn = false;
+        currentLawnDrawingPoints.Clear();
+    }
+
+    private LawnArea FindLawnNear(Vector2 worldPos, float maxDist, out int pointIndex)
+    {
+        pointIndex = -1;
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null) return null;
+        Transform container = workspace.transform.Find(LawnsContainerName);
+        if (container == null) return null;
+
+        LawnArea bestLawn = null;
+        float bestDist = maxDist;
+
+        for (int i = 0; i < container.childCount; i++)
+        {
+            LawnArea lawn = container.GetChild(i).GetComponent<LawnArea>();
+            if (lawn == null || lawn.points == null || lawn.points.Count == 0) continue;
+
+            for (int w = 0; w < lawn.points.Count; w++)
+            {
+                float d = Vector2.Distance(worldPos, lawn.points[w]);
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    bestLawn = lawn;
+                    pointIndex = w;
+                }
+            }
+
+            for (int w = 0; w < lawn.points.Count; w++)
+            {
+                Vector2 a = lawn.points[w];
+                Vector2 b = lawn.points[(w + 1) % lawn.points.Count];
+                float dSeg = DistanceToSegment(worldPos, a, b);
+                if (dSeg < bestDist)
+                {
+                    bestDist = dSeg;
+                    bestLawn = lawn;
+                    float d1 = Vector2.Distance(worldPos, a);
+                    float d2 = Vector2.Distance(worldPos, b);
+                    pointIndex = (d2 < d1) ? ((w + 1) % lawn.points.Count) : w;
+                }
+            }
+
+            if (lawn.IsPointInside(worldPos))
+            {
+                if (bestLawn == null)
+                {
+                    bestLawn = lawn;
+                    pointIndex = 0;
+                }
+            }
+        }
+
+        return bestLawn;
+    }
+
+    #endregion
+
     public RouteGuideLine CreateRouteLine(Vector2 firstPoint)
     {
         GameObject workspace = GameObject.Find(WorkspaceRootName);
@@ -1170,6 +1555,10 @@ public class MapBuilderEditor : EditorWindow
         selectedRouteLine = null;
         selectedRoutePointIndex = -1;
         isDrawingRouteLine = false;
+        selectedLawn = null;
+        selectedLawnPointIndex = -1;
+        isDrawingLawn = false;
+        currentLawnDrawingPoints.Clear();
     }
 
     private RouteGuideLine FindRouteLineNear(Vector2 worldPos, float maxDist, out int pointIndex)
@@ -1818,6 +2207,21 @@ public class MapBuilderEditor : EditorWindow
             erased = true;
         }
 
+        // 1.05 Check Lawns
+        if (!erased)
+        {
+            LawnArea hitLawn = FindLawnNear(worldPos, 1.8f, out _);
+            if (hitLawn != null)
+            {
+                erasedName = hitLawn.gameObject.name;
+                SafeDestroyObject(hitLawn.gameObject);
+                selectedLawn = null;
+                selectedLawnPointIndex = -1;
+                isDrawingLawn = false;
+                erased = true;
+            }
+        }
+
         // 1.1 Check Route Lines
         if (!erased)
         {
@@ -2049,7 +2453,8 @@ public class MapBuilderEditor : EditorWindow
 
         float yardWidth = mapWidth;
         float yardHeight = mapHeight;
-        Vector3 yardCenter = new Vector3(yardWidth * 0.5f, yardHeight * 0.5f, 0f);
+        Quaternion yardRot = Quaternion.Euler(0f, 0f, mapRotation);
+        Vector3 yardCenter = yardRot * new Vector3(yardWidth * 0.5f, yardHeight * 0.5f, 0f);
 
         GameObject workspace = GameObject.Find(WorkspaceRootName);
         if (workspace == null)
@@ -2060,7 +2465,7 @@ public class MapBuilderEditor : EditorWindow
 
         MapData wsMapData = workspace.GetComponent<MapData>();
         if (wsMapData == null) wsMapData = workspace.AddComponent<MapData>();
-        wsMapData.SetDimensions(mapWidth, mapHeight);
+        wsMapData.SetDimensions(mapWidth, mapHeight, mapRotation);
 
         Transform groundTr = workspace.transform.Find("AsphaltGround");
         if (groundTr == null)
@@ -2068,6 +2473,7 @@ public class MapBuilderEditor : EditorWindow
             GameObject ground = new GameObject("AsphaltGround");
             ground.transform.SetParent(workspace.transform, false);
             ground.transform.position = yardCenter;
+            ground.transform.rotation = yardRot;
             ground.transform.localScale = Vector3.one;
 
             SpriteRenderer sr = ground.AddComponent<SpriteRenderer>();
@@ -2393,6 +2799,43 @@ public class MapBuilderEditor : EditorWindow
             AdjustMapWidth(+4.5f);
         }
         EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.Space(4);
+        EditorGUILayout.LabelField("🔄 Поворот площадки вокруг оси:", EditorStyles.boldLabel);
+
+        EditorGUI.BeginChangeCheck();
+        float newRot = EditorGUILayout.Slider("Угол поворота (°)", mapRotation, -180f, 180f);
+        if (EditorGUI.EndChangeCheck())
+        {
+            SetYardRotation(newRot);
+        }
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("↺ -15°", GUILayout.Height(24)))
+        {
+            AdjustYardRotation(-15f);
+        }
+        if (GUILayout.Button("↻ +15°", GUILayout.Height(24)))
+        {
+            AdjustYardRotation(+15f);
+        }
+        if (GUILayout.Button("↺ -45°", GUILayout.Height(24)))
+        {
+            AdjustYardRotation(-45f);
+        }
+        if (GUILayout.Button("↻ +45°", GUILayout.Height(24)))
+        {
+            AdjustYardRotation(+45f);
+        }
+        if (GUILayout.Button("⟲ 90°", GUILayout.Height(24)))
+        {
+            AdjustYardRotation(90f);
+        }
+        if (GUILayout.Button("0° Сброс", GUILayout.Height(24)))
+        {
+            SetYardRotation(0f);
+        }
+        EditorGUILayout.EndHorizontal();
         EditorGUILayout.EndVertical();
 
         EditorGUILayout.Space(4);
@@ -2446,6 +2889,37 @@ public class MapBuilderEditor : EditorWindow
             SceneView.RepaintAll();
         }
 
+        EditorGUILayout.Space(4);
+        EditorGUILayout.LabelField("Быстрый выбор объекта:", EditorStyles.miniBoldLabel);
+
+        // Quick button row 1: Stalls & Vehicles
+        EditorGUILayout.BeginHorizontal();
+        DrawQuickSelectBtn("🅿 4.5м", ObjectType.StandardEmpty);
+        DrawQuickSelectBtn("🚛 4.5м", ObjectType.StandardParked);
+        DrawQuickSelectBtn("🅿 3.5м", ObjectType.StandardEmptyNarrow);
+        DrawQuickSelectBtn("🎯 Цель", ObjectType.TargetParking);
+        DrawQuickSelectBtn("🏁 Старт", ObjectType.TruckStartPoint);
+        EditorGUILayout.EndHorizontal();
+
+        // Quick button row 2: Key Drawing Tools (Prominent Lawn button!)
+        EditorGUILayout.BeginHorizontal();
+        DrawQuickSelectBtn("🌱 ГАЗОН (45°/90°)", ObjectType.Lawn, new Color(0.25f, 0.90f, 0.35f, 1f));
+        DrawQuickSelectBtn("🧱 Стена 90°", ObjectType.Wall, new Color(0.85f, 0.5f, 0.2f, 1f));
+        DrawQuickSelectBtn("🖊 Разметка", ObjectType.MarkingLine, new Color(0.95f, 0.9f, 0.2f, 1f));
+        DrawQuickSelectBtn("🛣️ Маршрут", ObjectType.RouteLine, new Color(1f, 0.85f, 0.1f, 1f));
+        DrawQuickSelectBtn("🧹 Ластик", ObjectType.Eraser, new Color(1f, 0.35f, 0.35f, 1f));
+        EditorGUILayout.EndHorizontal();
+
+        // Quick button row 3: Vehicles & Props
+        EditorGUILayout.BeginHorizontal();
+        DrawQuickSelectBtn("🚗 Авто", ObjectType.PassengerCar);
+        DrawQuickSelectBtn("🚛 Трак", ObjectType.StandaloneTruck);
+        DrawQuickSelectBtn("➜ Стрелка", ObjectType.RoadArrow);
+        DrawQuickSelectBtn("🔶 Конус", ObjectType.TrafficCone);
+        DrawQuickSelectBtn("🧱 Блок", ObjectType.ConcreteBarrier);
+        DrawQuickSelectBtn("🛢️ Бочка", ObjectType.HazardBarrel);
+        EditorGUILayout.EndHorizontal();
+
         EditorGUILayout.Space(6);
         EditorGUILayout.LabelField("Параметры положения и поворота:", EditorStyles.boldLabel);
         EditorGUI.BeginChangeCheck();
@@ -2459,6 +2933,14 @@ public class MapBuilderEditor : EditorWindow
 
         EditorGUILayout.Space(4);
         autoAdvanceAfterPlacement = EditorGUILayout.Toggle("Автосдвиг к следующему краю", autoAdvanceAfterPlacement);
+        if (autoAdvanceAfterPlacement)
+        {
+            diagonalRoadAxis = (DiagonalRoadAxis)EditorGUILayout.EnumPopup("Ось дороги (диагональ)", diagonalRoadAxis);
+            if (Mathf.Abs(mapRotation) > 0.01f)
+            {
+                diagonalAlignToMapRotation = EditorGUILayout.Toggle("Привязка к углу карты", diagonalAlignToMapRotation);
+            }
+        }
 
         // Marking Lines Manual Configuration Section
         EditorGUILayout.Space(6);
@@ -2619,12 +3101,14 @@ public class MapBuilderEditor : EditorWindow
             GUI.backgroundColor = new Color(0.3f, 0.9f, 0.3f, 1f);
             if (GUILayout.Button("✓ Фиксировать отрезок (Enter)", GUILayout.Height(26)))
             {
-                if (Vector2.Distance(wallStartPoint, cursorPosition) > 0.2f)
+                Vector2 snappedPos = SnapWallPointToRightAngle(wallStartPoint, cursorPosition);
+                if (Vector2.Distance(wallStartPoint, snappedPos) > 0.2f)
                 {
-                    WallObstacle newWall = CreateWall(wallStartPoint, cursorPosition, wallThickness, wallColor);
+                    WallObstacle newWall = CreateWall(wallStartPoint, snappedPos, wallThickness, wallColor);
                     selectedWall = newWall;
                     selectedWallPointIndex = 1;
-                    wallStartPoint = cursorPosition;
+                    wallStartPoint = snappedPos;
+                    cursorPosition = snappedPos;
                 }
             }
             GUI.backgroundColor = new Color(1f, 0.6f, 0.2f, 1f);
@@ -2929,7 +3413,8 @@ public class MapBuilderEditor : EditorWindow
         {
             if (EditorUtility.DisplayDialog("Очистить маршруты", "Удалить все нарисованные направляющие линии маршрута?", "Да, удалить", "Отмена"))
             {
-                ClearAllRouteLines();
+                ClearAllLawns();
+        ClearAllRouteLines();
             }
         }
         EditorGUILayout.EndHorizontal();
@@ -3028,6 +3513,182 @@ public class MapBuilderEditor : EditorWindow
         }
         EditorGUILayout.EndVertical();
 
+        // Lawn / Grass Area Configuration Section
+        EditorGUILayout.Space(6);
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("🌱 Газон (Замкнутая область 45° и 90°):", EditorStyles.boldLabel);
+
+        lawnGrassColor = EditorGUILayout.ColorField("Цвет травы", lawnGrassColor);
+        lawnUseTexture = EditorGUILayout.Toggle("Текстура травы", lawnUseTexture);
+        if (lawnUseTexture)
+        {
+            lawnTextureTileSize = EditorGUILayout.Slider("Масштаб текстуры (м)", lawnTextureTileSize, 1.0f, 15.0f);
+        }
+        lawnShowCurb = EditorGUILayout.Toggle("Бетонный бордюр", lawnShowCurb);
+        if (lawnShowCurb)
+        {
+            lawnCurbWidth = EditorGUILayout.Slider("Толщина бордюра (м)", lawnCurbWidth, 0.10f, 0.80f);
+            lawnCurbColor = EditorGUILayout.ColorField("Цвет бордюра", lawnCurbColor);
+        }
+        lawnIsObstacle = EditorGUILayout.Toggle("Препятствие (столкновение)", lawnIsObstacle);
+        if (mapRotation != 0f)
+        {
+            lawnAlignToMapRotation = EditorGUILayout.Toggle("Выравнивать по карте", lawnAlignToMapRotation);
+        }
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Сочный зелёный", GUILayout.Height(22))) { lawnGrassColor = new Color(0.32f, 0.65f, 0.18f, 1f); }
+        if (GUILayout.Button("Тёмно-зелёный", GUILayout.Height(22))) { lawnGrassColor = new Color(0.20f, 0.48f, 0.12f, 1f); }
+        if (GUILayout.Button("Оливковый", GUILayout.Height(22))) { lawnGrassColor = new Color(0.38f, 0.52f, 0.18f, 1f); }
+        if (GUILayout.Button("Светло-салатовый", GUILayout.Height(22))) { lawnGrassColor = new Color(0.42f, 0.72f, 0.22f, 1f); }
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        if (isDrawingLawn)
+        {
+            GUI.backgroundColor = new Color(0.3f, 0.9f, 0.3f, 1f);
+            if (GUILayout.Button("✓ Замкнуть газон (Enter)", GUILayout.Height(26)))
+            {
+                if (currentLawnDrawingPoints.Count >= 3)
+                {
+                    selectedLawn = CreateLawn(currentLawnDrawingPoints);
+                    isDrawingLawn = false;
+                    currentLawnDrawingPoints.Clear();
+                    selectedLawnPointIndex = 0;
+                }
+            }
+            GUI.backgroundColor = new Color(1f, 0.6f, 0.2f, 1f);
+            if (GUILayout.Button("Отмена (Esc)", GUILayout.Height(26)))
+            {
+                isDrawingLawn = false;
+                currentLawnDrawingPoints.Clear();
+                selectedLawn = null;
+                selectedLawnPointIndex = -1;
+            }
+            GUI.backgroundColor = Color.white;
+        }
+        else
+        {
+            if (GUILayout.Button("Начать рисовать газон", GUILayout.Height(26)))
+            {
+                isDrawingLawn = true;
+                currentLawnDrawingPoints.Clear();
+                currentLawnDrawingPoints.Add(cursorPosition);
+                selectedLawn = null;
+                selectedLawnPointIndex = -1;
+            }
+        }
+
+        if (GUILayout.Button("Очистить все газоны", GUILayout.Height(26)))
+        {
+            if (EditorUtility.DisplayDialog("Очистить газоны", "Удалить все созданные элементы газонов?", "Да, удалить", "Отмена"))
+            {
+                ClearAllLawns();
+            }
+        }
+        EditorGUILayout.EndHorizontal();
+
+        if (selectedLawn != null)
+        {
+            EditorGUILayout.Space(4);
+            int ptCount = selectedLawn.points != null ? selectedLawn.points.Count : 0;
+            string ptInfo = selectedLawnPointIndex >= 0 ? $"Вершина {selectedLawnPointIndex + 1}/{ptCount}" : "Все вершины";
+            EditorGUILayout.HelpBox($"Выделен газон: {selectedLawn.name}\nВершин: {ptCount} | Активная: {ptInfo}\n[Tab/Enter] след. вершина, [Del] удалить, [WASD] сдвиг.", MessageType.Info);
+
+            EditorGUI.BeginChangeCheck();
+            Color editGrass = EditorGUILayout.ColorField("Цвет травы", selectedLawn.grassColor);
+            bool editTex = EditorGUILayout.Toggle("Текстура", selectedLawn.useTexture);
+            float editTile = selectedLawn.textureTileSize;
+            if (editTex)
+            {
+                editTile = EditorGUILayout.Slider("Масштаб текстуры", selectedLawn.textureTileSize, 1.0f, 15.0f);
+            }
+            bool editCurb = EditorGUILayout.Toggle("Бордюр", selectedLawn.showCurb);
+            float editCurbW = selectedLawn.curbWidth;
+            Color editCurbC = selectedLawn.curbColor;
+            if (editCurb)
+            {
+                editCurbW = EditorGUILayout.Slider("Толщина бордюра", selectedLawn.curbWidth, 0.10f, 0.80f);
+                editCurbC = EditorGUILayout.ColorField("Цвет бордюра", selectedLawn.curbColor);
+            }
+            bool editObs = EditorGUILayout.Toggle("Препятствие", selectedLawn.isObstacle);
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(selectedLawn, "Edit Lawn Area");
+                selectedLawn.grassColor = editGrass;
+                selectedLawn.useTexture = editTex;
+                selectedLawn.textureTileSize = editTile;
+                selectedLawn.showCurb = editCurb;
+                selectedLawn.curbWidth = editCurbW;
+                selectedLawn.curbColor = editCurbC;
+                selectedLawn.isObstacle = editObs;
+                selectedLawn.UpdateVisuals();
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+
+            if (selectedLawnPointIndex >= 0 && selectedLawnPointIndex < ptCount)
+            {
+                EditorGUI.BeginChangeCheck();
+                Vector2 ptPos = EditorGUILayout.Vector2Field($"Координата вершины {selectedLawnPointIndex + 1}", selectedLawn.points[selectedLawnPointIndex]);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(selectedLawn, "Edit Lawn Point Position");
+                    selectedLawn.points[selectedLawnPointIndex] = ptPos;
+                    selectedLawn.UpdateVisuals();
+                    SafeMarkSceneDirty();
+                    SceneView.RepaintAll();
+                }
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("След. вершина (Tab)", GUILayout.Height(24)))
+            {
+                if (ptCount > 0)
+                {
+                    selectedLawnPointIndex = (selectedLawnPointIndex + 1) % ptCount;
+                    cursorPosition = selectedLawn.points[selectedLawnPointIndex];
+                    SceneView.RepaintAll();
+                }
+            }
+            if (GUILayout.Button("Удалить вершину", GUILayout.Height(24)))
+            {
+                if (selectedLawnPointIndex >= 0 && selectedLawnPointIndex < ptCount && ptCount > 3)
+                {
+                    Undo.RecordObject(selectedLawn, "Delete Lawn Vertex");
+                    selectedLawn.points.RemoveAt(selectedLawnPointIndex);
+                    selectedLawnPointIndex = Mathf.Clamp(selectedLawnPointIndex, 0, selectedLawn.points.Count - 1);
+                    selectedLawn.UpdateVisuals();
+                    SafeMarkSceneDirty();
+                    SceneView.RepaintAll();
+                }
+                else
+                {
+                    SafeDestroyObject(selectedLawn.gameObject);
+                    selectedLawn = null;
+                    selectedLawnPointIndex = -1;
+                    SafeMarkSceneDirty();
+                    SceneView.RepaintAll();
+                }
+            }
+            if (GUILayout.Button("Удалить весь газон", GUILayout.Height(24)))
+            {
+                SafeDestroyObject(selectedLawn.gameObject);
+                selectedLawn = null;
+                selectedLawnPointIndex = -1;
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+            if (GUILayout.Button("Снять выбор", GUILayout.Height(24)))
+            {
+                selectedLawn = null;
+                selectedLawnPointIndex = -1;
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+        EditorGUILayout.EndVertical();
+
         EditorGUILayout.Space(10);
         EditorGUILayout.LabelField("Действия:", EditorStyles.boldLabel);
         
@@ -3035,6 +3696,10 @@ public class MapBuilderEditor : EditorWindow
         if (GUILayout.Button("Установить (Enter)", GUILayout.Height(30)))
         {
             PlaceCurrentObject();
+        }
+        if (GUILayout.Button("Сверху / назад (Shift+Enter)", GUILayout.Height(30)))
+        {
+            PlaceCurrentObject(reverseAdvance: true);
         }
         if (GUILayout.Button("Повернуть 45° (R)", GUILayout.Height(30)))
         {
@@ -3117,7 +3782,7 @@ public class MapBuilderEditor : EditorWindow
         }
 
         // Interactive 2D Position Handle for Scene View (Free Mouse Movement with Magnetic Snapping)
-        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.RouteLine && (currentObjectType != ObjectType.RoadArrow || selectedRoadArrow == null) && (currentObjectType != ObjectType.PassengerCar || selectedPassengerCar == null))
+        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn && (currentObjectType != ObjectType.RoadArrow || selectedRoadArrow == null) && (currentObjectType != ObjectType.PassengerCar || selectedPassengerCar == null))
         {
             EditorGUI.BeginChangeCheck();
             Vector3 curPos3 = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
@@ -3128,7 +3793,7 @@ public class MapBuilderEditor : EditorWindow
             if (EditorGUI.EndChangeCheck())
             {
                 Vector2 rawPos = new Vector2(newPos.x, newPos.y);
-                cursorPosition = (currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || IsPropType(currentObjectType) || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine) ? rawPos : GetMagneticSnappedPosition(rawPos, currentRotation);
+                cursorPosition = (currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || IsPropType(currentObjectType) || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine || currentObjectType == ObjectType.Lawn) ? rawPos : GetMagneticSnappedPosition(rawPos, currentRotation);
                 UpdateGhostPreview();
                 Repaint();
             }
@@ -3163,18 +3828,37 @@ public class MapBuilderEditor : EditorWindow
             if (EditorGUI.EndChangeCheck())
             {
                 Undo.RecordObject(selectedWall.transform, "Move Wall Point");
-                Vector2 newPt = new Vector2(newPos.x, newPos.y);
+                Vector2 rawNew = new Vector2(newPos.x, newPos.y);
                 if (selectedWallPointIndex == 0)
                 {
-                    selectedWall.startPoint = newPt;
+                    selectedWall.startPoint = SnapWallPointToRightAngle(selectedWall.endPoint, rawNew);
                     cursorPosition = selectedWall.startPoint;
                 }
                 else
                 {
-                    selectedWall.endPoint = newPt;
+                    selectedWall.endPoint = SnapWallPointToRightAngle(selectedWall.startPoint, rawNew);
                     cursorPosition = selectedWall.endPoint;
                 }
                 selectedWall.UpdateTransformAndVisual(stripeSprite);
+                SafeMarkSceneDirty();
+                Repaint();
+            }
+        }
+        else if (currentObjectType == ObjectType.Lawn && selectedLawn != null && selectedLawnPointIndex >= 0 && selectedLawn.points != null && selectedLawnPointIndex < selectedLawn.points.Count)
+        {
+            EditorGUI.BeginChangeCheck();
+            Vector2 curPt = selectedLawn.points[selectedLawnPointIndex];
+            Vector3 curPos3 = new Vector3(curPt.x, curPt.y, 0f);
+            Vector3 newPos = Handles.PositionHandle(curPos3, Quaternion.identity);
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(selectedLawn, "Move Lawn Vertex");
+                Vector2 rawNew = new Vector2(newPos.x, newPos.y);
+                int prevIdx = (selectedLawnPointIndex - 1 + selectedLawn.points.Count) % selectedLawn.points.Count;
+                selectedLawn.points[selectedLawnPointIndex] = SnapPointTo45Degrees(selectedLawn.points[prevIdx], rawNew);
+                cursorPosition = selectedLawn.points[selectedLawnPointIndex];
+                selectedLawn.UpdateVisuals();
                 SafeMarkSceneDirty();
                 Repaint();
             }
@@ -3304,13 +3988,14 @@ public class MapBuilderEditor : EditorWindow
                     }
                     else // isDrawingWall == true (Click places segment and continues chain!)
                     {
-                        if (Vector2.Distance(wallStartPoint, rawPos) > 0.2f)
+                        Vector2 snappedPos = SnapWallPointToRightAngle(wallStartPoint, rawPos);
+                        if (Vector2.Distance(wallStartPoint, snappedPos) > 0.2f)
                         {
-                            WallObstacle newWall = CreateWall(wallStartPoint, rawPos, wallThickness, wallColor);
+                            WallObstacle newWall = CreateWall(wallStartPoint, snappedPos, wallThickness, wallColor);
                             selectedWall = newWall;
                             selectedWallPointIndex = 1;
-                            wallStartPoint = rawPos;
-                            cursorPosition = rawPos;
+                            wallStartPoint = snappedPos;
+                            cursorPosition = snappedPos;
                         }
                     }
                 }
@@ -3365,6 +4050,80 @@ public class MapBuilderEditor : EditorWindow
                 {
                     cursorPosition = rawPos;
                     EraseAtPosition(rawPos);
+                }
+                else if (currentObjectType == ObjectType.Lawn)
+                {
+                    LawnArea hitLawn = FindLawnNear(rawPos, 1.2f, out int hitPtIdx);
+
+                    if (e.clickCount >= 2 && isDrawingLawn)
+                    {
+                        if (currentLawnDrawingPoints.Count >= 3)
+                        {
+                            selectedLawn = CreateLawn(currentLawnDrawingPoints);
+                            isDrawingLawn = false;
+                            currentLawnDrawingPoints.Clear();
+                            selectedLawnPointIndex = 0;
+                            if (SceneView.lastActiveSceneView != null)
+                            {
+                                SceneView.lastActiveSceneView.ShowNotification(new GUIContent("🌱 Газон замкнут и создан!"));
+                            }
+                        }
+                    }
+                    else if (isDrawingLawn)
+                    {
+                        Vector2 lastPt = currentLawnDrawingPoints[currentLawnDrawingPoints.Count - 1];
+                        Vector2 candidatePos = SnapPointTo45Degrees(lastPt, rawPos);
+
+                        // Check if clicking near starting vertex to close
+                        if (currentLawnDrawingPoints.Count >= 3 && 
+                            (Vector2.Distance(rawPos, currentLawnDrawingPoints[0]) < 1.5f || Vector2.Distance(candidatePos, currentLawnDrawingPoints[0]) < 1.5f))
+                        {
+                            selectedLawn = CreateLawn(currentLawnDrawingPoints);
+                            isDrawingLawn = false;
+                            currentLawnDrawingPoints.Clear();
+                            selectedLawnPointIndex = 0;
+                            if (SceneView.lastActiveSceneView != null)
+                            {
+                                SceneView.lastActiveSceneView.ShowNotification(new GUIContent("🌱 Газон замкнут и создан!"));
+                            }
+                        }
+                        else if (Vector2.Distance(lastPt, candidatePos) > 0.2f)
+                        {
+                            currentLawnDrawingPoints.Add(candidatePos);
+                            cursorPosition = candidatePos;
+                            if (SceneView.lastActiveSceneView != null)
+                            {
+                                SceneView.lastActiveSceneView.ShowNotification(new GUIContent($"Вершина {currentLawnDrawingPoints.Count} добавлена (45°/90°)"));
+                            }
+                        }
+                    }
+                    else if (hitLawn != null)
+                    {
+                        selectedLawn = hitLawn;
+                        selectedLawnPointIndex = hitPtIdx;
+                        isDrawingLawn = false;
+                        if (selectedLawnPointIndex >= 0 && selectedLawnPointIndex < selectedLawn.points.Count)
+                        {
+                            cursorPosition = selectedLawn.points[selectedLawnPointIndex];
+                        }
+                        else
+                        {
+                            cursorPosition = rawPos;
+                        }
+                    }
+                    else
+                    {
+                        isDrawingLawn = true;
+                        currentLawnDrawingPoints.Clear();
+                        currentLawnDrawingPoints.Add(rawPos);
+                        cursorPosition = rawPos;
+                        selectedLawn = null;
+                        selectedLawnPointIndex = -1;
+                        if (SceneView.lastActiveSceneView != null)
+                        {
+                            SceneView.lastActiveSceneView.ShowNotification(new GUIContent("Начало газона: ведите следующую вершину (45°/90°)"));
+                        }
+                    }
                 }
                 else if (currentObjectType == ObjectType.RouteLine)
                 {
@@ -3461,19 +4220,19 @@ public class MapBuilderEditor : EditorWindow
                 {
                     if (isDrawingWall)
                     {
-                        cursorPosition = rawPos;
+                        cursorPosition = SnapWallPointToRightAngle(wallStartPoint, rawPos);
                     }
                     else if (selectedWall != null)
                     {
                         Undo.RecordObject(selectedWall.transform, "Move Wall Point");
                         if (selectedWallPointIndex == 0)
                         {
-                            selectedWall.startPoint = rawPos;
+                            selectedWall.startPoint = SnapWallPointToRightAngle(selectedWall.endPoint, rawPos);
                             cursorPosition = selectedWall.startPoint;
                         }
                         else
                         {
-                            selectedWall.endPoint = rawPos;
+                            selectedWall.endPoint = SnapWallPointToRightAngle(selectedWall.startPoint, rawPos);
                             cursorPosition = selectedWall.endPoint;
                         }
                         selectedWall.UpdateTransformAndVisual(stripeSprite);
@@ -3533,6 +4292,27 @@ public class MapBuilderEditor : EditorWindow
                 {
                     cursorPosition = rawPos;
                     EraseAtPosition(rawPos);
+                }
+                else if (currentObjectType == ObjectType.Lawn)
+                {
+                    if (isDrawingLawn && currentLawnDrawingPoints.Count > 0)
+                    {
+                        Vector2 lastPt = currentLawnDrawingPoints[currentLawnDrawingPoints.Count - 1];
+                        cursorPosition = SnapPointTo45Degrees(lastPt, rawPos);
+                    }
+                    else if (!isDrawingLawn && selectedLawn != null && selectedLawnPointIndex >= 0 && selectedLawn.points != null && selectedLawnPointIndex < selectedLawn.points.Count)
+                    {
+                        Undo.RecordObject(selectedLawn, "Move Lawn Vertex");
+                        int prevIdx = (selectedLawnPointIndex - 1 + selectedLawn.points.Count) % selectedLawn.points.Count;
+                        selectedLawn.points[selectedLawnPointIndex] = SnapPointTo45Degrees(selectedLawn.points[prevIdx], rawPos);
+                        cursorPosition = selectedLawn.points[selectedLawnPointIndex];
+                        selectedLawn.UpdateVisuals();
+                        SafeMarkSceneDirty();
+                    }
+                    else
+                    {
+                        cursorPosition = rawPos;
+                    }
                 }
                 else if (currentObjectType == ObjectType.RouteLine)
                 {
@@ -3627,6 +4407,17 @@ public class MapBuilderEditor : EditorWindow
                     case KeyCode.Escape:
                         isDrawingMarkingLine = false;
                         selectedMarkingLine = null;
+                        handled = true;
+                        break;
+
+                    case KeyCode.X:
+                        diagonalRoadAxis = (diagonalRoadAxis == DiagonalRoadAxis.Horizontal) ? DiagonalRoadAxis.Vertical : DiagonalRoadAxis.Horizontal;
+                        string axName = (diagonalRoadAxis == DiagonalRoadAxis.Horizontal) ? "ГОРИЗОНТАЛЬНАЯ (X)" : "ВЕРТИКАЛЬНАЯ (Y)";
+                        if (SceneView.lastActiveSceneView != null)
+                        {
+                            SceneView.lastActiveSceneView.ShowNotification(new GUIContent($"🛣️ Ось дороги (диагональная парковка): {axName}"));
+                        }
+                        UpdateGhostPreview();
                         handled = true;
                         break;
 
@@ -3777,13 +4568,15 @@ public class MapBuilderEditor : EditorWindow
                     case KeyCode.KeypadEnter:
                         if (isDrawingWall)
                         {
-                            if (Vector2.Distance(wallStartPoint, cursorPosition) > 0.2f)
+                            Vector2 snappedPos = SnapWallPointToRightAngle(wallStartPoint, cursorPosition);
+                            if (Vector2.Distance(wallStartPoint, snappedPos) > 0.2f)
                             {
-                                WallObstacle newWall = CreateWall(wallStartPoint, cursorPosition, wallThickness, wallColor);
+                                WallObstacle newWall = CreateWall(wallStartPoint, snappedPos, wallThickness, wallColor);
                                 selectedWall = newWall;
                                 selectedWallPointIndex = 1;
                                 // Automatically advance / continue chain to next segment!
-                                wallStartPoint = cursorPosition;
+                                wallStartPoint = snappedPos;
+                                cursorPosition = snappedPos;
                                 if (SceneView.lastActiveSceneView != null)
                                 {
                                     SceneView.lastActiveSceneView.ShowNotification(new GUIContent($"Стена зафиксирована! Ведите следующую ➔"));
@@ -3844,11 +4637,15 @@ public class MapBuilderEditor : EditorWindow
 
                 if (moveDelta != Vector2.zero)
                 {
-                    if (selectedWall != null)
+                    if (isDrawingWall)
+                    {
+                        cursorPosition = SnapWallPointToRightAngle(wallStartPoint, cursorPosition + moveDelta);
+                    }
+                    else if (selectedWall != null)
                     {
                         Undo.RecordObject(selectedWall.transform, "Move Wall Point");
-                        if (selectedWallPointIndex == 0) selectedWall.startPoint += moveDelta;
-                        else selectedWall.endPoint += moveDelta;
+                        if (selectedWallPointIndex == 0) selectedWall.startPoint = SnapWallPointToRightAngle(selectedWall.endPoint, selectedWall.startPoint + moveDelta);
+                        else selectedWall.endPoint = SnapWallPointToRightAngle(selectedWall.startPoint, selectedWall.endPoint + moveDelta);
                         selectedWall.UpdateTransformAndVisual(stripeSprite);
                         cursorPosition = (selectedWallPointIndex == 0) ? selectedWall.startPoint : selectedWall.endPoint;
                         SafeMarkSceneDirty();
@@ -3905,7 +4702,7 @@ public class MapBuilderEditor : EditorWindow
                     case KeyCode.Return:
                     case KeyCode.KeypadEnter:
                     case KeyCode.Space:
-                        PlaceCurrentObject();
+                        PlaceCurrentObject(e.shift);
                         if (SceneView.lastActiveSceneView != null)
                         {
                             SceneView.lastActiveSceneView.ShowNotification(new GUIContent($"🚗 Легковая машина установлена ({currentRotation:F0}°)"));
@@ -4004,7 +4801,7 @@ public class MapBuilderEditor : EditorWindow
                     case KeyCode.Return:
                     case KeyCode.KeypadEnter:
                     case KeyCode.Space:
-                        PlaceCurrentObject();
+                        PlaceCurrentObject(e.shift);
                         if (SceneView.lastActiveSceneView != null)
                         {
                             SceneView.lastActiveSceneView.ShowNotification(new GUIContent($"🚛 Грузовик установлен ({currentRotation:F0}°)"));
@@ -4103,7 +4900,7 @@ public class MapBuilderEditor : EditorWindow
                     case KeyCode.Return:
                     case KeyCode.KeypadEnter:
                     case KeyCode.Space:
-                        PlaceCurrentObject();
+                        PlaceCurrentObject(e.shift);
                         if (SceneView.lastActiveSceneView != null)
                         {
                             string pName = PropObstacle.GetDisplayName(ObjectTypeToPropType(currentObjectType));
@@ -4204,6 +5001,140 @@ public class MapBuilderEditor : EditorWindow
                 {
                     cursorPosition += moveDelta;
                     UpdateGhostPreview();
+                    handled = true;
+                }
+            }
+            else if (currentObjectType == ObjectType.Lawn)
+            {
+                float step = e.shift ? 2.0f : (e.alt || e.control ? 0.1f : 0.5f);
+                Vector2 moveDelta = Vector2.zero;
+
+                switch (e.keyCode)
+                {
+                    case KeyCode.W:
+                    case KeyCode.UpArrow:
+                        moveDelta = new Vector2(0f, step);
+                        break;
+                    case KeyCode.S:
+                    case KeyCode.DownArrow:
+                        moveDelta = new Vector2(0f, -step);
+                        break;
+                    case KeyCode.A:
+                    case KeyCode.LeftArrow:
+                        moveDelta = new Vector2(-step, 0f);
+                        break;
+                    case KeyCode.D:
+                    case KeyCode.RightArrow:
+                        moveDelta = new Vector2(step, 0f);
+                        break;
+
+                    case KeyCode.Return:
+                    case KeyCode.KeypadEnter:
+                    case KeyCode.Space:
+                        if (isDrawingLawn)
+                        {
+                            if (currentLawnDrawingPoints.Count >= 3)
+                            {
+                                selectedLawn = CreateLawn(currentLawnDrawingPoints);
+                                isDrawingLawn = false;
+                                currentLawnDrawingPoints.Clear();
+                                selectedLawnPointIndex = 0;
+                                if (SceneView.lastActiveSceneView != null)
+                                {
+                                    SceneView.lastActiveSceneView.ShowNotification(new GUIContent("🌱 Газон замкнут и создан!"));
+                                }
+                            }
+                            else
+                            {
+                                Vector2 lastPt = currentLawnDrawingPoints[currentLawnDrawingPoints.Count - 1];
+                                Vector2 candidate = SnapPointTo45Degrees(lastPt, cursorPosition);
+                                if (Vector2.Distance(lastPt, candidate) > 0.2f)
+                                {
+                                    currentLawnDrawingPoints.Add(candidate);
+                                    cursorPosition = candidate;
+                                }
+                            }
+                        }
+                        else if (selectedLawn != null && selectedLawn.points != null && selectedLawn.points.Count > 0)
+                        {
+                            selectedLawnPointIndex = (selectedLawnPointIndex + 1) % selectedLawn.points.Count;
+                            cursorPosition = selectedLawn.points[selectedLawnPointIndex];
+                        }
+                        handled = true;
+                        break;
+
+                    case KeyCode.Tab:
+                        if (selectedLawn != null && selectedLawn.points != null && selectedLawn.points.Count > 0)
+                        {
+                            selectedLawnPointIndex = (selectedLawnPointIndex + (e.shift ? -1 : 1) + selectedLawn.points.Count) % selectedLawn.points.Count;
+                            cursorPosition = selectedLawn.points[selectedLawnPointIndex];
+                            handled = true;
+                        }
+                        break;
+
+                    case KeyCode.Delete:
+                    case KeyCode.Backspace:
+                        if (selectedLawn != null)
+                        {
+                            if (selectedLawnPointIndex >= 0 && selectedLawn.points != null && selectedLawn.points.Count > 3)
+                            {
+                                Undo.RecordObject(selectedLawn, "Delete Lawn Vertex");
+                                selectedLawn.points.RemoveAt(selectedLawnPointIndex);
+                                selectedLawnPointIndex = Mathf.Clamp(selectedLawnPointIndex, 0, selectedLawn.points.Count - 1);
+                                cursorPosition = selectedLawn.points[selectedLawnPointIndex];
+                                selectedLawn.UpdateVisuals();
+                                SafeMarkSceneDirty();
+                            }
+                            else
+                            {
+                                SafeDestroyObject(selectedLawn.gameObject);
+                                selectedLawn = null;
+                                selectedLawnPointIndex = -1;
+                                isDrawingLawn = false;
+                                SafeMarkSceneDirty();
+                            }
+                            handled = true;
+                        }
+                        break;
+
+                    case KeyCode.Escape:
+                        isDrawingLawn = false;
+                        currentLawnDrawingPoints.Clear();
+                        selectedLawn = null;
+                        selectedLawnPointIndex = -1;
+                        handled = true;
+                        break;
+
+                    case KeyCode.C:
+                        CycleObjectType();
+                        handled = true;
+                        break;
+
+                    case KeyCode.F:
+                        FocusSceneView();
+                        handled = true;
+                        break;
+                }
+
+                if (moveDelta != Vector2.zero)
+                {
+                    if (!isDrawingLawn && selectedLawn != null && selectedLawnPointIndex >= 0 && selectedLawn.points != null && selectedLawnPointIndex < selectedLawn.points.Count)
+                    {
+                        Undo.RecordObject(selectedLawn, "Move Lawn Vertex");
+                        selectedLawn.points[selectedLawnPointIndex] += moveDelta;
+                        cursorPosition = selectedLawn.points[selectedLawnPointIndex];
+                        selectedLawn.UpdateVisuals();
+                        SafeMarkSceneDirty();
+                    }
+                    else if (isDrawingLawn && currentLawnDrawingPoints.Count > 0)
+                    {
+                        Vector2 lastPt = currentLawnDrawingPoints[currentLawnDrawingPoints.Count - 1];
+                        cursorPosition = SnapPointTo45Degrees(lastPt, cursorPosition + moveDelta);
+                    }
+                    else
+                    {
+                        cursorPosition += moveDelta;
+                    }
                     handled = true;
                 }
             }
@@ -4371,7 +5302,7 @@ public class MapBuilderEditor : EditorWindow
                     case KeyCode.Return:
                     case KeyCode.KeypadEnter:
                     case KeyCode.Space:
-                        PlaceCurrentObject();
+                        PlaceCurrentObject(e.shift);
                         handled = true;
                         break;
 
@@ -4485,7 +5416,7 @@ public class MapBuilderEditor : EditorWindow
                     case KeyCode.Return:
                     case KeyCode.KeypadEnter:
                     case KeyCode.Space:
-                        PlaceCurrentObject();
+                        PlaceCurrentObject(e.shift);
                         handled = true;
                         break;
 
@@ -4533,6 +5464,20 @@ public class MapBuilderEditor : EditorWindow
 
         // Draw interactive Props handles & preview in Scene View
         DrawPropsHandles(sceneView);
+
+        // Draw interactive Lawn handles & preview in Scene View
+        DrawLawnsHandles(sceneView);
+
+        // Draw interactive Lawn cursor indicator when in lawn mode
+        if (currentObjectType == ObjectType.Lawn && !isDrawingLawn && selectedLawn == null)
+        {
+            Vector3 p = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
+            Handles.color = new Color(0.3f, 0.9f, 0.2f, 0.85f);
+            Handles.DrawWireDisc(p, Vector3.forward, 0.5f);
+            Handles.DrawLine(p - new Vector3(0.6f, 0f, 0f), p + new Vector3(0.6f, 0f, 0f));
+            Handles.DrawLine(p - new Vector3(0f, 0.6f, 0f), p + new Vector3(0f, 0.6f, 0f));
+            Handles.Label(p + new Vector3(0.7f, 0.7f, 0f), "🌱 ГАЗОН (Кликните для начала новой области)", EditorStyles.boldLabel);
+        }
 
         // Draw interactive Route Lines handles & preview in Scene View
         DrawRouteLinesHandles(sceneView);
@@ -4588,13 +5533,14 @@ public class MapBuilderEditor : EditorWindow
             }
         }
 
-        // 2. If actively drawing a wall chain (Start point fixed, stretching segment at any angle)
+        // 2. If actively drawing a wall chain (Start point fixed, stretching segment at 90° right angle)
         if (currentObjectType == ObjectType.Wall && isDrawingWall)
         {
+            Vector2 snappedWallEnd = SnapWallPointToRightAngle(wallStartPoint, cursorPosition);
             Vector3 pA = new Vector3(wallStartPoint.x, wallStartPoint.y, 0f);
-            Vector3 pB = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
-            float length = Vector2.Distance(wallStartPoint, cursorPosition);
-            float angle = Vector2.SignedAngle(Vector2.right, cursorPosition - wallStartPoint);
+            Vector3 pB = new Vector3(snappedWallEnd.x, snappedWallEnd.y, 0f);
+            float length = Vector2.Distance(wallStartPoint, snappedWallEnd);
+            float angle = Vector2.SignedAngle(Vector2.right, snappedWallEnd - wallStartPoint);
 
             // Draw preview line for the wall
             Handles.color = new Color(0.75f, 0.4f, 0.15f, 0.95f);
@@ -4692,6 +5638,131 @@ public class MapBuilderEditor : EditorWindow
             Handles.color = new Color(1.0f, 0.9f, 0.1f, 0.9f);
             Handles.DrawSolidDisc(pB, Vector3.forward, 0.35f);
             Handles.Label(pB + new Vector3(0.5f, 0.5f, 0f), $"Точка B | Длина: {length:F2}м ({angle:F0}°)", EditorStyles.boldLabel);
+        }
+    }
+
+    private void DrawLawnsHandles(SceneView sceneView)
+    {
+        // 1. Draw all existing Lawns in the scene
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        Transform container = workspace != null ? workspace.transform.Find(LawnsContainerName) : null;
+        if (container != null)
+        {
+            for (int i = 0; i < container.childCount; i++)
+            {
+                LawnArea lawn = container.GetChild(i).GetComponent<LawnArea>();
+                if (lawn != null)
+                {
+                    DrawSingleLawnHandle(lawn);
+                }
+            }
+        }
+
+        // 2. If actively drawing a Lawn polygon
+        if (currentObjectType == ObjectType.Lawn && isDrawingLawn && currentLawnDrawingPoints.Count > 0)
+        {
+            int count = currentLawnDrawingPoints.Count;
+            Vector2 lastPt = currentLawnDrawingPoints[count - 1];
+            Vector2 snappedPos = SnapPointTo45Degrees(lastPt, cursorPosition);
+            float dist = Vector2.Distance(lastPt, snappedPos);
+            float angle = Vector2.SignedAngle(Vector2.right, snappedPos - lastPt);
+
+            // Draw placed edges
+            Handles.color = new Color(0.3f, 0.95f, 0.2f, 0.95f);
+            for (int i = 0; i < count - 1; i++)
+            {
+                Vector3 p1 = new Vector3(currentLawnDrawingPoints[i].x, currentLawnDrawingPoints[i].y, 0f);
+                Vector3 p2 = new Vector3(currentLawnDrawingPoints[i + 1].x, currentLawnDrawingPoints[i + 1].y, 0f);
+                Handles.DrawLine(p1, p2, 3.5f);
+            }
+
+            // Draw candidate edge to cursor
+            Vector3 pLast = new Vector3(lastPt.x, lastPt.y, 0f);
+            Vector3 pCur = new Vector3(snappedPos.x, snappedPos.y, 0f);
+            Handles.color = new Color(1.0f, 0.85f, 0.1f, 0.95f);
+            Handles.DrawDottedLine(pLast, pCur, 4f);
+
+            // Draw candidate point
+            Handles.color = new Color(0.2f, 1.0f, 0.4f, 0.95f);
+            Handles.DrawSolidDisc(pCur, Vector3.forward, 0.35f);
+            Handles.Label(pCur + new Vector3(0.4f, 0.4f, 0f), $"Вершина {count + 1}: {dist:F1}м ({angle:F0}°) [Клик / Enter]", EditorStyles.boldLabel);
+
+            // Draw placed vertices
+            for (int i = 0; i < count; i++)
+            {
+                Vector3 ptPos = new Vector3(currentLawnDrawingPoints[i].x, currentLawnDrawingPoints[i].y, 0f);
+                if (i == 0)
+                {
+                    // Start point: Highlight as target for closing the polygon!
+                    bool canClose = count >= 3;
+                    bool nearStart = Vector2.Distance(cursorPosition, currentLawnDrawingPoints[0]) < 1.5f || Vector2.Distance(snappedPos, currentLawnDrawingPoints[0]) < 1.5f;
+                    Handles.color = nearStart ? new Color(1.0f, 0.2f, 0.2f, 0.95f) : new Color(0.2f, 0.9f, 1.0f, 0.95f);
+                    Handles.DrawSolidDisc(ptPos, Vector3.forward, nearStart ? 0.55f : 0.40f);
+                    Handles.DrawWireDisc(ptPos, Vector3.forward, 0.70f);
+                    if (canClose)
+                    {
+                        Handles.Label(ptPos + new Vector3(0.5f, 0.5f, 0f), "★ 1. СТАРТ [Клик / Enter: Замкнуть газон!]", EditorStyles.boldLabel);
+                        // Dotted closing preview line back to start
+                        Handles.color = new Color(0.4f, 1.0f, 0.5f, 0.60f);
+                        Handles.DrawDottedLine(pCur, ptPos, 3f);
+                    }
+                    else
+                    {
+                        Handles.Label(ptPos + new Vector3(0.4f, 0.4f, 0f), "1. Старт газона", EditorStyles.boldLabel);
+                    }
+                }
+                else
+                {
+                    Handles.color = new Color(0.25f, 0.9f, 0.3f, 0.90f);
+                    Handles.DrawSolidDisc(ptPos, Vector3.forward, 0.28f);
+                    Handles.Label(ptPos + new Vector3(0.35f, 0.35f, 0f), $"{i + 1}", EditorStyles.miniBoldLabel);
+                }
+            }
+        }
+    }
+
+    private void DrawSingleLawnHandle(LawnArea lawn)
+    {
+        if (lawn == null || lawn.points == null || lawn.points.Count == 0) return;
+
+        bool isSelected = (selectedLawn == lawn);
+
+        // Draw outline when selected or hover
+        if (isSelected)
+        {
+            Handles.color = new Color(0.3f, 1.0f, 0.4f, 0.95f);
+            for (int i = 0; i < lawn.points.Count; i++)
+            {
+                Vector3 p1 = new Vector3(lawn.points[i].x, lawn.points[i].y, 0f);
+                Vector3 p2 = new Vector3(lawn.points[(i + 1) % lawn.points.Count].x, lawn.points[(i + 1) % lawn.points.Count].y, 0f);
+                Handles.DrawLine(p1, p2, 4.0f);
+            }
+
+            // Draw vertex handles
+            for (int i = 0; i < lawn.points.Count; i++)
+            {
+                Vector3 ptPos = new Vector3(lawn.points[i].x, lawn.points[i].y, 0f);
+                bool isPointSelected = (i == selectedLawnPointIndex);
+
+                if (isPointSelected)
+                {
+                    Handles.color = new Color(1.0f, 0.9f, 0.1f, 0.95f);
+                    Handles.DrawSolidDisc(ptPos, Vector3.forward, 0.45f);
+                    Handles.Label(ptPos + new Vector3(0.5f, 0.5f, 0f), $"★ Вершина {i + 1}", EditorStyles.boldLabel);
+                }
+                else
+                {
+                    Handles.color = new Color(0.2f, 0.9f, 0.3f, 0.90f);
+                    Handles.DrawSolidDisc(ptPos, Vector3.forward, 0.30f);
+                    Handles.Label(ptPos + new Vector3(0.35f, 0.35f, 0f), $"{i + 1}", EditorStyles.miniBoldLabel);
+                }
+            }
+        }
+        else if (currentObjectType == ObjectType.Lawn)
+        {
+            Handles.color = new Color(0.3f, 0.9f, 0.3f, 0.35f);
+            Vector2 centroid = lawn.ComputeCentroid();
+            Handles.Label(new Vector3(centroid.x, centroid.y, 0f), "🌱 " + lawn.name, EditorStyles.miniLabel);
         }
     }
 
@@ -4967,7 +6038,7 @@ public class MapBuilderEditor : EditorWindow
     private void MoveCursor(Vector2 delta)
     {
         cursorPosition += delta;
-        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine)
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn)
         {
             SnapCursorToGrid();
         }
@@ -5030,7 +6101,7 @@ public class MapBuilderEditor : EditorWindow
         {
             currentRotation = PassengerCarObstacle.SnapAngle45(currentRotation);
         }
-        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine)
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn)
         {
             SnapCursorToGrid();
         }
@@ -5094,7 +6165,7 @@ public class MapBuilderEditor : EditorWindow
         }
         else if (currentObjectType == ObjectType.Wall)
         {
-            GUI.Label(new Rect(24, 40, 330, 20), "Режим: <color=#d2691e>Стена-препятствие (Любой угол, цепь)</color>", textStyle);
+            GUI.Label(new Rect(24, 40, 330, 20), "Режим: <color=#d2691e>Стена-препятствие (Прямой угол 90°, цепь)</color>", textStyle);
             if (isDrawingWall)
             {
                 float curLen = Vector2.Distance(wallStartPoint, cursorPosition);
@@ -5167,6 +6238,35 @@ public class MapBuilderEditor : EditorWindow
             GUI.Label(new Rect(24, 122, 330, 18), "[Enter / Space / Del] Удалить объект в позиции ластика", helpStyle);
             GUI.Label(new Rect(24, 140, 330, 18), "[WASD/Стрелки] Переместить ластик | [C] Сменить", helpStyle);
         }
+        else if (currentObjectType == ObjectType.Lawn)
+        {
+            GUI.Label(new Rect(24, 40, 330, 20), "Режим: <color=#55ff55>🌱 Газон (Замкнутая область 45°/90°)</color>", textStyle);
+            if (isDrawingLawn)
+            {
+                int ptCount = currentLawnDrawingPoints.Count;
+                GUI.Label(new Rect(24, 60, 330, 20), $"Рисование газона: <color=#55ff55>{ptCount} вершин</color>", textStyle);
+                string closeHint = ptCount >= 3 ? "➔ [Enter / Клик на старт 1] Замкнуть газон" : "Добавьте минимум 3 вершины";
+                GUI.Label(new Rect(24, 80, 330, 20), closeHint, textStyle);
+            }
+            else if (selectedLawn != null)
+            {
+                int ptCount = selectedLawn.points != null ? selectedLawn.points.Count : 0;
+                string ptStr = selectedLawnPointIndex >= 0 ? $"Вершина {selectedLawnPointIndex + 1}/{ptCount}" : "Все вершины";
+                GUI.Label(new Rect(24, 60, 330, 20), $"Выделен: {selectedLawn.name} ({ptCount} вершин) | {ptStr}", textStyle);
+                GUI.Label(new Rect(24, 80, 330, 20), "[Tab/Enter] Вершины | [Del] Удалить | [WASD] Двигать", textStyle);
+            }
+            else
+            {
+                GUI.Label(new Rect(24, 60, 330, 20), "Кликните на сцене для начала контура газона", textStyle);
+                GUI.Label(new Rect(24, 80, 330, 20), "Или кликните по существующему газону для выбора", textStyle);
+            }
+
+            GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
+            helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
+            GUI.Label(new Rect(24, 104, 330, 18), "[ЛКМ] Добавить вершину (45°/90°) / Выбрать газон", helpStyle);
+            GUI.Label(new Rect(24, 122, 330, 18), "[Клик на точку 1 / Enter] Замкнуть газон", helpStyle);
+            GUI.Label(new Rect(24, 140, 330, 18), "[WASD/Гизмо] Двигать | [Del] Удалить | [Esc] Отмена", helpStyle);
+        }
         else if (currentObjectType == ObjectType.RouteLine)
         {
             GUI.Label(new Rect(24, 40, 330, 20), "Режим: <color=#ffd500>🛣️ Направляющая линия маршрута (Route)</color>", textStyle);
@@ -5205,7 +6305,9 @@ public class MapBuilderEditor : EditorWindow
             GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
             helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
             GUI.Label(new Rect(24, 104, 330, 18), "[Мышь] Свободное таскание + авто-прилипание к слотам", helpStyle);
-            GUI.Label(new Rect(24, 122, 330, 18), $"[R] Поворот 45° (Shift: 15°) | [WASD] Шаг {curW:F1}м | [Enter] Ставить", helpStyle);
+            bool isDiagSlot = (Mathf.Abs(currentRotation) % 90f > 1f && Mathf.Abs(currentRotation) % 90f < 89f);
+            string roadHint = isDiagSlot ? $" | [X] Дорога: {(diagonalRoadAxis == DiagonalRoadAxis.Horizontal ? "X" : "Y")}" : "";
+            GUI.Label(new Rect(24, 122, 330, 18), $"[Enter] Ставить | [Shift+Enter] Назад{roadHint} | [R] 45°", helpStyle);
             GUI.Label(new Rect(24, 140, 330, 18), "[Ctrl+Стрелки] Сдвиг всей карты 4.5м | [Del] Удалить", helpStyle);
         }
 
@@ -5221,13 +6323,15 @@ public class MapBuilderEditor : EditorWindow
         }
 
         float startX = 375;
-        float btnY = 14;
+        float btnY1 = 14;
+        float btnY2 = 46;
         float btnH = 28;
         float curBtnX = startX;
 
+        // ================= ROW 1 (btnY1 = 14): Stalls, Start, Angle, Place, Adjust =================
         bool isEmpty = currentObjectType == ObjectType.StandardEmpty;
         GUI.backgroundColor = isEmpty ? new Color(0.3f, 0.85f, 0.3f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🅿 1. 4.5м"))
+        if (GUI.Button(new Rect(curBtnX, btnY1, 74, btnH), "🅿 1. 4.5м"))
         {
             currentObjectType = ObjectType.StandardEmpty;
             SnapCursorToGrid();
@@ -5237,7 +6341,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isParked = currentObjectType == ObjectType.StandardParked;
         GUI.backgroundColor = isParked ? new Color(1f, 0.45f, 0.45f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🚛 2. 4.5м"))
+        if (GUI.Button(new Rect(curBtnX, btnY1, 74, btnH), "🚛 2. 4.5м"))
         {
             currentObjectType = ObjectType.StandardParked;
             SnapCursorToGrid();
@@ -5247,7 +6351,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isEmptyNarrow = currentObjectType == ObjectType.StandardEmptyNarrow;
         GUI.backgroundColor = isEmptyNarrow ? new Color(0.3f, 0.85f, 0.3f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🅿 6. 3.5м"))
+        if (GUI.Button(new Rect(curBtnX, btnY1, 74, btnH), "🅿 6. 3.5м"))
         {
             currentObjectType = ObjectType.StandardEmptyNarrow;
             SnapCursorToGrid();
@@ -5257,7 +6361,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isTarget = currentObjectType == ObjectType.TargetParking;
         GUI.backgroundColor = isTarget ? new Color(1f, 0.85f, 0.05f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🎯 3. 4.5м"))
+        if (GUI.Button(new Rect(curBtnX, btnY1, 74, btnH), "🎯 3. 4.5м"))
         {
             currentObjectType = ObjectType.TargetParking;
             SnapCursorToGrid();
@@ -5267,7 +6371,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isTargetNarrow = currentObjectType == ObjectType.TargetParkingNarrow;
         GUI.backgroundColor = isTargetNarrow ? new Color(1f, 0.85f, 0.05f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🎯 7. 3.5м"))
+        if (GUI.Button(new Rect(curBtnX, btnY1, 74, btnH), "🎯 7. 3.5м"))
         {
             currentObjectType = ObjectType.TargetParkingNarrow;
             SnapCursorToGrid();
@@ -5277,43 +6381,146 @@ public class MapBuilderEditor : EditorWindow
 
         bool isStart = currentObjectType == ObjectType.TruckStartPoint;
         GUI.backgroundColor = isStart ? new Color(0.2f, 0.9f, 1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 70, btnH), "🏁 4. Старт"))
+        if (GUI.Button(new Rect(curBtnX, btnY1, 70, btnH), "🏁 4. Старт"))
         {
             currentObjectType = ObjectType.TruckStartPoint;
             UpdateGhostPreview();
         }
         curBtnX += 72;
 
-        bool isLine = currentObjectType == ObjectType.MarkingLine;
-        GUI.backgroundColor = isLine ? new Color(0.95f, 0.9f, 0.2f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 70, btnH), "🖊 5. Линия"))
+        GUI.backgroundColor = new Color(1f, 0.85f, 0.2f, 0.9f);
+        if (GUI.Button(new Rect(curBtnX, btnY1, 54, btnH), "⟳ 45°"))
         {
-            currentObjectType = ObjectType.MarkingLine;
-            UpdateGhostPreview();
+            RotateCursor(45f);
         }
-        curBtnX += 72;
+        curBtnX += 56;
 
-        bool isArrow = currentObjectType == ObjectType.RoadArrow;
-        GUI.backgroundColor = isArrow ? new Color(0.95f, 0.9f, 0.2f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 76, btnH), "➜ 8. Стрелка"))
+        GUI.backgroundColor = new Color(0.2f, 0.9f, 0.3f, 0.95f);
+        if (GUI.Button(new Rect(curBtnX, btnY1, 74, btnH), "✓ Ставить"))
         {
-            currentObjectType = ObjectType.RoadArrow;
+            PlaceCurrentObject();
+        }
+        curBtnX += 76;
+
+        // Height quick adjuster
+        GUI.backgroundColor = new Color(0.95f, 0.75f, 0.2f, 0.95f);
+        if (GUI.Button(new Rect(curBtnX, btnY1, 34, btnH), "[-H]"))
+        {
+            AdjustMapHeight(-5f);
+        }
+        curBtnX += 36;
+        if (GUI.Button(new Rect(curBtnX, btnY1, 34, btnH), "[+H]"))
+        {
+            AdjustMapHeight(+5f);
+        }
+        curBtnX += 38;
+
+        // Yard rotation quick buttons in SceneView HUD
+        GUI.backgroundColor = new Color(0.95f, 0.85f, 0.2f, 0.95f);
+        if (GUI.Button(new Rect(curBtnX, btnY1, 46, btnH), "↺ -15°"))
+        {
+            AdjustYardRotation(-15f);
+        }
+        curBtnX += 48;
+        if (GUI.Button(new Rect(curBtnX, btnY1, 46, btnH), "↻ +15°"))
+        {
+            AdjustYardRotation(+15f);
+        }
+        curBtnX += 48;
+        if (GUI.Button(new Rect(curBtnX, btnY1, 34, btnH), "0°"))
+        {
+            SetYardRotation(0f);
+        }
+        curBtnX += 36;
+
+        // Shift All Map Objects quick buttons
+        GUI.backgroundColor = new Color(0.3f, 0.75f, 0.95f, 0.95f);
+        if (GUI.Button(new Rect(curBtnX, btnY1, 28, btnH), "⬅"))
+        {
+            ShiftAllMapObjects(new Vector2(-SlotWidth, 0f));
+        }
+        curBtnX += 30;
+        if (GUI.Button(new Rect(curBtnX, btnY1, 28, btnH), "➡"))
+        {
+            ShiftAllMapObjects(new Vector2(SlotWidth, 0f));
+        }
+        curBtnX += 30;
+        if (GUI.Button(new Rect(curBtnX, btnY1, 28, btnH), "⬆"))
+        {
+            ShiftAllMapObjects(new Vector2(0f, SlotWidth));
+        }
+        curBtnX += 30;
+        if (GUI.Button(new Rect(curBtnX, btnY1, 28, btnH), "⬇"))
+        {
+            ShiftAllMapObjects(new Vector2(0f, -SlotWidth));
+        }
+        curBtnX += 32;
+
+        bool isDiagAngle = (Mathf.Abs(currentRotation) % 90f > 1f && Mathf.Abs(currentRotation) % 90f < 89f);
+        if (isDiagAngle)
+        {
+            GUI.backgroundColor = (diagonalRoadAxis == DiagonalRoadAxis.Horizontal) ? new Color(0.2f, 0.85f, 1f, 0.95f) : new Color(0.9f, 0.55f, 1f, 0.95f);
+            string roadBtnText = (diagonalRoadAxis == DiagonalRoadAxis.Horizontal) ? "🛣️ Дорога: X" : "🛣️ Дорога: Y";
+            if (GUI.Button(new Rect(curBtnX, btnY1, 92, btnH), roadBtnText))
+            {
+                diagonalRoadAxis = (diagonalRoadAxis == DiagonalRoadAxis.Horizontal) ? DiagonalRoadAxis.Vertical : DiagonalRoadAxis.Horizontal;
+                UpdateGhostPreview();
+            }
+            curBtnX += 94;
+        }
+
+        // ================= ROW 2 (btnY2 = 46): Lawn, Walls, Markings, Routes, Props =================
+        curBtnX = startX;
+
+        // 1. LAWN (PROMINENT FIRST BUTTON ON ROW 2)
+        bool isLawn = currentObjectType == ObjectType.Lawn;
+        GUI.backgroundColor = isLawn ? new Color(0.2f, 0.98f, 0.35f, 1f) : new Color(0.22f, 0.48f, 0.22f, 0.95f);
+        if (GUI.Button(new Rect(curBtnX, btnY2, 92, btnH), "🌱 20. Газон"))
+        {
+            currentObjectType = ObjectType.Lawn;
             UpdateGhostPreview();
         }
-        curBtnX += 78;
+        curBtnX += 94;
 
         bool isWall = currentObjectType == ObjectType.Wall;
         GUI.backgroundColor = isWall ? new Color(0.85f, 0.5f, 0.2f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🧱 9. Стена"))
+        if (GUI.Button(new Rect(curBtnX, btnY2, 74, btnH), "🧱 9. Стена"))
         {
             currentObjectType = ObjectType.Wall;
             UpdateGhostPreview();
         }
         curBtnX += 76;
 
+        bool isLine = currentObjectType == ObjectType.MarkingLine;
+        GUI.backgroundColor = isLine ? new Color(0.95f, 0.9f, 0.2f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY2, 70, btnH), "🖊 5. Линия"))
+        {
+            currentObjectType = ObjectType.MarkingLine;
+            UpdateGhostPreview();
+        }
+        curBtnX += 72;
+
+        bool isRoute = currentObjectType == ObjectType.RouteLine;
+        GUI.backgroundColor = isRoute ? new Color(1f, 0.85f, 0.1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY2, 94, btnH), "🛣️ 19. Маршрут"))
+        {
+            currentObjectType = ObjectType.RouteLine;
+            UpdateGhostPreview();
+        }
+        curBtnX += 96;
+
+        bool isArrow = currentObjectType == ObjectType.RoadArrow;
+        GUI.backgroundColor = isArrow ? new Color(0.95f, 0.9f, 0.2f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY2, 76, btnH), "➜ 8. Стрелка"))
+        {
+            currentObjectType = ObjectType.RoadArrow;
+            UpdateGhostPreview();
+        }
+        curBtnX += 78;
+
         bool isCar = currentObjectType == ObjectType.PassengerCar;
         GUI.backgroundColor = isCar ? new Color(0.2f, 0.7f, 1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🚗 10. Авто"))
+        if (GUI.Button(new Rect(curBtnX, btnY2, 74, btnH), "🚗 10. Авто"))
         {
             currentObjectType = ObjectType.PassengerCar;
             currentRotation = PassengerCarObstacle.SnapAngle45(currentRotation);
@@ -5323,43 +6530,34 @@ public class MapBuilderEditor : EditorWindow
 
         bool isTruck = currentObjectType == ObjectType.StandaloneTruck;
         GUI.backgroundColor = isTruck ? new Color(0.2f, 0.8f, 1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🚛 11. Трак"))
+        if (GUI.Button(new Rect(curBtnX, btnY2, 74, btnH), "🚛 11. Трак"))
         {
             currentObjectType = ObjectType.StandaloneTruck;
             UpdateGhostPreview();
         }
         curBtnX += 76;
 
+        bool isEraser = currentObjectType == ObjectType.Eraser;
+        GUI.backgroundColor = isEraser ? new Color(1f, 0.35f, 0.35f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY2, 84, btnH), "🧹 18. Ластик"))
+        {
+            currentObjectType = ObjectType.Eraser;
+            UpdateGhostPreview();
+        }
+        curBtnX += 86;
+
         bool isCone = currentObjectType == ObjectType.TrafficCone;
         GUI.backgroundColor = isCone ? new Color(1f, 0.6f, 0.1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 76, btnH), "🔶 12. Конус"))
+        if (GUI.Button(new Rect(curBtnX, btnY2, 76, btnH), "🔶 12. Конус"))
         {
             currentObjectType = ObjectType.TrafficCone;
             UpdateGhostPreview();
         }
         curBtnX += 78;
 
-        bool isHydrant = currentObjectType == ObjectType.FireHydrant;
-        GUI.backgroundColor = isHydrant ? new Color(1f, 0.3f, 0.3f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 82, btnH), "🚒 13. Гидрант"))
-        {
-            currentObjectType = ObjectType.FireHydrant;
-            UpdateGhostPreview();
-        }
-        curBtnX += 84;
-
-        bool isBooth = currentObjectType == ObjectType.CheckinBooth;
-        GUI.backgroundColor = isBooth ? new Color(0.3f, 0.7f, 0.9f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 68, btnH), "🏢 14. КПП"))
-        {
-            currentObjectType = ObjectType.CheckinBooth;
-            UpdateGhostPreview();
-        }
-        curBtnX += 70;
-
         bool isBarrier = currentObjectType == ObjectType.ConcreteBarrier;
         GUI.backgroundColor = isBarrier ? new Color(0.7f, 0.7f, 0.7f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 72, btnH), "🧱 15. Блок"))
+        if (GUI.Button(new Rect(curBtnX, btnY2, 72, btnH), "🧱 15. Блок"))
         {
             currentObjectType = ObjectType.ConcreteBarrier;
             UpdateGhostPreview();
@@ -5368,7 +6566,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isBarrel = currentObjectType == ObjectType.HazardBarrel;
         GUI.backgroundColor = isBarrel ? new Color(0.9f, 0.5f, 0.1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 76, btnH), "🛢️ 16. Бочка"))
+        if (GUI.Button(new Rect(curBtnX, btnY2, 76, btnH), "🛢️ 16. Бочка"))
         {
             currentObjectType = ObjectType.HazardBarrel;
             UpdateGhostPreview();
@@ -5377,85 +6575,35 @@ public class MapBuilderEditor : EditorWindow
 
         bool isTire = currentObjectType == ObjectType.TireStack;
         GUI.backgroundColor = isTire ? new Color(0.5f, 0.5f, 0.5f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🔘 17. Шины"))
+        if (GUI.Button(new Rect(curBtnX, btnY2, 74, btnH), "🔘 17. Шины"))
         {
             currentObjectType = ObjectType.TireStack;
             UpdateGhostPreview();
         }
         curBtnX += 76;
 
-        bool isEraser = currentObjectType == ObjectType.Eraser;
-        GUI.backgroundColor = isEraser ? new Color(1f, 0.35f, 0.35f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 84, btnH), "🧹 18. Ластик"))
+        bool isBooth = currentObjectType == ObjectType.CheckinBooth;
+        GUI.backgroundColor = isBooth ? new Color(0.3f, 0.7f, 0.9f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY2, 68, btnH), "🏢 14. КПП"))
         {
-            currentObjectType = ObjectType.Eraser;
+            currentObjectType = ObjectType.CheckinBooth;
             UpdateGhostPreview();
         }
-        curBtnX += 86;
+        curBtnX += 70;
 
-        bool isRoute = currentObjectType == ObjectType.RouteLine;
-        GUI.backgroundColor = isRoute ? new Color(1f, 0.85f, 0.1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 94, btnH), "🛣️ 19. Маршрут"))
+        bool isHydrant = currentObjectType == ObjectType.FireHydrant;
+        GUI.backgroundColor = isHydrant ? new Color(1f, 0.3f, 0.3f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY2, 82, btnH), "🚒 13. Гидрант"))
         {
-            currentObjectType = ObjectType.RouteLine;
+            currentObjectType = ObjectType.FireHydrant;
             UpdateGhostPreview();
         }
-        curBtnX += 96;
-
-        GUI.backgroundColor = new Color(1f, 0.85f, 0.2f, 0.9f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 54, btnH), "⟳ 45°"))
-        {
-            RotateCursor(45f);
-        }
-        curBtnX += 56;
-
-        GUI.backgroundColor = new Color(0.2f, 0.9f, 0.3f, 0.95f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "✓ Ставить"))
-        {
-            PlaceCurrentObject();
-        }
-        curBtnX += 76;
-
-        // Height quick adjuster in HUD
-        GUI.backgroundColor = new Color(0.95f, 0.75f, 0.2f, 0.95f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 34, btnH), "[-H]"))
-        {
-            AdjustMapHeight(-5f);
-        }
-        curBtnX += 36;
-        if (GUI.Button(new Rect(curBtnX, btnY, 34, btnH), "[+H]"))
-        {
-            AdjustMapHeight(+5f);
-        }
-        curBtnX += 36;
-
-        // Shift All Map Objects quick buttons in HUD
-        GUI.backgroundColor = new Color(0.3f, 0.75f, 0.95f, 0.95f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 28, btnH), "⬅"))
-        {
-            ShiftAllMapObjects(new Vector2(-SlotWidth, 0f));
-        }
-        curBtnX += 30;
-        if (GUI.Button(new Rect(curBtnX, btnY, 28, btnH), "➡"))
-        {
-            ShiftAllMapObjects(new Vector2(SlotWidth, 0f));
-        }
-        curBtnX += 30;
-        if (GUI.Button(new Rect(curBtnX, btnY, 28, btnH), "⬇"))
-        {
-            ShiftAllMapObjects(new Vector2(0f, -SlotWidth));
-        }
-        curBtnX += 30;
-        if (GUI.Button(new Rect(curBtnX, btnY, 28, btnH), "⬆"))
-        {
-            ShiftAllMapObjects(new Vector2(0f, SlotWidth));
-        }
-
+        curBtnX += 84;
         GUI.backgroundColor = Color.white;
 
         Handles.EndGUI();
 
-        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine)
+        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn)
         {
             float slotWidth = GetSlotWidth(currentObjectType);
             float slotLength = (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow) ? 26.0f : SlotLength;
@@ -5497,6 +6645,31 @@ public class MapBuilderEditor : EditorWindow
             Handles.DrawLine(new Vector3(0f, -slotLength * 0.5f + 1.0f, 0f), new Vector3( 0.6f, -slotLength * 0.5f - 0.2f, 0f));
 
             Handles.matrix = origMatrix;
+
+            if (autoAdvanceAfterPlacement && currentObjectType != ObjectType.TruckStartPoint)
+            {
+                Vector2 adv = CalculateNextSlotAdvance(currentObjectType, currentRotation, false);
+                Vector3 nextPos = new Vector3(cursorPosition.x + adv.x, cursorPosition.y + adv.y, 0f);
+
+                Matrix4x4 nextMatrix = Matrix4x4.TRS(nextPos, Quaternion.Euler(0f, 0f, currentRotation), Vector3.one);
+                Handles.matrix = nextMatrix;
+
+                Color nextOutlineColor = new Color(boxOutlineColor.r, boxOutlineColor.g, boxOutlineColor.b, 0.40f);
+                Color nextFillColor = new Color(boxFillColor.r, boxFillColor.g, boxFillColor.b, 0.05f);
+                Handles.DrawSolidRectangleWithOutline(new Vector3[]
+                {
+                    new Vector3(-slotWidth * 0.5f, -slotLength * 0.5f, 0f),
+                    new Vector3(-slotWidth * 0.5f,  slotLength * 0.5f, 0f),
+                    new Vector3( slotWidth * 0.5f,  slotLength * 0.5f, 0f),
+                    new Vector3( slotWidth * 0.5f, -slotLength * 0.5f, 0f)
+                }, nextFillColor, nextOutlineColor);
+
+                Handles.matrix = origMatrix;
+
+                // Advance indicator line from current slot to next slot
+                Handles.color = new Color(0.2f, 1.0f, 0.4f, 0.75f);
+                Handles.DrawLine(new Vector3(cursorPosition.x, cursorPosition.y, 0f), nextPos, 2.0f);
+            }
         }
     }
 
@@ -5602,7 +6775,7 @@ public class MapBuilderEditor : EditorWindow
 
     #region Object Placement & Truck Spawn Point Handling
 
-    public void PlaceCurrentObject()
+    public void PlaceCurrentObject(bool reverseAdvance = false)
     {
         EnsureCleanWorkPlane(clearExistingScene: false);
 
@@ -5614,7 +6787,7 @@ public class MapBuilderEditor : EditorWindow
 
         if (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow)
         {
-            PlaceOrRelocateTargetParking();
+            PlaceOrRelocateTargetParking(reverseAdvance);
             return;
         }
 
@@ -5657,12 +6830,14 @@ public class MapBuilderEditor : EditorWindow
             }
             else
             {
-                if (Vector2.Distance(wallStartPoint, cursorPosition) > 0.2f)
+                Vector2 snappedPos = SnapWallPointToRightAngle(wallStartPoint, cursorPosition);
+                if (Vector2.Distance(wallStartPoint, snappedPos) > 0.2f)
                 {
-                    WallObstacle newWall = CreateWall(wallStartPoint, cursorPosition, wallThickness, wallColor);
+                    WallObstacle newWall = CreateWall(wallStartPoint, snappedPos, wallThickness, wallColor);
                     selectedWall = newWall;
                     selectedWallPointIndex = 1;
-                    wallStartPoint = cursorPosition;
+                    wallStartPoint = snappedPos;
+                    cursorPosition = snappedPos;
                 }
             }
             SceneView.RepaintAll();
@@ -5675,9 +6850,7 @@ public class MapBuilderEditor : EditorWindow
             selectedPassengerCar = CreatePassengerCar(cursorPosition, currentRotation, placedColor);
             if (autoAdvanceAfterPlacement)
             {
-                float carStep = 2.75f;
-                Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
-                cursorPosition += new Vector2(rightDir.x, rightDir.y) * carStep;
+                cursorPosition += CalculateNextSlotAdvance(currentObjectType, currentRotation, reverseAdvance);
                 passengerCarColor = GetRandomCarColor();
                 UpdateGhostPreview();
             }
@@ -5691,9 +6864,7 @@ public class MapBuilderEditor : EditorWindow
             selectedStandaloneTruck = CreateStandaloneTruck(cursorPosition, currentRotation, cabCol);
             if (autoAdvanceAfterPlacement)
             {
-                float step = 4.5f;
-                Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
-                cursorPosition += new Vector2(rightDir.x, rightDir.y) * step;
+                cursorPosition += CalculateNextSlotAdvance(currentObjectType, currentRotation, reverseAdvance);
                 UpdateGhostPreview();
             }
             SceneView.RepaintAll();
@@ -5708,8 +6879,9 @@ public class MapBuilderEditor : EditorWindow
             {
                 Vector2 sz = PropObstacle.GetPropSize(pType);
                 float step = Mathf.Max(sz.x, sz.y) + 0.5f;
+                float sign = reverseAdvance ? -1f : 1f;
                 Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
-                cursorPosition += new Vector2(rightDir.x, rightDir.y) * step;
+                cursorPosition += new Vector2(rightDir.x, rightDir.y) * (step * sign);
                 UpdateGhostPreview();
             }
             SceneView.RepaintAll();
@@ -5719,6 +6891,41 @@ public class MapBuilderEditor : EditorWindow
         if (currentObjectType == ObjectType.Eraser)
         {
             EraseAtPosition(cursorPosition);
+            SceneView.RepaintAll();
+            return;
+        }
+
+        if (currentObjectType == ObjectType.Lawn)
+        {
+            if (!isDrawingLawn)
+            {
+                isDrawingLawn = true;
+                currentLawnDrawingPoints.Clear();
+                currentLawnDrawingPoints.Add(cursorPosition);
+                selectedLawn = null;
+                selectedLawnPointIndex = -1;
+            }
+            else
+            {
+                Vector2 lastPt = currentLawnDrawingPoints[currentLawnDrawingPoints.Count - 1];
+                Vector2 candidate = SnapPointTo45Degrees(lastPt, cursorPosition);
+                if (currentLawnDrawingPoints.Count >= 3 && Vector2.Distance(candidate, currentLawnDrawingPoints[0]) < 1.5f)
+                {
+                    selectedLawn = CreateLawn(currentLawnDrawingPoints);
+                    isDrawingLawn = false;
+                    currentLawnDrawingPoints.Clear();
+                    selectedLawnPointIndex = 0;
+                    if (SceneView.lastActiveSceneView != null)
+                    {
+                        SceneView.lastActiveSceneView.ShowNotification(new GUIContent("🌱 Газон замкнут и создан!"));
+                    }
+                }
+                else if (Vector2.Distance(lastPt, candidate) > 0.2f)
+                {
+                    currentLawnDrawingPoints.Add(candidate);
+                    cursorPosition = candidate;
+                }
+            }
             SceneView.RepaintAll();
             return;
         }
@@ -5801,15 +7008,14 @@ public class MapBuilderEditor : EditorWindow
 
         if (autoAdvanceAfterPlacement)
         {
-            Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
-            cursorPosition += new Vector2(rightDir.x, rightDir.y) * curWidth;
+            cursorPosition += CalculateNextSlotAdvance(currentObjectType, currentRotation, reverseAdvance);
             UpdateGhostPreview();
         }
 
         SceneView.RepaintAll();
     }
 
-    private void PlaceOrRelocateTargetParking()
+    private void PlaceOrRelocateTargetParking(bool reverseAdvance = false)
     {
         GameObject workspace = GameObject.Find(WorkspaceRootName);
         Transform container = workspace != null ? workspace.transform.Find(SlotsContainerName) : null;
@@ -5864,8 +7070,7 @@ public class MapBuilderEditor : EditorWindow
 
         if (autoAdvanceAfterPlacement)
         {
-            Vector3 rightDir = Quaternion.Euler(0f, 0f, currentRotation) * Vector3.right;
-            cursorPosition += new Vector2(rightDir.x, rightDir.y) * curWidth;
+            cursorPosition += CalculateNextSlotAdvance(currentObjectType, currentRotation, reverseAdvance);
             UpdateGhostPreview();
         }
 
@@ -6071,7 +7276,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void BuildObjectHierarchy(Transform parent, ObjectType type, bool isPreview)
     {
-        if (type == ObjectType.MarkingLine || type == ObjectType.Wall || type == ObjectType.Eraser || type == ObjectType.RouteLine)
+        if (type == ObjectType.MarkingLine || type == ObjectType.Wall || type == ObjectType.Eraser || type == ObjectType.RouteLine || type == ObjectType.Lawn)
         {
             return;
         }

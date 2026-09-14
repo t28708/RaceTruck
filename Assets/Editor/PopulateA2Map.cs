@@ -6,23 +6,10 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-[InitializeOnLoad]
 public static class PopulateA2Map
 {
     public const string ScenePath = "Assets/Scenes/CustomMaps/A2.unity";
     private const string SpritesDir = "Assets/GeneratedSprites";
-
-    static PopulateA2Map()
-    {
-        EditorApplication.delayCall += () =>
-        {
-            if (!SessionState.GetBool("A2_Map_Slalom_Done_V2", false))
-            {
-                SessionState.SetBool("A2_Map_Slalom_Done_V2", true);
-                PopulateA2();
-            }
-        };
-    }
 
     [MenuItem("Tools/Map Builder/Модернизировать карту A2 (Слаломный лабиринт)", false, 60)]
     public static void PopulateA2()

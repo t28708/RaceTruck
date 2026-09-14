@@ -98,6 +98,24 @@ public static class LocalizationManager
         return isLeft ? Get("PEDALS_LEFT") : Get("PEDALS_RIGHT");
     }
 
+    public static string GetProgressText(int completed, int total)
+    {
+        if (total <= 0)
+        {
+            return Get("PROGRESS_ZERO_MAPS");
+        }
+        if (completed >= total)
+        {
+            return string.Format(Get("PROGRESS_ALL_DONE"), total);
+        }
+        if (completed > 0)
+        {
+            int percent = Mathf.RoundToInt((float)completed / total * 100f);
+            return string.Format(Get("PROGRESS_COMPLETED"), completed, total, percent);
+        }
+        return string.Format(Get("PROGRESS_NOT_STARTED"), total);
+    }
+
     private static readonly Dictionary<string, string[]> table = new Dictionary<string, string[]>
     {
         // ========================
@@ -137,15 +155,49 @@ public static class LocalizationManager
         { "WIN_MENU", new[] { "🗺 В ОКНО ВЫБОРА УРОВНЯ", "🗺 TO LEVEL SELECT", "🗺 SÉLECTION DU NIVEAU", "🗺 SELECCIÓN DE NIVEL" } },
 
         // ========================
-        // Map Select Menu
+        // Map Select & Category Menu
         // ========================
+        { "MENU_SELECT_MODE", new[] { "ВЫБОР РЕЖИМА", "SELECT MODE", "SÉLECTION DU MODE", "SELECCIÓN DE MODO" } },
         { "MAP_SELECT_TITLE", new[] { "ВЫБОР КАРТЫ", "LEVEL SELECT", "SÉLECTION DU NIVEAU", "SELECCIÓN DE NIVEL" } },
+        { "BTN_BACK", new[] { "← НАЗАД", "← BACK", "← RETOUR", "← ATRÁS" } },
+        { "BTN_CLOSE", new[] { "✕ ЗАКРЫТЬ", "✕ CLOSE", "✕ FERMER", "✕ CERRAR" } },
         { "MAP_COMPLETED", new[] { "ВЫПОЛНЕНО", "COMPLETED", "TERMINÉ", "COMPLETADO" } },
+        { "CAT_OTHER", new[] { "ДРУГИЕ КАРТЫ", "OTHER MAPS", "AUTRES CARTES", "OTROS MAPAS" } },
+        { "MAP_NO_MAPS_IN_CAT", new[] {
+            "🗺 Пока нет карт в этой категории.",
+            "🗺 No maps in this category yet.",
+            "🗺 Aucune carte dans cette catégorie.",
+            "🗺 No hay mapas en esta categoría."
+        } },
         { "MAP_NO_MAPS", new[] {
             "🗺 Пока нет созданных карт.\nСоздайте новую карту через Tools -> Map Builder.",
             "🗺 No maps available yet.\nCreate a new map via Tools -> Map Builder.",
             "🗺 Aucune carte disponible pour le moment.\nCréez une carte via Tools -> Map Builder.",
             "🗺 No hay mapas disponibles aún.\nCrea un mapa nuevo con Tools -> Map Builder."
+        } },
+        { "PROGRESS_COMPLETED", new[] {
+            "Пройдено: {0} из {1} ({2}%)",
+            "Completed: {0} of {1} ({2}%)",
+            "Terminé : {0} sur {1} ({2}%)",
+            "Completado: {0} de {1} ({2}%)"
+        } },
+        { "PROGRESS_NOT_STARTED", new[] {
+            "{0} карт • Не начато",
+            "{0} maps • Not started",
+            "{0} cartes • Non commencé",
+            "{0} mapas • No iniciado"
+        } },
+        { "PROGRESS_ALL_DONE", new[] {
+            "★ Все {0} карт пройдены! (100%)",
+            "★ All {0} maps completed! (100%)",
+            "★ Toutes les {0} cartes terminées ! (100%)",
+            "¡★ Todos los {0} mapas completados! (100%)"
+        } },
+        { "PROGRESS_ZERO_MAPS", new[] {
+            "0 карт",
+            "0 maps",
+            "0 cartes",
+            "0 mapas"
         } },
 
         // ========================

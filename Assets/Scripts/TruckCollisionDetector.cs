@@ -137,7 +137,10 @@ public class TruckCollisionDetector : MonoBehaviour
                name.IndexOf("Checkin", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Tire", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Stack", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.IndexOf("Prop", System.StringComparison.OrdinalIgnoreCase) >= 0;
+               name.IndexOf("Prop", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Lawn", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Grass", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Curb", System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static bool IsMarkingName(string name)

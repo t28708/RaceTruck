@@ -25,7 +25,7 @@ public class BuildingObstacle : MonoBehaviour
     [Header("Appearance & Customization")]
     public Color buildingColor = new Color(0.84f, 0.84f, 0.81f, 1.0f); // #d6d6ce light warm grey metal roof
     public Color outlineColor = new Color(0.28f, 0.33f, 0.41f, 1.0f);  // #475569 slate parapet border
-    public string buildingLabel = "KROGER DC";
+    public string buildingLabel = "LOGISTICS DC";
     public bool showRoofDetails = true;
     public bool showShadow = true;
 

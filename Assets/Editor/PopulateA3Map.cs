@@ -6,7 +6,6 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-[InitializeOnLoad]
 public static class PopulateA3Map
 {
     public const string ScenePath = "Assets/Scenes/CustomMaps/A3.unity";

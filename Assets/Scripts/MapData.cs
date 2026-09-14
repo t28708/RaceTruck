@@ -16,6 +16,9 @@ public class MapData : MonoBehaviour
     [Tooltip("Map height in meters (Y axis: from 0 to mapHeight)")]
     public float mapHeight = 60.0f;
 
+    [Tooltip("Map rotation in degrees around yard center")]
+    public float mapRotation = 0.0f;
+
     private void Awake()
     {
         Instance = this;
@@ -33,10 +36,11 @@ public class MapData : MonoBehaviour
         if (mapHeight < 10f) mapHeight = 10f;
     }
 
-    public void SetDimensions(float width, float height)
+    public void SetDimensions(float width, float height, float rotation = 0f)
     {
         mapWidth = Mathf.Max(10f, width);
         mapHeight = Mathf.Max(10f, height);
+        mapRotation = rotation;
     }
 
     public void DetectDimensions()
@@ -51,6 +55,10 @@ public class MapData : MonoBehaviour
 
         if (groundTr != null)
         {
+            float rot = groundTr.eulerAngles.z;
+            if (rot > 180f) rot -= 360f;
+            mapRotation = rot;
+
             SpriteRenderer sr = groundTr.GetComponent<SpriteRenderer>();
             if (sr != null && sr.size.x > 5f && sr.size.y > 5f)
             {

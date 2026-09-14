@@ -149,7 +149,7 @@ public class MyMapLauncherWindow : EditorWindow
         EditorGUILayout.EndScrollView();
 
         EditorGUILayout.Space(4);
-        if (GUILayout.Button("➕ Создать новую карту", GUILayout.Height(26)))
+        if (GUILayout.Button("➕ Создать новую карту (54x60)", GUILayout.Height(26)))
         {
             MapBuilderEditor.NewCleanMap();
             Close();
