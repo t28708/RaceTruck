@@ -48,20 +48,19 @@ public class MapBuilderEditor : EditorWindow
         TruckStartPoint = 3,      // 4. Место старта трака (Единственный)
         MarkingLine = 4,          // 5. Линия разметки (A ➔ B)
         StandardEmptyNarrow = 5,  // 6. Узкое без трака (3.5м)
-        StandardParkedNarrow = 6, // 7. Узкое с траком (3.5м)
-        TargetParkingNarrow = 7,  // 8. Целевое место парковки (3.5м, Единственное)
-        RoadArrow = 8,            // 9. Стрелка направления (Указания на дороге)
-        Wall = 9,                 // 10. Стена-препятствие (Любой угол)
-        PassengerCar = 10,        // 11. Легковая машина (0°, 45°, 90°)
-        StandaloneTruck = 11,     // 12. 🚛 Трак с прицепом (Любой угол)
-        TrafficCone = 12,         // 13. 🔶 Конус (0.5×0.5м)
-        FireHydrant = 13,         // 14. 🚒 Гидрант (0.7×0.7м)
-        CheckinBooth = 14,        // 15. 🏢 Будка КПП (4.2×3.4м)
-        ConcreteBarrier = 15,     // 16. 🧱 Бетонный блок (2.5×0.7м)
-        HazardBarrel = 16,        // 17. 🛢️ Бочка (0.8×0.8м)
-        TireStack = 17,           // 18. 🔘 Стопка шин (1.1×1.1м)
-        Eraser = 18,              // 19. 🧹 Ластик / Удаление (Клик по объекту)
-        RouteLine = 19            // 20. 🛣️ Направляющая линия маршрута (Полилиния / Route)
+        TargetParkingNarrow = 6,  // 7. Целевое место парковки (3.5м, Единственное)
+        RoadArrow = 7,            // 8. Стрелка направления (Указания на дороге)
+        Wall = 8,                 // 9. Стена-препятствие (Любой угол)
+        PassengerCar = 9,         // 10. Легковая машина (0°, 45°, 90°)
+        StandaloneTruck = 10,     // 11. 🚛 Трак с прицепом (Любой угол)
+        TrafficCone = 11,         // 12. 🔶 Конус (0.5×0.5м)
+        FireHydrant = 12,         // 13. 🚒 Гидрант (0.7×0.7м)
+        CheckinBooth = 13,        // 14. 🏢 Будка КПП (4.2×3.4м)
+        ConcreteBarrier = 14,     // 15. 🧱 Бетонный блок (2.5×0.7м)
+        HazardBarrel = 15,        // 16. 🛢️ Бочка (0.8×0.8м)
+        TireStack = 16,           // 17. 🔘 Стопка шин (1.1×1.1м)
+        Eraser = 17,              // 18. 🧹 Ластик / Удаление (Клик по объекту)
+        RouteLine = 18            // 19. 🛣️ Направляющая линия маршрута (Полилиния / Route)
     }
 
     public const string CustomMapsFolder = "Assets/Scenes/CustomMaps";
@@ -83,7 +82,7 @@ public class MapBuilderEditor : EditorWindow
 
     public static float GetSlotWidth(ObjectType type)
     {
-        if (type == ObjectType.StandardEmptyNarrow || type == ObjectType.StandardParkedNarrow || type == ObjectType.TargetParkingNarrow)
+        if (type == ObjectType.StandardEmptyNarrow || type == ObjectType.TargetParkingNarrow)
         {
             return NarrowSlotWidth;
         }
@@ -179,20 +178,19 @@ public class MapBuilderEditor : EditorWindow
         "4. Место старта трака (Единственный)",
         "5. Линия разметки (A ➔ B)",
         "6. Узкое без трака (3.5м)",
-        "7. Узкое с траком (3.5м)",
-        "8. Целевое место парковки (3.5м, Единственное)",
-        "9. Стрелка направления (Указания на дороге)",
-        "10. Стена-препятствие (Любой угол)",
-        "11. Легковая машина (0°, 45°, 90°)",
-        "12. 🚛 Трак с прицепом (Любой угол)",
-        "13. 🔶 Конус (0.5×0.5м)",
-        "14. 🚒 Гидрант (0.7×0.7м)",
-        "15. 🏢 Будка КПП (4.2×3.4м)",
-        "16. 🧱 Бетонный блок (2.5×0.7м)",
-        "17. 🛢️ Бочка (0.8×0.8м)",
-        "18. 🔘 Стопка шин (1.1×1.1м)",
-        "19. 🧹 Ластик / Удаление (Клик по объекту)",
-        "20. 🛣️ Направляющая линия маршрута (Полилиния / Route)"
+        "7. Целевое место парковки (3.5м, Единственное)",
+        "8. Стрелка направления (Указания на дороге)",
+        "9. Стена-препятствие (Любой угол)",
+        "10. Легковая машина (0°, 45°, 90°)",
+        "11. 🚛 Трак с прицепом (Любой угол)",
+        "12. 🔶 Конус (0.5×0.5м)",
+        "13. 🚒 Гидрант (0.7×0.7м)",
+        "14. 🏢 Будка КПП (4.2×3.4м)",
+        "15. 🧱 Бетонный блок (2.5×0.7м)",
+        "16. 🛢️ Бочка (0.8×0.8м)",
+        "17. 🔘 Стопка шин (1.1×1.1м)",
+        "18. 🧹 Ластик / Удаление (Клик по объекту)",
+        "19. 🛣️ Направляющая линия маршрута (Полилиния / Route)"
     };
 
     [MenuItem("Tools/Map Builder/Open Editor", false, 1)]
@@ -5257,16 +5255,6 @@ public class MapBuilderEditor : EditorWindow
         }
         curBtnX += 76;
 
-        bool isParkedNarrow = currentObjectType == ObjectType.StandardParkedNarrow;
-        GUI.backgroundColor = isParkedNarrow ? new Color(1f, 0.45f, 0.45f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🚛 7. 3.5м"))
-        {
-            currentObjectType = ObjectType.StandardParkedNarrow;
-            SnapCursorToGrid();
-            UpdateGhostPreview();
-        }
-        curBtnX += 76;
-
         bool isTarget = currentObjectType == ObjectType.TargetParking;
         GUI.backgroundColor = isTarget ? new Color(1f, 0.85f, 0.05f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
         if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🎯 3. 4.5м"))
@@ -5279,7 +5267,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isTargetNarrow = currentObjectType == ObjectType.TargetParkingNarrow;
         GUI.backgroundColor = isTargetNarrow ? new Color(1f, 0.85f, 0.05f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🎯 8. 3.5м"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🎯 7. 3.5м"))
         {
             currentObjectType = ObjectType.TargetParkingNarrow;
             SnapCursorToGrid();
@@ -5307,7 +5295,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isArrow = currentObjectType == ObjectType.RoadArrow;
         GUI.backgroundColor = isArrow ? new Color(0.95f, 0.9f, 0.2f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 76, btnH), "➜ 9. Стрелка"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 76, btnH), "➜ 8. Стрелка"))
         {
             currentObjectType = ObjectType.RoadArrow;
             UpdateGhostPreview();
@@ -5316,7 +5304,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isWall = currentObjectType == ObjectType.Wall;
         GUI.backgroundColor = isWall ? new Color(0.85f, 0.5f, 0.2f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🧱 10. Стена"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🧱 9. Стена"))
         {
             currentObjectType = ObjectType.Wall;
             UpdateGhostPreview();
@@ -5325,7 +5313,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isCar = currentObjectType == ObjectType.PassengerCar;
         GUI.backgroundColor = isCar ? new Color(0.2f, 0.7f, 1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🚗 11. Авто"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🚗 10. Авто"))
         {
             currentObjectType = ObjectType.PassengerCar;
             currentRotation = PassengerCarObstacle.SnapAngle45(currentRotation);
@@ -5335,7 +5323,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isTruck = currentObjectType == ObjectType.StandaloneTruck;
         GUI.backgroundColor = isTruck ? new Color(0.2f, 0.8f, 1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🚛 12. Трак"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🚛 11. Трак"))
         {
             currentObjectType = ObjectType.StandaloneTruck;
             UpdateGhostPreview();
@@ -5344,7 +5332,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isCone = currentObjectType == ObjectType.TrafficCone;
         GUI.backgroundColor = isCone ? new Color(1f, 0.6f, 0.1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 76, btnH), "🔶 13. Конус"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 76, btnH), "🔶 12. Конус"))
         {
             currentObjectType = ObjectType.TrafficCone;
             UpdateGhostPreview();
@@ -5353,7 +5341,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isHydrant = currentObjectType == ObjectType.FireHydrant;
         GUI.backgroundColor = isHydrant ? new Color(1f, 0.3f, 0.3f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 82, btnH), "🚒 14. Гидрант"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 82, btnH), "🚒 13. Гидрант"))
         {
             currentObjectType = ObjectType.FireHydrant;
             UpdateGhostPreview();
@@ -5362,7 +5350,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isBooth = currentObjectType == ObjectType.CheckinBooth;
         GUI.backgroundColor = isBooth ? new Color(0.3f, 0.7f, 0.9f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 68, btnH), "🏢 15. КПП"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 68, btnH), "🏢 14. КПП"))
         {
             currentObjectType = ObjectType.CheckinBooth;
             UpdateGhostPreview();
@@ -5371,7 +5359,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isBarrier = currentObjectType == ObjectType.ConcreteBarrier;
         GUI.backgroundColor = isBarrier ? new Color(0.7f, 0.7f, 0.7f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 72, btnH), "🧱 16. Блок"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 72, btnH), "🧱 15. Блок"))
         {
             currentObjectType = ObjectType.ConcreteBarrier;
             UpdateGhostPreview();
@@ -5380,7 +5368,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isBarrel = currentObjectType == ObjectType.HazardBarrel;
         GUI.backgroundColor = isBarrel ? new Color(0.9f, 0.5f, 0.1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 76, btnH), "🛢️ 17. Бочка"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 76, btnH), "🛢️ 16. Бочка"))
         {
             currentObjectType = ObjectType.HazardBarrel;
             UpdateGhostPreview();
@@ -5389,7 +5377,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isTire = currentObjectType == ObjectType.TireStack;
         GUI.backgroundColor = isTire ? new Color(0.5f, 0.5f, 0.5f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🔘 18. Шины"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 74, btnH), "🔘 17. Шины"))
         {
             currentObjectType = ObjectType.TireStack;
             UpdateGhostPreview();
@@ -5398,7 +5386,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isEraser = currentObjectType == ObjectType.Eraser;
         GUI.backgroundColor = isEraser ? new Color(1f, 0.35f, 0.35f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 84, btnH), "🧹 19. Ластик"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 84, btnH), "🧹 18. Ластик"))
         {
             currentObjectType = ObjectType.Eraser;
             UpdateGhostPreview();
@@ -5407,7 +5395,7 @@ public class MapBuilderEditor : EditorWindow
 
         bool isRoute = currentObjectType == ObjectType.RouteLine;
         GUI.backgroundColor = isRoute ? new Color(1f, 0.85f, 0.1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
-        if (GUI.Button(new Rect(curBtnX, btnY, 94, btnH), "🛣️ 20. Маршрут"))
+        if (GUI.Button(new Rect(curBtnX, btnY, 94, btnH), "🛣️ 19. Маршрут"))
         {
             currentObjectType = ObjectType.RouteLine;
             UpdateGhostPreview();
@@ -5791,9 +5779,6 @@ public class MapBuilderEditor : EditorWindow
                 break;
             case ObjectType.StandardEmptyNarrow:
                 slotName = "Stall_Narrow_Empty";
-                break;
-            case ObjectType.StandardParkedNarrow:
-                slotName = "Stall_Narrow_Parked";
                 break;
             default:
                 slotName = "Stall_Standard_Empty";
@@ -6286,7 +6271,7 @@ public class MapBuilderEditor : EditorWindow
         }
 
         // 5. Parked Truck (Centered in 26m slot)
-        if (type == ObjectType.StandardParked || type == ObjectType.StandardParkedNarrow)
+        if (type == ObjectType.StandardParked)
         {
             GameObject trailer = new GameObject("Trailer");
             trailer.transform.SetParent(parent, false);
