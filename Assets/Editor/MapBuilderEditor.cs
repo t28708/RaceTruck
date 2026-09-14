@@ -709,7 +709,7 @@ public class MapBuilderEditor : EditorWindow
     public void SetMapDimensions(float newWidth, float newHeight)
     {
         mapWidth = Mathf.Clamp(newWidth, 15.0f, 150.0f);
-        mapHeight = Mathf.Clamp(newHeight, 25.0f, 150.0f);
+        mapHeight = Mathf.Clamp(newHeight, 25.0f, 250.0f);
 
         GameObject workspace = GameObject.Find(WorkspaceRootName);
         if (workspace == null)
@@ -2311,8 +2311,8 @@ public class MapBuilderEditor : EditorWindow
         EditorGUILayout.LabelField("📐 Размер площадки (Карты):", EditorStyles.boldLabel);
         
         EditorGUI.BeginChangeCheck();
-        float newH = EditorGUILayout.Slider("Высота карты (м) [ / ]", mapHeight, 25f, 120f);
-        float newW = EditorGUILayout.Slider("Ширина карты (м)", mapWidth, 15f, 120f);
+        float newH = EditorGUILayout.Slider("Высота карты (м) [ / ]", mapHeight, 25f, 250f);
+        float newW = EditorGUILayout.Slider("Ширина карты (м)", mapWidth, 15f, 150f);
         if (EditorGUI.EndChangeCheck())
         {
             SetMapDimensions(newW, newH);
