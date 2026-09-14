@@ -9,10 +9,12 @@ using UnityEngine.InputSystem;
 
 /// <summary>
 /// In-Game Menu (Top-Left ☰ Button):
-/// Provides two main actions:
-/// 1. 🔄 Перезапустить карту (Restart current map)
-/// 2. 🗺 В главное меню (Main menu / Select all maps)
-/// 3. ▶ Продолжить (Resume game)
+/// Provides:
+/// 1. 🌐 Смена языка (RU -> EN -> FR -> ES -> RU)
+/// 2. 🎮 Смена типа управления (Стрелки / Слайдер / Руль)
+/// 3. 🔄 Перезапуск карты
+/// 4. 🗺 Выход в главное меню
+/// 5. ▶ Продолжить
 /// </summary>
 public class InGameMenu : MonoBehaviour
 {
@@ -20,13 +22,31 @@ public class InGameMenu : MonoBehaviour
 
     private GameObject menuModalGo;
     private GameObject topMenuBtnGo;
-    private bool isMenuOpen = false;
+    private Text topMenuBtnText;
+    private Text titleText;
+    private Text languageBtnText;
+    private Text controlModeBtnText;
+    private Text pedalSideBtnText;
+    private Text restartBtnText;
+    private Text mainMenuBtnText;
+    private Text resumeBtnText;
 
+    private bool isMenuOpen = false;
     public bool IsMenuOpen => isMenuOpen;
 
     private void Awake()
     {
         Instance = this;
+    }
+
+    private void OnEnable()
+    {
+        LocalizationManager.OnLanguageChanged += UpdateAllTexts;
+    }
+
+    private void OnDisable()
+    {
+        LocalizationManager.OnLanguageChanged -= UpdateAllTexts;
     }
 
     private void Start()
@@ -72,19 +92,23 @@ public class InGameMenu : MonoBehaviour
     public void OpenMenu() => SetMenuOpen(true);
     public void CloseMenu() => SetMenuOpen(false);
 
-    private Text controlModeBtnText;
-
     public void SetMenuOpen(bool open)
     {
         isMenuOpen = open;
         if (menuModalGo != null)
         {
             menuModalGo.SetActive(isMenuOpen);
-            if (isMenuOpen && controlModeBtnText != null)
+            if (isMenuOpen)
             {
-                controlModeBtnText.text = "🎮 УПРАВЛЕНИЕ: " + SteeringWheelUI.GetControlTypeName(SteeringWheelUI.CurrentControlType);
+                UpdateAllTexts();
             }
         }
+    }
+
+    public void OnToggleLanguage()
+    {
+        LocalizationManager.CycleLanguage();
+        UpdateAllTexts();
     }
 
     public void OnToggleControlMode()
@@ -92,7 +116,50 @@ public class InGameMenu : MonoBehaviour
         SteeringControlType nextType = SteeringWheelUI.CycleControlType();
         if (controlModeBtnText != null)
         {
-            controlModeBtnText.text = "🎮 УПРАВЛЕНИЕ: " + SteeringWheelUI.GetControlTypeName(nextType);
+            controlModeBtnText.text = LocalizationManager.Get("MENU_CONTROLS_PREFIX") + SteeringWheelUI.GetControlTypeName(nextType);
+        }
+    }
+
+    public void OnTogglePedalSide()
+    {
+        SteeringWheelUI.TogglePedalSide();
+        UpdateAllTexts();
+    }
+
+    public void UpdateAllTexts()
+    {
+        if (topMenuBtnText != null)
+        {
+            topMenuBtnText.text = LocalizationManager.Get("BTN_MENU");
+        }
+        if (titleText != null)
+        {
+            titleText.text = LocalizationManager.Get("MENU_TITLE");
+        }
+        if (languageBtnText != null)
+        {
+            languageBtnText.text = LocalizationManager.GetLanguageButtonText();
+        }
+        if (controlModeBtnText != null)
+        {
+            controlModeBtnText.text = LocalizationManager.Get("MENU_CONTROLS_PREFIX") + SteeringWheelUI.GetControlTypeName(SteeringWheelUI.CurrentControlType);
+        }
+        if (pedalSideBtnText != null)
+        {
+            bool isLeft = (SteeringWheelUI.CurrentPedalSide == SteeringWheelUI.PedalSide.Left);
+            pedalSideBtnText.text = LocalizationManager.GetPedalSideButtonText(isLeft);
+        }
+        if (restartBtnText != null)
+        {
+            restartBtnText.text = LocalizationManager.Get("MENU_RESTART");
+        }
+        if (mainMenuBtnText != null)
+        {
+            mainMenuBtnText.text = LocalizationManager.Get("MENU_MAIN");
+        }
+        if (resumeBtnText != null)
+        {
+            resumeBtnText.text = LocalizationManager.Get("MENU_RESUME");
         }
     }
 
@@ -149,7 +216,7 @@ public class InGameMenu : MonoBehaviour
         Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
 
-        // 1. Top-Left Menu Button (Lowered down to Y: -180 so it doesn't touch the steering slider)
+        // 1. Top-Left Menu Button
         Transform existingBtn = canvasGo.transform.Find("TopLeft_MenuButton");
         if (existingBtn == null)
         {
@@ -184,13 +251,13 @@ public class InGameMenu : MonoBehaviour
             textRt.anchorMax = Vector2.one;
             textRt.sizeDelta = Vector2.zero;
 
-            Text t = textGo.AddComponent<Text>();
-            if (font != null) t.font = font;
-            t.fontSize = 24;
-            t.fontStyle = FontStyle.Bold;
-            t.alignment = TextAnchor.MiddleCenter;
-            t.color = Color.white;
-            t.text = "☰ МЕНЮ";
+            topMenuBtnText = textGo.AddComponent<Text>();
+            if (font != null) topMenuBtnText.font = font;
+            topMenuBtnText.fontSize = 24;
+            topMenuBtnText.fontStyle = FontStyle.Bold;
+            topMenuBtnText.alignment = TextAnchor.MiddleCenter;
+            topMenuBtnText.color = Color.white;
+            topMenuBtnText.text = LocalizationManager.Get("BTN_MENU");
         }
         else
         {
@@ -204,92 +271,100 @@ public class InGameMenu : MonoBehaviour
                 btnRt.anchoredPosition = new Vector2(30f, -180f);
                 btnRt.sizeDelta = new Vector2(210f, 68f);
             }
-            Text t = topMenuBtnGo.GetComponentInChildren<Text>();
-            if (t != null)
+            topMenuBtnText = topMenuBtnGo.GetComponentInChildren<Text>();
+            if (topMenuBtnText != null)
             {
-                t.fontSize = 24;
+                topMenuBtnText.fontSize = 24;
+                topMenuBtnText.text = LocalizationManager.Get("BTN_MENU");
             }
         }
 
         // 2. In-Game Menu Modal (Popup)
         Transform existingModal = canvasGo.transform.Find("InGameMenu_Modal");
-        if (existingModal == null)
+        if (existingModal != null)
         {
-            menuModalGo = new GameObject("InGameMenu_Modal");
-            menuModalGo.transform.SetParent(canvasGo.transform, false);
-
-            RectTransform modalRt = menuModalGo.AddComponent<RectTransform>();
-            modalRt.anchorMin = Vector2.zero;
-            modalRt.anchorMax = Vector2.one;
-            modalRt.sizeDelta = Vector2.zero;
-
-            // Semi-transparent dim background
-            Image dimImg = menuModalGo.AddComponent<Image>();
-            dimImg.color = new Color(0.04f, 0.06f, 0.09f, 0.85f);
-            dimImg.raycastTarget = true;
-
-            // Modal Card Box
-            GameObject cardGo = new GameObject("MenuCard");
-            cardGo.transform.SetParent(menuModalGo.transform, false);
-            RectTransform cardRt = cardGo.AddComponent<RectTransform>();
-            cardRt.anchorMin = new Vector2(0.5f, 0.5f);
-            cardRt.anchorMax = new Vector2(0.5f, 0.5f);
-            cardRt.pivot = new Vector2(0.5f, 0.5f);
-            cardRt.sizeDelta = new Vector2(560f, 470f);
-            cardRt.anchoredPosition = Vector2.zero;
-
-            Image cardImg = cardGo.AddComponent<Image>();
-            cardImg.color = new Color(0.10f, 0.13f, 0.19f, 0.98f);
-
-            Outline cardOutline = cardGo.AddComponent<Outline>();
-            cardOutline.effectColor = new Color(0.20f, 0.40f, 0.70f, 0.8f);
-            cardOutline.effectDistance = new Vector2(2f, -2f);
-
-            // Title
-            GameObject titleGo = new GameObject("Title");
-            titleGo.transform.SetParent(cardGo.transform, false);
-            RectTransform titleRt = titleGo.AddComponent<RectTransform>();
-            titleRt.anchorMin = new Vector2(0f, 0.78f);
-            titleRt.anchorMax = new Vector2(1f, 0.98f);
-            titleRt.sizeDelta = Vector2.zero;
-
-            Text titleText = titleGo.AddComponent<Text>();
-            if (font != null) titleText.font = font;
-            titleText.fontSize = 28;
-            titleText.fontStyle = FontStyle.Bold;
-            titleText.alignment = TextAnchor.MiddleCenter;
-            titleText.color = new Color(1f, 0.85f, 0.20f, 1f);
-            titleText.text = "⏸ МЕНЮ ИГРЫ";
-
-            // Button 1: Сменить тип управления
-            controlModeBtnText = CreateModalButton(cardGo.transform, "ControlModeBtn",
-                "🎮 УПРАВЛЕНИЕ: " + SteeringWheelUI.GetControlTypeName(SteeringWheelUI.CurrentControlType),
-                new Vector2(0f, 95f), new Color(0.20f, 0.50f, 0.90f, 1f), font, OnToggleControlMode);
-
-            // Button 2: Перезапустить карту
-            CreateModalButton(cardGo.transform, "RestartBtn", "🔄 ПЕРЕЗАПУСТИТЬ КАРТУ",
-                new Vector2(0f, 25f), new Color(0.18f, 0.65f, 0.85f, 1f), font, RestartCurrentMap);
-
-            // Button 3: В главное меню (Выбор всех карт)
-            CreateModalButton(cardGo.transform, "MainMenuBtn", "🗺 В ГЛАВНОЕ МЕНЮ",
-                new Vector2(0f, -45f), new Color(0.18f, 0.75f, 0.45f, 1f), font, GoToMainMenu);
-
-            // Button 4: Продолжить
-            CreateModalButton(cardGo.transform, "ResumeBtn", "▶ ПРОДОЛЖИТЬ",
-                new Vector2(0f, -115f), new Color(0.35f, 0.38f, 0.45f, 1f), font, CloseMenu);
-
-            menuModalGo.SetActive(false);
+            Destroy(existingModal.gameObject);
         }
-        else
-        {
-            menuModalGo = existingModal.gameObject;
-            Transform controlBtn = menuModalGo.transform.Find("MenuCard/ControlModeBtn");
-            if (controlBtn != null)
-            {
-                controlModeBtnText = controlBtn.GetComponentInChildren<Text>();
-            }
-            menuModalGo.SetActive(false);
-        }
+
+        menuModalGo = new GameObject("InGameMenu_Modal");
+        menuModalGo.transform.SetParent(canvasGo.transform, false);
+
+        RectTransform modalRt = menuModalGo.AddComponent<RectTransform>();
+        modalRt.anchorMin = Vector2.zero;
+        modalRt.anchorMax = Vector2.one;
+        modalRt.sizeDelta = Vector2.zero;
+
+        // Semi-transparent dim background
+        Image dimImg = menuModalGo.AddComponent<Image>();
+        dimImg.color = new Color(0.04f, 0.06f, 0.09f, 0.85f);
+        dimImg.raycastTarget = true;
+
+        // Modal Card Box (Height 590 to comfortably hold 6 buttons)
+        GameObject cardGo = new GameObject("MenuCard");
+        cardGo.transform.SetParent(menuModalGo.transform, false);
+        RectTransform cardRt = cardGo.AddComponent<RectTransform>();
+        cardRt.anchorMin = new Vector2(0.5f, 0.5f);
+        cardRt.anchorMax = new Vector2(0.5f, 0.5f);
+        cardRt.pivot = new Vector2(0.5f, 0.5f);
+        cardRt.sizeDelta = new Vector2(560f, 590f);
+        cardRt.anchoredPosition = Vector2.zero;
+
+        Image cardImg = cardGo.AddComponent<Image>();
+        cardImg.color = new Color(0.10f, 0.13f, 0.19f, 0.98f);
+
+        Outline cardOutline = cardGo.AddComponent<Outline>();
+        cardOutline.effectColor = new Color(0.20f, 0.40f, 0.70f, 0.8f);
+        cardOutline.effectDistance = new Vector2(2f, -2f);
+
+        // Title
+        GameObject titleGo = new GameObject("Title");
+        titleGo.transform.SetParent(cardGo.transform, false);
+        RectTransform titleRt = titleGo.AddComponent<RectTransform>();
+        titleRt.anchorMin = new Vector2(0f, 0.84f);
+        titleRt.anchorMax = new Vector2(1f, 0.98f);
+        titleRt.sizeDelta = Vector2.zero;
+
+        titleText = titleGo.AddComponent<Text>();
+        if (font != null) titleText.font = font;
+        titleText.fontSize = 28;
+        titleText.fontStyle = FontStyle.Bold;
+        titleText.alignment = TextAnchor.MiddleCenter;
+        titleText.color = new Color(1f, 0.85f, 0.20f, 1f);
+        titleText.text = LocalizationManager.Get("MENU_TITLE");
+
+        // Button 1 (Top item): Смена языка (RU -> EN -> FR -> ES -> RU)
+        languageBtnText = CreateModalButton(cardGo.transform, "LanguageBtn",
+            LocalizationManager.GetLanguageButtonText(),
+            new Vector2(0f, 155f), new Color(0.42f, 0.28f, 0.82f, 1f), font, OnToggleLanguage);
+
+        // Button 2: Сменить тип управления (Стрелки / Слайдер / Руль)
+        controlModeBtnText = CreateModalButton(cardGo.transform, "ControlModeBtn",
+            LocalizationManager.Get("MENU_CONTROLS_PREFIX") + SteeringWheelUI.GetControlTypeName(SteeringWheelUI.CurrentControlType),
+            new Vector2(0f, 95f), new Color(0.20f, 0.50f, 0.90f, 1f), font, OnToggleControlMode);
+
+        // Button 3: Положение педалей (Педали слева / Педали справа)
+        bool isPedalsLeft = (SteeringWheelUI.CurrentPedalSide == SteeringWheelUI.PedalSide.Left);
+        pedalSideBtnText = CreateModalButton(cardGo.transform, "PedalSideBtn",
+            LocalizationManager.GetPedalSideButtonText(isPedalsLeft),
+            new Vector2(0f, 35f), new Color(0.85f, 0.45f, 0.15f, 1f), font, OnTogglePedalSide);
+
+        // Button 4: Перезапустить карту
+        restartBtnText = CreateModalButton(cardGo.transform, "RestartBtn",
+            LocalizationManager.Get("MENU_RESTART"),
+            new Vector2(0f, -25f), new Color(0.18f, 0.65f, 0.85f, 1f), font, RestartCurrentMap);
+
+        // Button 5: В главное меню (Выбор всех карт)
+        mainMenuBtnText = CreateModalButton(cardGo.transform, "MainMenuBtn",
+            LocalizationManager.Get("MENU_MAIN"),
+            new Vector2(0f, -85f), new Color(0.18f, 0.75f, 0.45f, 1f), font, GoToMainMenu);
+
+        // Button 6: Продолжить
+        resumeBtnText = CreateModalButton(cardGo.transform, "ResumeBtn",
+            LocalizationManager.Get("MENU_RESUME"),
+            new Vector2(0f, -145f), new Color(0.35f, 0.38f, 0.45f, 1f), font, CloseMenu);
+
+        UpdateAllTexts();
+        menuModalGo.SetActive(false);
     }
 
     private Text CreateModalButton(Transform parent, string name, string text, Vector2 anchoredPos, Color bgColor, Font font, UnityEngine.Events.UnityAction onClick)

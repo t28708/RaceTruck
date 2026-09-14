@@ -135,6 +135,10 @@ public class TruckController : MonoBehaviour
             trailerRb.interpolation = RigidbodyInterpolation2D.Interpolate;
         }
 
+        obstacleFilter = new ContactFilter2D();
+        obstacleFilter.useTriggers = true;
+        obstacleFilter.useLayerMask = false;
+
         maxForwardSpeedKmh = 10.0f;
         maxReverseSpeedKmh = 10.0f;
         maxArticulationAngle = 107.3f;
@@ -391,6 +395,9 @@ public class TruckController : MonoBehaviour
         brakeImg.color = new Color(1f, 1f, 1f, 0.90f);
         brakeImg.sprite = GetOrCreateSprite("PedalBrake", () => GeneratePedalTexture(new Color(0.65f, 0.15f, 0.15f, 0.95f), "BRAKE"));
 
+        // Apply saved pedal side layout (Left vs Right)
+        SteeringWheelUI.ApplyPedalSideLayout(SteeringWheelUI.CurrentPedalSide);
+
         // 3. HUD Plashka (Telemetry Panel with Speed, Steer, Articulation Angle)
         Transform hudPanelTrans = canvasGo.transform.Find("HUD_Panel");
         GameObject hudPanelGo = (hudPanelTrans != null) ? hudPanelTrans.gameObject : null;
@@ -478,6 +485,13 @@ public class TruckController : MonoBehaviour
             return;
         }
 
+        GameObject targetSlotNarrow = GameObject.Find("TargetParkingSlot_Narrow");
+        if (targetSlotNarrow != null)
+        {
+            targetSlotNarrow.AddComponent<ParkingTargetZone>();
+            return;
+        }
+
         GameObject arrow = GameObject.Find("TargetParking_YellowArrow");
         if (arrow == null) arrow = GameObject.Find("TargetStall_Arrow");
         if (arrow != null && arrow.transform.parent != null)
@@ -487,6 +501,7 @@ public class TruckController : MonoBehaviour
         }
 
         GameObject emptyStall = GameObject.Find("Stall_Standard_Empty");
+        if (emptyStall == null) emptyStall = GameObject.Find("Stall_Narrow_Empty");
         if (emptyStall != null)
         {
             emptyStall.AddComponent<ParkingTargetZone>();
@@ -712,6 +727,20 @@ public class TruckController : MonoBehaviour
         obstacleFilter.useLayerMask = false;
     }
 
+    public static bool IsSameObstacle(Collider2D a, Collider2D b)
+    {
+        if (a == null || b == null) return false;
+        if (a == b) return true;
+
+        // If both colliders belong to the same parent stall (e.g. Tractor and Trailer under Stall_Narrow_Parked or Stall_Standard_Parked)
+        if (a.transform.parent != null && b.transform.parent != null && a.transform.parent == b.transform.parent)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     private bool CheckCandidateCollision(Vector2 candTractorPos, float candTractorAngle, Vector2 candTrailerPos, float candTrailerAngle, out Collider2D hitObstacle)
     {
         hitObstacle = null;
@@ -727,34 +756,10 @@ public class TruckController : MonoBehaviour
                 Collider2D col = candidateHits[i];
                 if (!IsObstacle(col)) continue;
 
-                if (col == lastCrashedObstacle)
+                if (IsSameObstacle(col, lastCrashedObstacle))
                 {
                     if (isMovingForward && lastCrashDirection == -1) continue;
                     if (!isMovingForward && lastCrashDirection == +1) continue;
-                }
-
-                // Use the closest point on the collider rather than the center of long walls
-                Vector2 contactPoint = col.ClosestPoint(candTractorPos);
-                Vector2 localObstaclePos = transform.InverseTransformPoint(contactPoint);
-
-                if (isMovingForward && lastCrashDirection == -1 && localObstaclePos.y <= 2.0f)
-                {
-                    continue;
-                }
-
-                if (!isMovingForward && lastCrashDirection == +1)
-                {
-                    continue;
-                }
-
-                if (!isMovingForward && localObstaclePos.y > -0.5f)
-                {
-                    continue;
-                }
-
-                if (isMovingForward && localObstaclePos.y < -3.5f)
-                {
-                    continue;
                 }
 
                 hitObstacle = col;
@@ -772,33 +777,10 @@ public class TruckController : MonoBehaviour
                 Collider2D col = candidateHits[i];
                 if (!IsObstacle(col)) continue;
 
-                if (col == lastCrashedObstacle)
+                if (IsSameObstacle(col, lastCrashedObstacle))
                 {
                     if (isMovingForward && lastCrashDirection == -1) continue;
                     if (!isMovingForward && lastCrashDirection == +1) continue;
-                }
-
-                Vector2 contactPoint = col.ClosestPoint(candTrailerPos);
-                Vector2 localObstaclePos = trailerRb.transform.InverseTransformPoint(contactPoint);
-
-                if (isMovingForward && lastCrashDirection == -1)
-                {
-                    continue;
-                }
-
-                if (!isMovingForward && lastCrashDirection == +1 && localObstaclePos.y >= -5.0f)
-                {
-                    continue;
-                }
-
-                if (isMovingForward && localObstaclePos.y < 0f)
-                {
-                    continue;
-                }
-
-                if (!isMovingForward && localObstaclePos.y > 6.0f)
-                {
-                    continue;
                 }
 
                 hitObstacle = col;
@@ -1138,6 +1120,8 @@ public class TruckController : MonoBehaviour
         // Hitch position on tractor
         Vector2 newHitchPos = newTractorCenter + newTractorForward * hitchLocalOffset;
         Vector2 hitchDelta = newHitchPos - prevHitchPos;
+        Vector2 finalTrailerCenter = Vector2.zero;
+        float finalTrailerAngleDeg = 0f;
 
         // 3. Trailer Tractrix Kinematics (Real 53ft Trailer Delay & Off-Tracking)
         if (trailerRb != null)
@@ -1200,6 +1184,8 @@ public class TruckController : MonoBehaviour
 
             // Geometric lock: Trailer kingpin is locked exactly to 5th wheel hitch
             Vector2 newTrailerCenter = newHitchPos - finalTrailerForward * kingpinLocalOffset;
+            finalTrailerCenter = newTrailerCenter;
+            finalTrailerAngleDeg = newTrailerAngleDeg;
 
             // Predictive collision check before applying movement
             if (Mathf.Abs(currentSpeed) > 0.01f)
@@ -1258,28 +1244,33 @@ public class TruckController : MonoBehaviour
         // Store hitch position for next step
         prevHitchPos = newHitchPos;
 
-        // Automatically clear collision blocks once the entire rig has completely moved away from all obstacles
+        // Automatically clear collision blocks once the entire rig has completely moved away from lastCrashedObstacle
         if ((isBlockedForward || isBlockedReverse) && !isJackknifed)
         {
-            bool isTouching = false;
-            if (tractorCollider != null)
+            bool isStillTouchingObstacle = false;
+            if (lastCrashedObstacle != null)
             {
-                int tCount = tractorCollider.Overlap(obstacleFilter, candidateHits);
-                for (int i = 0; i < tCount; i++)
+                if (tractorCollider != null)
                 {
-                    if (IsObstacle(candidateHits[i])) { isTouching = true; break; }
+                    Vector2 tractorSize = tractorCollider.size - new Vector2(0.04f, 0.04f);
+                    int count = Physics2D.OverlapBox(newTractorCenter, tractorSize, newTractorAngleDeg, obstacleFilter, candidateHits);
+                    for (int i = 0; i < count; i++)
+                    {
+                        if (IsSameObstacle(candidateHits[i], lastCrashedObstacle)) { isStillTouchingObstacle = true; break; }
+                    }
                 }
-            }
-            if (!isTouching && trailerCollider != null)
-            {
-                int trCount = trailerCollider.Overlap(obstacleFilter, candidateHits);
-                for (int i = 0; i < trCount; i++)
+                if (!isStillTouchingObstacle && trailerCollider != null && trailerRb != null)
                 {
-                    if (IsObstacle(candidateHits[i])) { isTouching = true; break; }
+                    Vector2 trailerSize = trailerCollider.size - new Vector2(0.04f, 0.04f);
+                    int count = Physics2D.OverlapBox(finalTrailerCenter, trailerSize, finalTrailerAngleDeg, obstacleFilter, candidateHits);
+                    for (int i = 0; i < count; i++)
+                    {
+                        if (IsSameObstacle(candidateHits[i], lastCrashedObstacle)) { isStillTouchingObstacle = true; break; }
+                    }
                 }
             }
 
-            if (!isTouching)
+            if (!isStillTouchingObstacle)
             {
                 ClearBlock();
             }

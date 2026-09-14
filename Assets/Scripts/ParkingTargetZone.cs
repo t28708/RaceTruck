@@ -366,7 +366,7 @@ public class ParkingTargetZone : MonoBehaviour
         titleText.fontStyle = FontStyle.Bold;
         titleText.alignment = TextAnchor.MiddleCenter;
         titleText.color = new Color(1f, 0.85f, 0.15f, 1f);
-        titleText.text = "🏆 ЗАДАНИЕ ВЫПОЛНЕНО";
+        titleText.text = LocalizationManager.Get("WIN_TITLE");
 
         // Win Subtitle
         GameObject subGo = new GameObject("Subtitle");
@@ -380,17 +380,17 @@ public class ParkingTargetZone : MonoBehaviour
         subText.fontSize = 22;
         subText.alignment = TextAnchor.MiddleCenter;
         subText.color = new Color(0.85f, 0.92f, 1f, 0.95f);
-        subText.text = "Грузовик успешно припаркован в целевую зону!";
+        subText.text = LocalizationManager.Get("WIN_SUBTITLE");
 
         // Button 1: Continue Playing on THIS map
-        GameObject continueGo = CreateModalButton("ContinueButton", boxGo.transform, new Vector2(0.06f, 0.12f), new Vector2(0.46f, 0.36f), new Color(0.15f, 0.72f, 0.32f, 1f), "▶ ПРОДОЛЖИТЬ", font, 24);
+        GameObject continueGo = CreateModalButton("ContinueButton", boxGo.transform, new Vector2(0.06f, 0.12f), new Vector2(0.46f, 0.36f), new Color(0.15f, 0.72f, 0.32f, 1f), LocalizationManager.Get("WIN_CONTINUE"), font, 24);
         continueGo.GetComponent<Button>().onClick.AddListener(() =>
         {
             ContinueCurrentLevel();
         });
 
         // Button 2: Return to Level Select Menu
-        GameObject menuGo = CreateModalButton("MenuButton", boxGo.transform, new Vector2(0.50f, 0.12f), new Vector2(0.94f, 0.36f), new Color(0.18f, 0.48f, 0.88f, 1f), "🗺 В ОКНО ВЫБОРА УРОВНЯ", font, 18);
+        GameObject menuGo = CreateModalButton("MenuButton", boxGo.transform, new Vector2(0.50f, 0.12f), new Vector2(0.94f, 0.36f), new Color(0.18f, 0.48f, 0.88f, 1f), LocalizationManager.Get("WIN_MENU"), font, 18);
         menuGo.GetComponent<Button>().onClick.AddListener(() =>
         {
             ReturnToLevelSelectMenu();

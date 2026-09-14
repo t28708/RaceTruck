@@ -16,7 +16,14 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
 {
     public static SteeringWheelUI Instance { get; private set; }
 
+    public enum PedalSide
+    {
+        Left = 0,    // Педали слева, руль/кнопки справа
+        Right = 1    // Педали справа, руль/кнопки слева
+    }
+
     public const string PrefKey_ControlType = "SteeringControlType";
+    public const string PrefKey_PedalSide = "PedalSide";
 
     [Header("Wheel Settings")]
     [Tooltip("Maximum rotation angle of the steering wheel in degrees (e.g., 450 = 1.25 turns each side)")]
@@ -59,6 +66,87 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
         {
             if (Instance != null) return Instance.controlType;
             return (SteeringControlType)PlayerPrefs.GetInt(PrefKey_ControlType, (int)SteeringControlType.Buttons);
+        }
+    }
+
+    public static PedalSide CurrentPedalSide
+    {
+        get
+        {
+            return (PedalSide)PlayerPrefs.GetInt(PrefKey_PedalSide, (int)PedalSide.Left);
+        }
+    }
+
+    public static PedalSide TogglePedalSide()
+    {
+        PedalSide next = (CurrentPedalSide == PedalSide.Left) ? PedalSide.Right : PedalSide.Left;
+        SetPedalSide(next);
+        return next;
+    }
+
+    public static void SetPedalSide(PedalSide side)
+    {
+        PlayerPrefs.SetInt(PrefKey_PedalSide, (int)side);
+        PlayerPrefs.Save();
+        ApplyPedalSideLayout(side);
+    }
+
+    public static void ApplyPedalSideLayout(PedalSide side)
+    {
+        bool isLeft = (side == PedalSide.Left);
+
+        // 1. Steering Wheel (Opposite of pedals)
+        if (Instance != null && Instance.wheelRectTransform != null)
+        {
+            Instance.wheelRectTransform.anchorMin = isLeft ? new Vector2(1f, 0f) : new Vector2(0f, 0f);
+            Instance.wheelRectTransform.anchorMax = isLeft ? new Vector2(1f, 0f) : new Vector2(0f, 0f);
+            Instance.wheelRectTransform.anchoredPosition = isLeft ? new Vector2(-270f, 270f) : new Vector2(270f, 270f);
+        }
+
+        // 2. Steering Buttons Container (Opposite of pedals)
+        if (Instance != null && Instance.buttonsContainerGo != null)
+        {
+            RectTransform btnRt = Instance.buttonsContainerGo.GetComponent<RectTransform>();
+            if (btnRt != null)
+            {
+                btnRt.anchorMin = isLeft ? new Vector2(1f, 0f) : new Vector2(0f, 0f);
+                btnRt.anchorMax = isLeft ? new Vector2(1f, 0f) : new Vector2(0f, 0f);
+                btnRt.anchoredPosition = isLeft ? new Vector2(-280f, 240f) : new Vector2(280f, 240f);
+            }
+        }
+
+        // 3. Steering Slider Container (Always stays centered at top)
+        if (Instance != null && Instance.sliderContainerGo != null)
+        {
+            RectTransform sliderRt = Instance.sliderContainerGo.GetComponent<RectTransform>();
+            if (sliderRt != null)
+            {
+                sliderRt.anchorMin = new Vector2(0.5f, 1f);
+                sliderRt.anchorMax = new Vector2(0.5f, 1f);
+                sliderRt.anchoredPosition = new Vector2(0f, -125f);
+            }
+        }
+
+        // 4. Gas & Brake Pedals
+        PedalUI[] pedals = Object.FindObjectsByType<PedalUI>(FindObjectsSortMode.None);
+        foreach (var p in pedals)
+        {
+            if (p == null) continue;
+            RectTransform rt = p.GetComponent<RectTransform>();
+            if (rt == null) continue;
+
+            if (p.Type == PedalUI.PedalType.Gas)
+            {
+                rt.anchorMin = isLeft ? new Vector2(0f, 0f) : new Vector2(1f, 0f);
+                rt.anchorMax = isLeft ? new Vector2(0f, 0f) : new Vector2(1f, 0f);
+                rt.anchoredPosition = isLeft ? new Vector2(170f, 490f) : new Vector2(-170f, 490f);
+            }
+            else if (p.Type == PedalUI.PedalType.BrakeReverse)
+            {
+                rt.anchorMin = isLeft ? new Vector2(0f, 0f) : new Vector2(1f, 0f);
+                rt.anchorMax = isLeft ? new Vector2(0f, 0f) : new Vector2(1f, 0f);
+                rt.anchoredPosition = isLeft ? new Vector2(190f, 170f) : new Vector2(-190f, 170f);
+            }
         }
     }
 
@@ -136,6 +224,11 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
     public bool IsDragging => isDragging;
     public SteeringControlType ControlType => controlType;
 
+    private Text btnLeftText;
+    private Text btnRightText;
+    private Text sliderLeftText;
+    private Text sliderRightText;
+
     private void Awake()
     {
         Instance = this;
@@ -143,12 +236,32 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
         FindComponents();
     }
 
+    private void OnEnable()
+    {
+        LocalizationManager.OnLanguageChanged += UpdateLocalizedLabels;
+    }
+
+    private void OnDisable()
+    {
+        LocalizationManager.OnLanguageChanged -= UpdateLocalizedLabels;
+    }
+
+    public void UpdateLocalizedLabels()
+    {
+        if (btnLeftText != null) btnLeftText.text = LocalizationManager.Get("STEER_LEFT_MULTILINE");
+        if (btnRightText != null) btnRightText.text = LocalizationManager.Get("STEER_RIGHT_MULTILINE");
+        if (sliderLeftText != null) sliderLeftText.text = LocalizationManager.Get("STEER_LEFT_LABEL");
+        if (sliderRightText != null) sliderRightText.text = LocalizationManager.Get("STEER_RIGHT_LABEL");
+    }
+
     private void Start()
     {
         FindComponents();
         EnsureAllControls();
+        ApplyPedalSideLayout(CurrentPedalSide);
         UpdateControlsVisibility();
         UpdateWheelVisual();
+        UpdateLocalizedLabels();
     }
 
     public void FindComponents()
@@ -168,13 +281,13 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
         switch (type)
         {
             case SteeringControlType.Buttons:
-                return "СТРЕЛКИ (КНОПКИ) ◀ ▶";
+                return LocalizationManager.Get("CONTROL_BUTTONS");
             case SteeringControlType.Slider:
-                return "ЛИНИЯ (СЛАЙДЕР) ↔";
+                return LocalizationManager.Get("CONTROL_SLIDER");
             case SteeringControlType.Wheel:
-                return "КРУГЛЫЙ РУЛЬ ⭕";
+                return LocalizationManager.Get("CONTROL_WHEEL");
             default:
-                return "СТРЕЛКИ (КНОПКИ) ◀ ▶";
+                return LocalizationManager.Get("CONTROL_BUTTONS");
         }
     }
 
@@ -227,16 +340,20 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
             containerRt.sizeDelta = new Vector2(500f, 260f);
 
             // Left Button (◀ ВЛЕВО)
-            CreateSteerButton(buttonsContainerGo.transform, "Btn_SteerLeft", SteerTouchButton.Direction.Left,
+            btnLeftText = CreateSteerButton(buttonsContainerGo.transform, "Btn_SteerLeft", SteerTouchButton.Direction.Left,
                 new Vector2(-130f, 0f), "◀\nВЛЕВО", font);
 
             // Right Button (▶ ВПРАВО)
-            CreateSteerButton(buttonsContainerGo.transform, "Btn_SteerRight", SteerTouchButton.Direction.Right,
+            btnRightText = CreateSteerButton(buttonsContainerGo.transform, "Btn_SteerRight", SteerTouchButton.Direction.Right,
                 new Vector2(130f, 0f), "▶\nВПРАВО", font);
         }
         else
         {
             buttonsContainerGo = existingButtons.gameObject;
+            Transform btnL = buttonsContainerGo.transform.Find("Btn_SteerLeft");
+            if (btnL != null) btnLeftText = btnL.GetComponentInChildren<Text>();
+            Transform btnR = buttonsContainerGo.transform.Find("Btn_SteerRight");
+            if (btnR != null) btnRightText = btnR.GetComponentInChildren<Text>();
         }
 
         // 2. Steering Slider Container (Horizontal Line bar near top)
@@ -285,9 +402,9 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
             notchImg.raycastTarget = false;
 
             // Left Label
-            CreateSliderLabel(trackGo.transform, "Label_Left", "◀ ВЛЕВО", new Vector2(-370f, 0f), font);
+            sliderLeftText = CreateSliderLabel(trackGo.transform, "Label_Left", "◀ ВЛЕВО", new Vector2(-370f, 0f), font);
             // Right Label
-            CreateSliderLabel(trackGo.transform, "Label_Right", "ВПРАВО ▶", new Vector2(370f, 0f), font);
+            sliderRightText = CreateSliderLabel(trackGo.transform, "Label_Right", "ВПРАВО ▶", new Vector2(370f, 0f), font);
 
             // Handle
             GameObject handleGo = new GameObject("Slider_Handle");
@@ -333,10 +450,16 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
                 existingSliderRt.anchoredPosition = new Vector2(0f, -125f);
             }
             touchSliderScript = sliderContainerGo.GetComponentInChildren<SteerTouchSlider>();
+            Transform lblL = sliderContainerGo.transform.Find("Slider_Track/Label_Left");
+            if (lblL != null) sliderLeftText = lblL.GetComponent<Text>();
+            Transform lblR = sliderContainerGo.transform.Find("Slider_Track/Label_Right");
+            if (lblR != null) sliderRightText = lblR.GetComponent<Text>();
         }
+
+        ApplyPedalSideLayout(CurrentPedalSide);
     }
 
-    private void CreateSteerButton(Transform parent, string name, SteerTouchButton.Direction dir, Vector2 pos, string text, Font font)
+    private Text CreateSteerButton(Transform parent, string name, SteerTouchButton.Direction dir, Vector2 pos, string text, Font font)
     {
         GameObject btnGo = new GameObject(name);
         btnGo.transform.SetParent(parent, false);
@@ -377,9 +500,10 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
 
         SteerTouchButton btnScript = btnGo.AddComponent<SteerTouchButton>();
         btnScript.Init(dir, img, outline);
+        return t;
     }
 
-    private void CreateSliderLabel(Transform parent, string name, string text, Vector2 pos, Font font)
+    private Text CreateSliderLabel(Transform parent, string name, string text, Vector2 pos, Font font)
     {
         GameObject labelGo = new GameObject(name);
         labelGo.transform.SetParent(parent, false);
@@ -397,6 +521,7 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
         t.alignment = TextAnchor.MiddleCenter;
         t.color = new Color(0.85f, 0.90f, 1.0f, 0.95f);
         t.text = text;
+        return t;
     }
 
     public void UpdateControlsVisibility()

@@ -32,13 +32,15 @@ public class TruckAudioController : MonoBehaviour
 
     private bool isStartingUp = true;
     private float startupTimer = 0f;
-    private const float StartupDuration = 2.65f;
+    private const float StartupCrankDelay = 1.20f; // Starter cranks exclusively before combustion catch
+    private const float StartupDuration = 2.65f;   // Total startup duration until full idle takeover
 
     private float currentDriveVolume = 0f;
     private float targetDriveVolume = 0f;
     private float lastBrakeTriggerTime = -1f;
     private bool wasMovingForward = false;
     private bool wasBraking = false;
+    private bool isMenuMuted = false;
 
     private void Awake()
     {
@@ -49,6 +51,13 @@ public class TruckAudioController : MonoBehaviour
 
     private void Start()
     {
+        string sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        if (sceneName == "MainMenu")
+        {
+            StopAllEngineAudio();
+            return;
+        }
+
         StartEngine();
     }
 
@@ -113,33 +122,72 @@ public class TruckAudioController : MonoBehaviour
         isStartingUp = true;
         startupTimer = 0f;
 
-        // 1. Play Cascadia Starter Sequence
+        // 1. Play Cascadia Starter Sequence (First starter cranks, engine catches next)
         if (startupSource != null && startupClip != null)
         {
-            startupSource.volume = 0.90f;
+            startupSource.volume = 0.95f;
             startupSource.pitch = 1.0f;
             startupSource.Play();
         }
 
-        // 2. Prepare Idle Loop (starts muted, fades in during combustion catch)
-        if (idleSource != null && idleClip != null)
+        // 2. Engine idle and drive start completely muted/stopped until starter catches
+        if (idleSource != null)
         {
             idleSource.volume = 0f;
             idleSource.pitch = 1.0f;
-            idleSource.Play();
+            idleSource.Stop();
         }
 
-        // 3. Prepare Drive Loop (muted)
-        if (driveSource != null && driveClip != null)
+        if (driveSource != null)
         {
             driveSource.volume = 0f;
             driveSource.pitch = 1.0f;
-            driveSource.Play();
+            driveSource.Stop();
         }
+    }
+
+    public void StopAllEngineAudio()
+    {
+        if (startupSource != null) startupSource.Stop();
+        if (idleSource != null) idleSource.Stop();
+        if (driveSource != null) driveSource.Stop();
+        if (airBrakeSource != null) airBrakeSource.Stop();
+        if (reverseBeepSource != null) reverseBeepSource.Stop();
     }
 
     private void Update()
     {
+        // Check if we are in Main Menu or any modal menu is open
+        string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        bool isMainMenu = (currentScene == "MainMenu");
+        bool isMenuOpen = isMainMenu ||
+                          (InGameMenu.Instance != null && InGameMenu.Instance.IsMenuOpen) ||
+                          (MapSelectMenu.Instance != null && MapSelectMenu.Instance.IsMenuOpen);
+
+        if (isMenuOpen)
+        {
+            if (!isMenuMuted)
+            {
+                isMenuMuted = true;
+                if (startupSource != null && startupSource.isPlaying) startupSource.Pause();
+                if (idleSource != null && idleSource.isPlaying) idleSource.Pause();
+                if (driveSource != null && driveSource.isPlaying) driveSource.Pause();
+                if (reverseBeepSource != null && reverseBeepSource.isPlaying) reverseBeepSource.Pause();
+            }
+            return;
+        }
+        else
+        {
+            if (isMenuMuted)
+            {
+                isMenuMuted = false;
+                if (startupSource != null && isStartingUp && !startupSource.isPlaying) startupSource.UnPause();
+                if (idleSource != null && !idleSource.isPlaying && (!isStartingUp || startupTimer >= StartupCrankDelay)) idleSource.UnPause();
+                if (driveSource != null && !driveSource.isPlaying && !isStartingUp) driveSource.UnPause();
+                if (reverseBeepSource != null && !reverseBeepSource.isPlaying) reverseBeepSource.UnPause();
+            }
+        }
+
         if (controller == null) return;
         float dt = Time.deltaTime;
         if (dt <= 0f) return;
@@ -159,22 +207,36 @@ public class TruckAudioController : MonoBehaviour
         if (isStartingUp)
         {
             startupTimer += dt;
-            if (startupTimer < 0.70f)
+            if (startupTimer < StartupCrankDelay)
             {
-                // Electric starter cranking: engine not yet idling
+                // Electric starter cranking: engine idle has NOT started yet
                 if (idleSource != null) idleSource.volume = 0f;
             }
             else if (startupTimer < StartupDuration)
             {
-                // Engine catches fire and surges: fade in idle loop
-                float catchRatio = (startupTimer - 0.70f) / (StartupDuration - 0.70f);
-                if (idleSource != null) idleSource.volume = Mathf.Lerp(0f, 0.75f, catchRatio);
+                // Engine catches ignition and surges: start idle loop and blend volume up
+                if (idleSource != null && !idleSource.isPlaying)
+                {
+                    idleSource.Play();
+                }
+                float catchRatio = (startupTimer - StartupCrankDelay) / (StartupDuration - StartupCrankDelay);
+                if (idleSource != null) idleSource.volume = Mathf.Lerp(0.05f, 0.75f, catchRatio);
             }
             else
             {
                 isStartingUp = false;
-                if (idleSource != null) idleSource.volume = 0.75f;
+                if (idleSource != null)
+                {
+                    if (!idleSource.isPlaying) idleSource.Play();
+                    idleSource.volume = 0.75f;
+                }
+                if (driveSource != null && !driveSource.isPlaying)
+                {
+                    driveSource.volume = 0f;
+                    driveSource.Play();
+                }
             }
+            return; // Suppress throttle drive noise while starter sequence completes
         }
 
         // ----------------------------------------------------
@@ -203,6 +265,7 @@ public class TruckAudioController : MonoBehaviour
 
         if (driveSource != null)
         {
+            if (!driveSource.isPlaying) driveSource.Play();
             driveSource.volume = currentDriveVolume;
             // Realistic heavy diesel pitch: narrow 0.92 to 1.08 band (no high-pitch whine or sped-up sound!)
             float targetPitch = 0.92f + speedRatio * 0.16f;
@@ -212,6 +275,7 @@ public class TruckAudioController : MonoBehaviour
         // Idle volume ducks slightly under heavy throttle, holds firm and deep when stopped
         if (!isStartingUp && idleSource != null)
         {
+            if (!idleSource.isPlaying) idleSource.Play();
             idleSource.volume = Mathf.Lerp(0.72f, 0.35f, currentDriveVolume);
             idleSource.pitch = 1.0f; // rock-solid diesel idle, no wobble
         }
@@ -266,11 +330,7 @@ public class TruckAudioController : MonoBehaviour
 
     private void OnDisable()
     {
-        if (startupSource != null) startupSource.Stop();
-        if (idleSource != null) idleSource.Stop();
-        if (driveSource != null) driveSource.Stop();
-        if (airBrakeSource != null) airBrakeSource.Stop();
-        if (reverseBeepSource != null) reverseBeepSource.Stop();
+        StopAllEngineAudio();
     }
 
     // =========================================================================

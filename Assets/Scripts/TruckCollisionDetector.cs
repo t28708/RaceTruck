@@ -223,31 +223,19 @@ public class TruckCollisionDetector : MonoBehaviour
             return;
         }
 
-        // Contact point on the obstacle closest to this vehicle part
         Collider2D actualCol = hitCol != null ? hitCol : other.GetComponent<Collider2D>();
-        Vector2 contactPoint = (actualCol != null) ? actualCol.ClosestPoint(transform.position) : (Vector2)other.transform.position;
-        Vector2 localObstaclePos = transform.InverseTransformPoint(contactPoint);
-        bool isFrontObstacle = (localObstaclePos.y >= 0f);
 
-        // CRITICAL 2: If moving AWAY from this obstacle, DO NOT crash or block!
-        if (isFrontObstacle && speed < -0.01f)
+        // If this vehicle already crashed and is actively moving in the ESCAPE direction away from the obstacle, DO NOT re-crash!
+        if (actualCol != null && TruckController.IsSameObstacle(actualCol, TruckController.Instance.LastCrashedObstacle))
         {
-            return; // Moving backward away from front obstacle
-        }
-
-        if (!isFrontObstacle && speed > 0.01f)
-        {
-            return; // Moving forward away from rear obstacle
-        }
-
-        // CRITICAL 3: If this vehicle already crashed and is actively moving in the ESCAPE direction, DO NOT crash!
-        if (speed > 0.01f && TruckController.Instance.LastCrashDirection == -1)
-        {
-            return; // Escaping from a reverse crash!
-        }
-        if (speed < -0.01f && TruckController.Instance.LastCrashDirection == +1)
-        {
-            return; // Escaping from a forward crash!
+            if (speed > 0.01f && TruckController.Instance.LastCrashDirection == -1)
+            {
+                return; // Escaping from a reverse crash!
+            }
+            if (speed < -0.01f && TruckController.Instance.LastCrashDirection == +1)
+            {
+                return; // Escaping from a forward crash!
+            }
         }
 
         string obstacleName = FormatObstacleNameStatic(other.name, other.transform);
@@ -276,19 +264,19 @@ public class TruckCollisionDetector : MonoBehaviour
 
         if (combinedName.Contains("Truck") || combinedName.Contains("Parked") || combinedName.Contains("Trailer") || combinedName.Contains("Tractor"))
         {
-            return "припаркованный грузовик";
+            return LocalizationManager.Get("OBS_TRUCK");
         }
-        if (combinedName.Contains("Cone")) return "конус";
-        if (combinedName.Contains("Hydrant")) return "пожарный гидрант";
-        if (combinedName.Contains("Booth") || combinedName.Contains("Checkin")) return "будку КПП";
-        if (combinedName.Contains("Tire") || combinedName.Contains("Stack")) return "стопку шин";
-        if (combinedName.Contains("Car") || combinedName.Contains("Auto") || combinedName.Contains("PassengerCar")) return "легковую машину";
-        if (combinedName.Contains("Boundary") || combinedName.Contains("Border") || combinedName.Contains("Fence")) return "границу площадки";
-        if (combinedName.Contains("Barrier") || combinedName.Contains("Wall")) return "стену / барьер";
-        if (combinedName.Contains("Barrel")) return "бочку";
-        if (combinedName.Contains("Pole")) return "столб";
-        if (combinedName.Contains("Bumper")) return "упор рампы";
-        if (combinedName.Contains("Hazard")) return "разметку бокса";
-        return "препятствие";
+        if (combinedName.Contains("Cone")) return LocalizationManager.Get("OBS_CONE");
+        if (combinedName.Contains("Hydrant")) return LocalizationManager.Get("OBS_HYDRANT");
+        if (combinedName.Contains("Booth") || combinedName.Contains("Checkin")) return LocalizationManager.Get("OBS_BOOTH");
+        if (combinedName.Contains("Tire") || combinedName.Contains("Stack")) return LocalizationManager.Get("OBS_TIRES");
+        if (combinedName.Contains("Car") || combinedName.Contains("Auto") || combinedName.Contains("PassengerCar")) return LocalizationManager.Get("OBS_CAR");
+        if (combinedName.Contains("Boundary") || combinedName.Contains("Border") || combinedName.Contains("Fence")) return LocalizationManager.Get("OBS_BORDER");
+        if (combinedName.Contains("Barrier") || combinedName.Contains("Wall")) return LocalizationManager.Get("OBS_BARRIER");
+        if (combinedName.Contains("Barrel")) return LocalizationManager.Get("OBS_BARREL");
+        if (combinedName.Contains("Pole")) return LocalizationManager.Get("OBS_BORDER");
+        if (combinedName.Contains("Bumper")) return LocalizationManager.Get("OBS_BARRIER");
+        if (combinedName.Contains("Hazard")) return LocalizationManager.Get("OBS_BORDER");
+        return LocalizationManager.Get("OBS_BARRIER");
     }
 }

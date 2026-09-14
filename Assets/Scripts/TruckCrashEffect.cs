@@ -217,7 +217,7 @@ public class TruckCrashEffect : MonoBehaviour
         {
             crashText.gameObject.SetActive(true);
             crashText.color = new Color(1f, 0.2f, 0.2f, 1f);
-            crashText.text = "💥 СКЛАДЫВАНИЕ! УДАР ТЯГАЧА О ПРИЦЕП! 💥\n<size=22><color=#FFFF66>НАЖМИТЕ [W] (ВПЕРЕД), ЧТОБЫ ВЫПРЯМИТЬ АВТОПОЕЗД</color></size>";
+            crashText.text = LocalizationManager.Get("JACKKNIFE_TITLE");
         }
 
         if (redFlashImage != null)
@@ -310,9 +310,9 @@ public class TruckCrashEffect : MonoBehaviour
             crashText.gameObject.SetActive(true);
             crashText.color = new Color(1f, 0.2f, 0.2f, 1f);
             string escapeHint = forwardImpact
-                ? "НАЖМИТЕ [ТОРМОЗ / S] (НАЗАД), ЧТОБЫ СДАТЬ НАЗАД"
-                : "НАЖМИТЕ [ГАЗ / W] (ВПЕРЕД), ЧТОБЫ ОТЪЕХАТЬ";
-            crashText.text = $"💥 БУХ! ВРЕЗАЛСЯ В {obstacleName.ToUpper()}! 💥\n<size=22><color=#FFFF66>{escapeHint}</color></size>";
+                ? LocalizationManager.Get("CRASH_HINT_REVERSE")
+                : LocalizationManager.Get("CRASH_HINT_FORWARD");
+            crashText.text = $"{LocalizationManager.Get("CRASH_HIT_PREFIX")}{obstacleName.ToUpper()}! 💥\n<size=22><color=#FFFF66>{escapeHint}</color></size>";
         }
 
         if (redFlashImage != null)

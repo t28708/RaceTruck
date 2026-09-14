@@ -36,7 +36,7 @@ public class ParkedTruckVisuals : MonoBehaviour
         GameObject[] stalls = GameObject.FindGameObjectsWithTag("Untagged");
         foreach (var go in stalls)
         {
-            if (go.name.StartsWith("Stall_Standard_Parked") || go.name.Contains("Parked"))
+            if (go.name.StartsWith("Stall_Standard_Parked") || go.name.StartsWith("Stall_Narrow_Parked") || go.name.Contains("Parked"))
             {
                 SetupParkedStall(go.transform);
             }

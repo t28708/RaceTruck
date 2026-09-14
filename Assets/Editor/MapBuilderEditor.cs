@@ -202,10 +202,12 @@ public class MapBuilderEditor : EditorWindow
         window.minSize = new Vector2(360, 560);
         window.Show();
         window.builderActive = true;
+        window.DetectCurrentSceneMapName();
         window.EnsureCleanWorkPlane(clearExistingScene: false);
         window.SnapCursorToGrid();
         window.UpdateGhostPreview();
         window.RestoreOrFocusSceneView();
+        window.Repaint();
     }
 
     [MenuItem("Tools/Map Builder/New Clean Map Canvas", false, 2)]
@@ -219,10 +221,13 @@ public class MapBuilderEditor : EditorWindow
         window.cursorPosition = new Vector2(SlotWidth * 0.5f, SlotLength * 0.5f);
         window.currentRotation = 0f;
         window.mapName = GetNextAvailableMapName();
+        window.mapWidth = 54.0f;
+        window.mapHeight = 60.0f;
         window.EnsureCleanWorkPlane(clearExistingScene: true);
         window.SnapCursorToGrid();
         window.UpdateGhostPreview();
         window.FocusSceneView();
+        window.Repaint();
     }
 
     [MenuItem("Tools/Map Builder/Править сохранённую карту", false, 3)]
@@ -245,6 +250,12 @@ public class MapBuilderEditor : EditorWindow
         UpdateGhostPreview();
         DetectCurrentSceneMapName();
         HideCanvasInEditMode();
+    }
+
+    private void OnFocus()
+    {
+        DetectCurrentSceneMapName();
+        Repaint();
     }
 
     private void OnDisable()
@@ -271,10 +282,12 @@ public class MapBuilderEditor : EditorWindow
 
     private void OnSceneOpened(UnityEngine.SceneManagement.Scene scene, OpenSceneMode mode)
     {
+        DetectCurrentSceneMapName();
         if (builderActive && hasSavedCameraView)
         {
             ApplySavedSceneViewCamera();
         }
+        Repaint();
     }
 
     // =========================================================================
@@ -351,7 +364,7 @@ public class MapBuilderEditor : EditorWindow
         }
     }
 
-    private void DetectCurrentSceneMapName()
+    public void DetectCurrentSceneMapName()
     {
         string scenePath = UnityEngine.SceneManagement.SceneManager.GetActiveScene().path;
         if (!string.IsNullOrEmpty(scenePath))
@@ -363,30 +376,69 @@ public class MapBuilderEditor : EditorWindow
             }
         }
 
-        // Detect current ground size from scene if present
-        GameObject workspace = GameObject.Find(WorkspaceRootName);
-        if (workspace != null)
+        // 1. Try finding MapData on MapBuilder_Workspace or anywhere in the active scene
+        MapData mapData = FindFirstObjectByType<MapData>();
+        if (mapData != null)
         {
-            MapData mapData = workspace.GetComponent<MapData>();
-            if (mapData != null)
+            // First check if AsphaltGround SpriteRenderer has size
+            Transform groundTr = mapData.transform.Find("AsphaltGround");
+            if (groundTr == null)
             {
-                mapData.DetectDimensions();
-                mapWidth = mapData.mapWidth;
-                mapHeight = mapData.mapHeight;
+                GameObject groundGo = GameObject.Find("AsphaltGround");
+                if (groundGo != null) groundTr = groundGo.transform;
             }
-            else
+
+            if (groundTr != null)
             {
-                Transform groundTr = workspace.transform.Find("AsphaltGround");
-                if (groundTr != null)
+                SpriteRenderer sr = groundTr.GetComponent<SpriteRenderer>();
+                if (sr != null && sr.size.x > 5f && sr.size.y > 5f)
                 {
-                    SpriteRenderer sr = groundTr.GetComponent<SpriteRenderer>();
-                    if (sr != null)
-                    {
-                        mapWidth = sr.size.x;
-                        mapHeight = sr.size.y;
-                    }
+                    mapWidth = sr.size.x;
+                    mapHeight = sr.size.y;
+                    mapData.mapWidth = mapWidth;
+                    mapData.mapHeight = mapHeight;
+                    return;
                 }
             }
+
+            if (mapData.mapWidth > 5f && mapData.mapHeight > 5f)
+            {
+                mapWidth = mapData.mapWidth;
+                mapHeight = mapData.mapHeight;
+                return;
+            }
+
+            mapData.DetectDimensions();
+            if (mapData.mapWidth > 5f && mapData.mapHeight > 5f)
+            {
+                mapWidth = mapData.mapWidth;
+                mapHeight = mapData.mapHeight;
+                return;
+            }
+        }
+
+        // 2. Try AsphaltGround directly
+        GameObject asphaltGo = GameObject.Find("AsphaltGround");
+        if (asphaltGo == null) asphaltGo = GameObject.Find("Asphalt");
+        if (asphaltGo != null)
+        {
+            SpriteRenderer sr = asphaltGo.GetComponent<SpriteRenderer>();
+            if (sr != null && sr.size.x > 5f && sr.size.y > 5f)
+            {
+                mapWidth = sr.size.x;
+                mapHeight = sr.size.y;
+                return;
+            }
+        }
+
+        // 3. Try YardBorders
+        GameObject bordersGo = GameObject.Find("YardBorders");
+        if (bordersGo != null)
+        {
+            Transform top = bordersGo.transform.Find("Border_Top");
+            Transform right = bordersGo.transform.Find("Border_Right");
+            if (top != null && top.position.y > 5f) mapHeight = top.position.y;
+            if (right != null && right.position.x > 5f) mapWidth = right.position.x;
         }
     }
 
@@ -1992,6 +2044,11 @@ public class MapBuilderEditor : EditorWindow
         }
 
         // 3. Compact Rest Area Yard Setup
+        if (!clearExistingScene)
+        {
+            DetectCurrentSceneMapName();
+        }
+
         float yardWidth = mapWidth;
         float yardHeight = mapHeight;
         Vector3 yardCenter = new Vector3(yardWidth * 0.5f, yardHeight * 0.5f, 0f);
@@ -2246,10 +2303,12 @@ public class MapBuilderEditor : EditorWindow
             window.Show();
             window.builderActive = true;
             window.mapName = Path.GetFileNameWithoutExtension(scenePath);
+            window.DetectCurrentSceneMapName();
             window.EnsureCleanWorkPlane(clearExistingScene: false);
             window.SnapCursorToGrid();
             window.UpdateGhostPreview();
             window.RestoreOrFocusSceneView();
+            window.Repaint();
         }
     }
 
