@@ -32,12 +32,22 @@ public class PropObstacle : MonoBehaviour
     public Color color = Color.white;
     public Vector2 customSize = Vector2.zero; // If zero, uses default dimensions for propType
 
+    private void Awake()
+    {
+        UpdateTransformAndVisual();
+    }
+
+    private void Start()
+    {
+        UpdateTransformAndVisual();
+    }
+
     public static Vector2 GetDefaultDimensions(PropType type)
     {
         switch (type)
         {
             case PropType.Cone:
-                return new Vector2(0.50f, 0.50f);
+                return new Vector2(1.40f, 1.40f);
             case PropType.Hydrant:
                 return new Vector2(0.70f, 0.70f);
             case PropType.CheckinBooth:
