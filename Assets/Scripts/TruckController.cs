@@ -742,37 +742,139 @@ public class TruckController : MonoBehaviour
     }
 
     /// <summary>
-    /// Finds the corner of an OBB (center + angleDeg + size) that is closest to <paramref name="obstacle"/>,
-    /// and returns the midpoint between that corner and the nearest point on the obstacle surface.
-    /// No speed or direction involved — purely geometric, matching what OverlapBox detected.
+    /// Finds the exact contact point between an OBB (center + angleDeg + size) and an obstacle Collider2D.
+    /// Handles:
+    /// 1. Corners of our vehicle striking an obstacle (front/rear bumpers, corners).
+    /// 2. Corners/bumpers of an obstacle striking the long sides/walls of our trailer (Screens 4 & 5).
+    /// 3. Sampling along vehicle perimeter to match any arbitrary obstacle shape.
+    /// Purely geometric, matching what OverlapBox detected.
     /// </summary>
-    private static Vector2 ContactCornerPoint(Collider2D obstacle, Vector2 center, float angleDeg, Vector2 size)
+    private static Vector2 FindContactPoint(Collider2D obstacle, Vector2 center, float angleDeg, Vector2 size)
     {
+        if (obstacle == null) return center;
+
         float rad = angleDeg * Mathf.Deg2Rad;
         Vector2 axisX = new Vector2( Mathf.Cos(rad),  Mathf.Sin(rad)); // local right
         Vector2 axisY = new Vector2(-Mathf.Sin(rad),  Mathf.Cos(rad)); // local up
         float hw = size.x * 0.5f;
         float hh = size.y * 0.5f;
 
-        // 4 OBB corners in world space
-        Vector2[] corners = {
+        float   bestDist    = float.MaxValue;
+        Vector2 bestContact = center;
+
+        // 1. Check obstacle corners against our OBB boundary (crucial for parked truck bumpers hitting trailer side)
+        if (obstacle is BoxCollider2D box)
+        {
+            Transform bt = box.transform;
+            Vector2 bHalf = box.size * 0.5f;
+            Vector2[] bCorners = {
+                bt.TransformPoint(box.offset + new Vector2( bHalf.x,  bHalf.y)),
+                bt.TransformPoint(box.offset + new Vector2(-bHalf.x,  bHalf.y)),
+                bt.TransformPoint(box.offset + new Vector2( bHalf.x, -bHalf.y)),
+                bt.TransformPoint(box.offset + new Vector2(-bHalf.x, -bHalf.y))
+            };
+            foreach (Vector2 bc in bCorners)
+            {
+                Vector2 onOurEdge = ClosestPointOnOBBBoundary(bc, center, axisX, axisY, hw, hh);
+                float d = Vector2.Distance(bc, onOurEdge);
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    bestContact = (bc + onOurEdge) * 0.5f;
+                }
+            }
+        }
+        else if (obstacle is PolygonCollider2D poly)
+        {
+            Transform pt = poly.transform;
+            Vector2[] pts = poly.points;
+            if (pts != null)
+            {
+                for (int i = 0; i < pts.Length; i++)
+                {
+                    Vector2 pc = pt.TransformPoint(pts[i]);
+                    Vector2 onOurEdge = ClosestPointOnOBBBoundary(pc, center, axisX, axisY, hw, hh);
+                    float d = Vector2.Distance(pc, onOurEdge);
+                    if (d < bestDist)
+                    {
+                        bestDist = d;
+                        bestContact = (pc + onOurEdge) * 0.5f;
+                    }
+                }
+            }
+        }
+
+        // 2. Check our vehicle's 4 corners against obstacle surface (crucial for front/rear bumper hits)
+        Vector2[] ourCorners = {
             center + axisX * hw + axisY * hh,
             center - axisX * hw + axisY * hh,
             center + axisX * hw - axisY * hh,
-            center - axisX * hw - axisY * hh,
+            center - axisX * hw - axisY * hh
         };
-
-        // Pick corner nearest to obstacle surface
-        float   bestDist   = float.MaxValue;
-        Vector2 bestCorner = center;
-        Vector2 bestOnObst = center;
-        foreach (Vector2 c in corners)
+        foreach (Vector2 c in ourCorners)
         {
             Vector2 onObst = obstacle.ClosestPoint(c);
-            float   dist   = Vector2.Distance(c, onObst);
-            if (dist < bestDist) { bestDist = dist; bestCorner = c; bestOnObst = onObst; }
+            float d = Vector2.Distance(c, onObst);
+            if (d < bestDist)
+            {
+                bestDist = d;
+                bestContact = (c + onObst) * 0.5f;
+            }
         }
-        return (bestCorner + bestOnObst) * 0.5f;
+
+        // 3. Sample along vehicle perimeter (especially long left and right sides of the trailer)
+        int lengthSteps = Mathf.Max(2, Mathf.RoundToInt(size.y / 0.5f));
+        for (int i = 0; i <= lengthSteps; i++)
+        {
+            float y = -hh + (size.y * i / lengthSteps);
+
+            // Left side
+            Vector2 pL = center - axisX * hw + axisY * y;
+            Vector2 onObstL = obstacle.ClosestPoint(pL);
+            float dL = Vector2.Distance(pL, onObstL);
+            if (dL < bestDist)
+            {
+                bestDist = dL;
+                bestContact = (pL + onObstL) * 0.5f;
+            }
+
+            // Right side
+            Vector2 pR = center + axisX * hw + axisY * y;
+            Vector2 onObstR = obstacle.ClosestPoint(pR);
+            float dR = Vector2.Distance(pR, onObstR);
+            if (dR < bestDist)
+            {
+                bestDist = dR;
+                bestContact = (pR + onObstR) * 0.5f;
+            }
+        }
+
+        return bestContact;
+    }
+
+    private static Vector2 ClosestPointOnOBBBoundary(Vector2 pt, Vector2 center, Vector2 axisX, Vector2 axisY, float hw, float hh)
+    {
+        Vector2 d = pt - center;
+        float lx = Vector2.Dot(d, axisX);
+        float ly = Vector2.Dot(d, axisY);
+
+        if (Mathf.Abs(lx) <= hw && Mathf.Abs(ly) <= hh)
+        {
+            // Inside box — push to nearest perimeter edge
+            float dx = hw - Mathf.Abs(lx);
+            float dy = hh - Mathf.Abs(ly);
+            if (dx < dy)
+                lx = (lx >= 0f) ? hw : -hw;
+            else
+                ly = (ly >= 0f) ? hh : -hh;
+        }
+        else
+        {
+            lx = Mathf.Clamp(lx, -hw, hw);
+            ly = Mathf.Clamp(ly, -hh, hh);
+        }
+
+        return center + axisX * lx + axisY * ly;
     }
 
     private bool CheckCandidateCollision(Vector2 candTractorPos, float candTractorAngle, Vector2 candTrailerPos, float candTrailerAngle, out Collider2D hitObstacle, out bool tractorWasHit)
@@ -1237,29 +1339,21 @@ public class TruckController : MonoBehaviour
                     string obstacleName = (hitObstacle != null) ? TruckCollisionDetector.FormatObstacleNameStatic(hitObstacle.name, hitObstacle.transform) : "границу площадки";
                     OnCrash(obstacleName, forwardImpact, hitObstacle);
 
-                    // Flash at the corner of the hitting box that is nearest to the obstacle.
-                    // This is exactly where physics found the intersection — no speed/direction needed.
-                    CollisionFlash.Spawn(hitObstacle != null
-                        ? ContactCornerPoint(hitObstacle,
+                    // Compute precise contact point (corners, obstacle bumpers, or trailer side walls)
+                    Vector2 contactPoint = (hitObstacle != null)
+                        ? FindContactPoint(hitObstacle,
                             tractorWasHit ? newTractorCenter  : newTrailerCenter,
                             tractorWasHit ? newTractorAngleDeg : newTrailerAngleDeg,
                             tractorWasHit
                                 ? (tractorCollider != null ? tractorCollider.size : Vector2.one)
                                 : (trailerCollider != null ? trailerCollider.size : Vector2.one))
-                        : (tractorWasHit ? newTractorCenter : newTrailerCenter));
+                        : (tractorWasHit ? newTractorCenter : newTrailerCenter);
+
+                    CollisionFlash.Spawn(contactPoint);
 
                     if (TruckCrashEffect.Instance != null)
                     {
-                        TruckCrashEffect.Instance.TriggerCrash(obstacleName,
-                            hitObstacle != null
-                                ? ContactCornerPoint(hitObstacle,
-                                    tractorWasHit ? newTractorCenter  : newTrailerCenter,
-                                    tractorWasHit ? newTractorAngleDeg : newTrailerAngleDeg,
-                                    tractorWasHit
-                                        ? (tractorCollider != null ? tractorCollider.size : Vector2.one)
-                                        : (trailerCollider != null ? trailerCollider.size : Vector2.one))
-                                : (tractorWasHit ? newTractorCenter : newTrailerCenter),
-                            forwardImpact);
+                        TruckCrashEffect.Instance.TriggerCrash(obstacleName, contactPoint, forwardImpact);
                     }
 
                     currentSpeed = 0f;
@@ -1286,7 +1380,7 @@ public class TruckController : MonoBehaviour
                     OnCrash(obstacleName, forwardImpact, hitObstacle);
 
                     Vector2 flashPos2 = (hitObstacle != null && tractorCollider != null)
-                        ? ContactCornerPoint(hitObstacle, newTractorCenter, newTractorAngleDeg, tractorCollider.size)
+                        ? FindContactPoint(hitObstacle, newTractorCenter, newTractorAngleDeg, tractorCollider.size)
                         : newTractorCenter;
                     CollisionFlash.Spawn(flashPos2);
 
