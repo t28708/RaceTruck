@@ -246,7 +246,7 @@ public class ParkedTruckVisuals : MonoBehaviour
         sr.color = new Color(0f, 0f, 0f, 0.28f);
     }
 
-    private static Sprite GetTireSprite()
+    public static Sprite GetTireSprite()
     {
         if (cachedTireSprite != null) return cachedTireSprite;
         Sprite[] allSprites = Resources.FindObjectsOfTypeAll<Sprite>();
@@ -261,7 +261,7 @@ public class ParkedTruckVisuals : MonoBehaviour
         return null;
     }
 
-    private static Sprite GetTrailerSprite()
+    public static Sprite GetTrailerSprite()
     {
         if (cachedTrailerSprite != null) return cachedTrailerSprite;
         Sprite[] allSprites = Resources.FindObjectsOfTypeAll<Sprite>();
@@ -276,7 +276,7 @@ public class ParkedTruckVisuals : MonoBehaviour
         return null;
     }
 
-    private static Sprite GetTractorSprite()
+    public static Sprite GetTractorSprite()
     {
         if (cachedTractorSprite != null) return cachedTractorSprite;
         Sprite[] allSprites = Resources.FindObjectsOfTypeAll<Sprite>();

@@ -124,16 +124,8 @@ public class TruckObstacle : MonoBehaviour
     private static Sprite GetTrailerSprite()
     {
         if (cachedTrailerSprite != null) return cachedTrailerSprite;
-        Sprite[] allSprites = Resources.FindObjectsOfTypeAll<Sprite>();
-        foreach (var s in allSprites)
-        {
-            if (s.name == "Trailer")
-            {
-                cachedTrailerSprite = s;
-                return s;
-            }
-        }
-        return null;
+        cachedTrailerSprite = ParkedTruckVisuals.GetTrailerSprite();
+        return cachedTrailerSprite;
     }
 
     private void OnValidate()
