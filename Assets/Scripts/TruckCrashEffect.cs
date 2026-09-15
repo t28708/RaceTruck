@@ -18,14 +18,12 @@ public class TruckCrashEffect : MonoBehaviour
     private Coroutine currentCrashRoutine;
     private AudioSource audioSource;
     private AudioClip impactAudioClip;
-    private Sprite impactSparkSprite;
     private float lastCrashTriggerTime = -1f;
     private const float MinCrashInterval = 0.45f;
 
     private void Awake()
     {
         Instance = this;
-        // Enforce minimal gentle shake settings even if older scene serialized values exist
         if (shakeDuration > 0.15f) shakeDuration = 0.12f;
         if (shakeMagnitude > 0.10f) shakeMagnitude = 0.08f;
     }
@@ -33,9 +31,7 @@ public class TruckCrashEffect : MonoBehaviour
     private void Start()
     {
         if (cameraFollow == null && Camera.main != null)
-        {
             cameraFollow = Camera.main.GetComponent<CameraFollow>();
-        }
 
         if (crashText == null)
         {
@@ -55,6 +51,8 @@ public class TruckCrashEffect : MonoBehaviour
         EnsureAudio();
     }
 
+    // ── Audio ─────────────────────────────────────────────────────────────────
+
     private void EnsureAudio()
     {
         if (audioSource == null)
@@ -63,11 +61,8 @@ public class TruckCrashEffect : MonoBehaviour
             if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
             audioSource.playOnAwake = false;
         }
-
         if (impactAudioClip == null)
-        {
             impactAudioClip = GenerateMetalImpactClip();
-        }
     }
 
     private static AudioClip GenerateMetalImpactClip()
@@ -76,289 +71,323 @@ public class TruckCrashEffect : MonoBehaviour
         float duration = 0.22f;
         int sampleCount = (int)(sampleRate * duration);
         float[] samples = new float[sampleCount];
-
         for (int i = 0; i < sampleCount; i++)
         {
             float t = (float)i / sampleRate;
-            // Softer, damped bump thud instead of harsh loud boom
             float decayFast = Mathf.Exp(-t * 35f);
             float decaySlow = Mathf.Exp(-t * 18f);
-            float boom = Mathf.Sin(2f * Mathf.PI * 75f * t) * decaySlow * 0.4f;
+            float boom  = Mathf.Sin(2f * Mathf.PI * 75f  * t) * decaySlow * 0.4f;
             float clang = Mathf.Sin(2f * Mathf.PI * 220f * t) * decayFast * 0.25f;
             float noise = (Random.value * 2f - 1f) * decayFast * 0.2f;
-
             samples[i] = Mathf.Clamp(boom + clang + noise, -1f, 1f);
         }
-
         AudioClip clip = AudioClip.Create("MetalImpactThud", sampleCount, 1, sampleRate, false);
         clip.SetData(samples, 0);
         return clip;
     }
 
-    private Sprite GetOrCreateImpactSprite()
-    {
-        if (impactSparkSprite != null) return impactSparkSprite;
+    // ── Procedural sprite factories ───────────────────────────────────────────
 
-        int size = 64;
+    private static Sprite MakeCircleSprite(int size, Color inner, Color outer)
+    {
         Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
         Color[] cols = new Color[size * size];
-        Vector2 center = new Vector2(32f, 32f);
-
+        float r = size * 0.5f;
+        Vector2 center = new Vector2(r, r);
         for (int y = 0; y < size; y++)
-        {
             for (int x = 0; x < size; x++)
             {
-                Vector2 pos = new Vector2(x, y);
-                float dist = Vector2.Distance(pos, center);
-                Color col = Color.clear;
-
-                if (dist <= 28f)
-                {
-                    float factor = 1f - (dist / 28f);
-                    col = Color.Lerp(new Color(1f, 0.45f, 0.05f, factor), Color.white, factor * factor);
-
-                    // 8-point explosive star rays
-                    float dx = Mathf.Abs(x - 32);
-                    float dy = Mathf.Abs(y - 32);
-                    if (dx <= 2 || dy <= 2 || Mathf.Abs(dx - dy) <= 2)
-                    {
-                        col = Color.Lerp(col, Color.white, 0.85f);
-                    }
-                }
+                float d = Vector2.Distance(new Vector2(x, y), center);
+                float t = Mathf.Clamp01(d / r);
+                Color col = Color.Lerp(inner, outer, t);
+                col.a *= (1f - t);
                 cols[y * size + x] = col;
             }
-        }
-        tex.SetPixels(cols);
-        tex.Apply();
-        impactSparkSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
-        return impactSparkSprite;
+        tex.SetPixels(cols); tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
     }
+
+    private static Sprite MakeSpikeSprite(int size, int spikes, Color col)
+    {
+        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        Color[] cols = new Color[size * size];
+        float r = size * 0.5f;
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                Vector2 p = new Vector2(x - r, y - r);
+                float dist = p.magnitude;
+                float angle = Mathf.Atan2(p.y, p.x);
+                float spike = (Mathf.Cos(angle * spikes) + 1f) * 0.5f;
+                float outerR = r * (0.45f + 0.55f * spike);
+                float t = Mathf.Clamp01(dist / Mathf.Max(outerR, 0.001f));
+                Color c2 = col;
+                c2.a = (dist < outerR) ? (1f - t) : 0f;
+                cols[y * size + x] = c2;
+            }
+        tex.SetPixels(cols); tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
+    }
+
+    private static Sprite MakeRingSprite(int size, float innerFrac, Color col)
+    {
+        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        Color[] cols = new Color[size * size];
+        float r = size * 0.5f;
+        Vector2 center = new Vector2(r, r);
+        float innerR = r * innerFrac;
+        float midR = innerR + (r - innerR) * 0.5f;
+        float halfW = (r - innerR) * 0.5f;
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float d = Vector2.Distance(new Vector2(x, y), center);
+                float ring = Mathf.Clamp01(1f - Mathf.Abs(d - midR) / Mathf.Max(halfW, 0.001f));
+                Color c2 = col; c2.a = ring * col.a;
+                cols[y * size + x] = c2;
+            }
+        tex.SetPixels(cols); tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
+    }
+
+    private static GameObject MakeSR(string name, Vector2 pos, Sprite spr, int order)
+    {
+        GameObject go = new GameObject(name);
+        go.transform.position = new Vector3(pos.x, pos.y, -0.5f);
+        SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
+        sr.sprite = spr;
+        sr.sortingOrder = order;
+        return go;
+    }
+
+    // ── Impact burst (world-space explosion at contact point) ─────────────────
 
     public void SpawnImpactBurst(Vector2 worldPos)
     {
-        GameObject burstGo = new GameObject("ImpactBurst");
-        burstGo.transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
-
-        SpriteRenderer sr = burstGo.AddComponent<SpriteRenderer>();
-        sr.sprite = GetOrCreateImpactSprite();
-        sr.sortingOrder = 25; // Render above tractor and trailer
-
-        StartCoroutine(AnimateBurst(burstGo, sr));
+        StartCoroutine(AnimateExplosion(worldPos));
     }
 
-    private IEnumerator AnimateBurst(GameObject burstGo, SpriteRenderer sr)
+    private IEnumerator AnimateExplosion(Vector2 worldPos)
     {
-        float duration = 0.2f;
-        float elapsed = 0f;
-        Vector3 initialScale = Vector3.one * 0.4f;
-        Vector3 targetScale = Vector3.one * 1.2f;
+        const float totalDuration = 0.55f;
+        const int sortBase = 30;
 
-        while (elapsed < duration)
+        // Layer 1 – outer soft glow
+        GameObject glowGo = MakeSR("FX_Glow", worldPos,
+            MakeCircleSprite(64, new Color(1f, 0.6f, 0.1f, 0.55f), new Color(1f, 0.2f, 0f, 0f)), sortBase);
+        glowGo.transform.localScale = Vector3.one * 0.05f;
+
+        // Layer 2 – spiky orange burst (12 spikes)
+        GameObject spikeGo = MakeSR("FX_Spike", worldPos,
+            MakeSpikeSprite(128, 12, new Color(1f, 0.45f, 0f, 1f)), sortBase + 1);
+        spikeGo.transform.localScale = Vector3.one * 0.05f;
+
+        // Layer 3 – hot white-yellow core
+        GameObject coreGo = MakeSR("FX_Core", worldPos,
+            MakeCircleSprite(32, Color.white, new Color(1f, 0.9f, 0.3f, 0f)), sortBase + 2);
+        coreGo.transform.localScale = Vector3.one * 0.05f;
+
+        // Layer 4 – expanding ring
+        GameObject ringGo = MakeSR("FX_Ring", worldPos,
+            MakeRingSprite(96, 0.6f, new Color(1f, 0.3f, 0f, 0.7f)), sortBase);
+        ringGo.transform.localScale = Vector3.one * 0.05f;
+
+        // Layer 5 – flying sparks
+        const int numSparks = 10;
+        GameObject[] sparks    = new GameObject[numSparks];
+        Vector2[]    sparkDirs = new Vector2[numSparks];
+        float[]      sparkSpd  = new float[numSparks];
+        for (int i = 0; i < numSparks; i++)
+        {
+            float ang = Random.Range(0f, 360f) * Mathf.Deg2Rad;
+            sparkDirs[i] = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
+            sparkSpd[i]  = Random.Range(1.2f, 2.8f);
+            Color sparkCol = (Random.value > 0.5f)
+                ? new Color(1f, 0.9f, 0.2f, 1f)
+                : new Color(1f, 0.4f, 0.05f, 1f);
+            sparks[i] = MakeSR("FX_Spark" + i, worldPos,
+                MakeCircleSprite(16, sparkCol, new Color(1f, 0.2f, 0f, 0f)), sortBase + 3);
+            sparks[i].transform.localScale = Vector3.one * Random.Range(0.06f, 0.13f);
+        }
+
+        float elapsed = 0f;
+        while (elapsed < totalDuration)
         {
             elapsed += Time.deltaTime;
-            float t = elapsed / duration;
+            float t     = elapsed / totalDuration;
+            float tEase = 1f - (1f - t) * (1f - t);  // ease-out quad
 
-            if (burstGo != null)
+            // Glow: expand fast → fade
+            if (glowGo)
             {
-                burstGo.transform.localScale = Vector3.Lerp(initialScale, targetScale, t);
-                if (sr != null)
-                {
-                    Color c = sr.color;
-                    c.a = Mathf.Lerp(0.8f, 0f, t * t);
-                    sr.color = c;
-                }
+                glowGo.transform.localScale = Vector3.one * Mathf.Lerp(0.05f, 2.0f, tEase);
+                SetAlpha(glowGo, Mathf.Lerp(0.55f, 0f, Mathf.Min(1f, t * 1.2f)));
             }
+            // Spike burst: expand → fade after 25%
+            if (spikeGo)
+            {
+                spikeGo.transform.localScale = Vector3.one * Mathf.Lerp(0.05f, 1.2f, tEase);
+                SetAlpha(spikeGo, Mathf.Lerp(1f, 0f, Mathf.Max(0f, (t - 0.25f) / 0.75f)));
+            }
+            // Core: pops fast → fades fast
+            if (coreGo)
+            {
+                coreGo.transform.localScale = Vector3.one * Mathf.Lerp(0.05f, 0.7f, Mathf.Min(1f, tEase * 2.5f));
+                SetAlpha(coreGo, Mathf.Lerp(1f, 0f, Mathf.Min(1f, t * 2.5f)));
+            }
+            // Ring: expands outward → fades
+            if (ringGo)
+            {
+                ringGo.transform.localScale = Vector3.one * Mathf.Lerp(0.05f, 2.5f, tEase);
+                SetAlpha(ringGo, Mathf.Lerp(0.7f, 0f, t));
+            }
+            // Sparks: fly outward → fade after 30%
+            for (int i = 0; i < numSparks; i++)
+            {
+                if (sparks[i] == null) continue;
+                sparks[i].transform.position =
+                    (Vector3)(worldPos + sparkDirs[i] * (sparkSpd[i] * elapsed)) + Vector3.back * 0.01f;
+                SetAlpha(sparks[i], Mathf.Lerp(1f, 0f, Mathf.Max(0f, (t - 0.3f) / 0.7f)));
+            }
+
             yield return null;
         }
 
-        if (burstGo != null)
-        {
-            Destroy(burstGo);
-        }
+        // Cleanup
+        if (glowGo)  Destroy(glowGo);
+        if (spikeGo) Destroy(spikeGo);
+        if (coreGo)  Destroy(coreGo);
+        if (ringGo)  Destroy(ringGo);
+        for (int i = 0; i < numSparks; i++)
+            if (sparks[i]) Destroy(sparks[i]);
     }
+
+    private static void SetAlpha(GameObject go, float a)
+    {
+        var sr = go.GetComponent<SpriteRenderer>();
+        if (sr == null) return;
+        Color c = sr.color; c.a = Mathf.Clamp01(a); sr.color = c;
+    }
+
+    // ── Public crash triggers ─────────────────────────────────────────────────
 
     public void TriggerJackknifeCrash(Vector2 contactWorldPos)
     {
-        if (Time.time - lastCrashTriggerTime < MinCrashInterval)
-        {
-            return;
-        }
+        if (Time.time - lastCrashTriggerTime < MinCrashInterval) return;
         lastCrashTriggerTime = Time.time;
 
         EnsureAudio();
         if (audioSource != null && impactAudioClip != null)
-        {
             audioSource.PlayOneShot(impactAudioClip, 0.45f);
-        }
 
         SpawnImpactBurst(contactWorldPos);
 
-        if (currentCrashRoutine != null)
-        {
-            StopCoroutine(currentCrashRoutine);
-        }
+        if (currentCrashRoutine != null) StopCoroutine(currentCrashRoutine);
         currentCrashRoutine = StartCoroutine(JackknifeCrashSequence());
     }
 
     private IEnumerator JackknifeCrashSequence()
     {
-        // 1. Camera Shake (Gentle minimal bump)
         if (cameraFollow == null && Camera.main != null)
-        {
             cameraFollow = Camera.main.GetComponent<CameraFollow>();
-        }
         if (cameraFollow != null)
-        {
             cameraFollow.Shake(shakeDuration, shakeMagnitude);
-        }
 
-        // 2. Banner & Red Flash (Subtle flash)
         if (crashText != null)
         {
             crashText.gameObject.SetActive(true);
             crashText.color = new Color(1f, 0.2f, 0.2f, 1f);
-            crashText.text = LocalizationManager.Get("JACKKNIFE_TITLE");
+            crashText.text  = LocalizationManager.Get("JACKKNIFE_TITLE");
         }
-
         if (redFlashImage != null)
         {
             redFlashImage.gameObject.SetActive(true);
             redFlashImage.color = new Color(1f, 0.1f, 0.1f, 0.18f);
         }
 
-        // 3. Fade out flash
         float elapsed = 0f;
         while (elapsed < shakeDuration)
         {
             elapsed += Time.deltaTime;
-            float percent = 1f - (elapsed / shakeDuration);
+            float pct = 1f - elapsed / shakeDuration;
             if (redFlashImage != null)
-            {
-                redFlashImage.color = new Color(1f, 0.1f, 0.1f, 0.18f * percent);
-            }
+                redFlashImage.color = new Color(1f, 0.1f, 0.1f, 0.18f * pct);
             yield return null;
         }
 
-        // 4. Fade out banner
-        float textFadeDuration = 0.8f;
-        float textElapsed = 0f;
-        while (textElapsed < textFadeDuration)
+        float textFade = 0.8f, textEl = 0f;
+        while (textEl < textFade)
         {
-            textElapsed += Time.deltaTime;
-            float alpha = 1f - (textElapsed / textFadeDuration);
+            textEl += Time.deltaTime;
             if (crashText != null)
-            {
-                crashText.color = new Color(1f, 0.2f, 0.2f, alpha);
-            }
+                crashText.color = new Color(1f, 0.2f, 0.2f, 1f - textEl / textFade);
             yield return null;
         }
 
-        if (crashText != null)
-        {
-            crashText.gameObject.SetActive(false);
-            crashText.color = new Color(1f, 0.2f, 0.2f, 1f);
-        }
-        if (redFlashImage != null)
-        {
-            redFlashImage.gameObject.SetActive(false);
-        }
-
+        if (crashText     != null) { crashText.gameObject.SetActive(false);     crashText.color     = new Color(1f, 0.2f, 0.2f, 1f); }
+        if (redFlashImage != null) { redFlashImage.gameObject.SetActive(false); }
         currentCrashRoutine = null;
     }
 
     public void TriggerCrash(string obstacleName, Vector2? contactPos = null, bool forwardImpact = true)
     {
-        if (Time.time - lastCrashTriggerTime < MinCrashInterval)
-        {
-            return;
-        }
+        if (Time.time - lastCrashTriggerTime < MinCrashInterval) return;
         lastCrashTriggerTime = Time.time;
 
         EnsureAudio();
         if (audioSource != null && impactAudioClip != null)
-        {
             audioSource.PlayOneShot(impactAudioClip, 0.40f);
-        }
 
         if (contactPos.HasValue)
-        {
             SpawnImpactBurst(contactPos.Value);
-        }
 
-        if (currentCrashRoutine != null)
-        {
-            StopCoroutine(currentCrashRoutine);
-        }
+        if (currentCrashRoutine != null) StopCoroutine(currentCrashRoutine);
         currentCrashRoutine = StartCoroutine(CrashSequence(obstacleName, forwardImpact));
     }
 
     private IEnumerator CrashSequence(string obstacleName, bool forwardImpact)
     {
-        // 1. Trigger Camera Shake (Gentle minimal bump)
         if (cameraFollow == null && Camera.main != null)
-        {
             cameraFollow = Camera.main.GetComponent<CameraFollow>();
-        }
         if (cameraFollow != null)
-        {
             cameraFollow.Shake(shakeDuration, shakeMagnitude);
-        }
 
-        // 2. Show Red Flash & Crash Banner Text (Subtle vignette)
         if (crashText != null)
         {
             crashText.gameObject.SetActive(true);
             crashText.color = new Color(1f, 0.2f, 0.2f, 1f);
-            string escapeHint = forwardImpact
+            string hint = forwardImpact
                 ? LocalizationManager.Get("CRASH_HINT_REVERSE")
                 : LocalizationManager.Get("CRASH_HINT_FORWARD");
-            crashText.text = $"{LocalizationManager.Get("CRASH_HIT_PREFIX")}{obstacleName.ToUpper()}! 💥\n<size=22><color=#FFFF66>{escapeHint}</color></size>";
+            crashText.text = $"{LocalizationManager.Get("CRASH_HIT_PREFIX")}{obstacleName.ToUpper()}! 💥\n<size=22><color=#FFFF66>{hint}</color></size>";
         }
-
         if (redFlashImage != null)
         {
             redFlashImage.gameObject.SetActive(true);
             redFlashImage.color = new Color(1f, 0.1f, 0.1f, 0.18f);
         }
 
-        // 3. Fade out flash
         float elapsed = 0f;
         while (elapsed < shakeDuration)
         {
             elapsed += Time.deltaTime;
-            float percent = 1f - (elapsed / shakeDuration);
-
+            float pct = 1f - elapsed / shakeDuration;
             if (redFlashImage != null)
-            {
-                redFlashImage.color = new Color(1f, 0.1f, 0.1f, 0.18f * percent);
-            }
+                redFlashImage.color = new Color(1f, 0.1f, 0.1f, 0.18f * pct);
             yield return null;
         }
 
-        // 4. Fade out text banner
-        float textFadeDuration = 0.7f;
-        float textElapsed = 0f;
-        while (textElapsed < textFadeDuration)
+        float textFade = 0.7f, textEl = 0f;
+        while (textEl < textFade)
         {
-            textElapsed += Time.deltaTime;
-            float alpha = 1f - (textElapsed / textFadeDuration);
+            textEl += Time.deltaTime;
             if (crashText != null)
-            {
-                crashText.color = new Color(1f, 0.2f, 0.2f, alpha);
-            }
+                crashText.color = new Color(1f, 0.2f, 0.2f, 1f - textEl / textFade);
             yield return null;
         }
 
-        if (crashText != null)
-        {
-            crashText.gameObject.SetActive(false);
-            crashText.color = new Color(1f, 0.2f, 0.2f, 1f);
-        }
-        if (redFlashImage != null)
-        {
-            redFlashImage.gameObject.SetActive(false);
-        }
-
+        if (crashText     != null) { crashText.gameObject.SetActive(false);     crashText.color     = new Color(1f, 0.2f, 0.2f, 1f); }
+        if (redFlashImage != null) { redFlashImage.gameObject.SetActive(false); }
         currentCrashRoutine = null;
     }
 }

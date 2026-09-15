@@ -741,9 +741,44 @@ public class TruckController : MonoBehaviour
         return false;
     }
 
-    private bool CheckCandidateCollision(Vector2 candTractorPos, float candTractorAngle, Vector2 candTrailerPos, float candTrailerAngle, out Collider2D hitObstacle)
+    /// <summary>
+    /// Finds the corner of an OBB (center + angleDeg + size) that is closest to <paramref name="obstacle"/>,
+    /// and returns the midpoint between that corner and the nearest point on the obstacle surface.
+    /// No speed or direction involved — purely geometric, matching what OverlapBox detected.
+    /// </summary>
+    private static Vector2 ContactCornerPoint(Collider2D obstacle, Vector2 center, float angleDeg, Vector2 size)
     {
-        hitObstacle = null;
+        float rad = angleDeg * Mathf.Deg2Rad;
+        Vector2 axisX = new Vector2( Mathf.Cos(rad),  Mathf.Sin(rad)); // local right
+        Vector2 axisY = new Vector2(-Mathf.Sin(rad),  Mathf.Cos(rad)); // local up
+        float hw = size.x * 0.5f;
+        float hh = size.y * 0.5f;
+
+        // 4 OBB corners in world space
+        Vector2[] corners = {
+            center + axisX * hw + axisY * hh,
+            center - axisX * hw + axisY * hh,
+            center + axisX * hw - axisY * hh,
+            center - axisX * hw - axisY * hh,
+        };
+
+        // Pick corner nearest to obstacle surface
+        float   bestDist   = float.MaxValue;
+        Vector2 bestCorner = center;
+        Vector2 bestOnObst = center;
+        foreach (Vector2 c in corners)
+        {
+            Vector2 onObst = obstacle.ClosestPoint(c);
+            float   dist   = Vector2.Distance(c, onObst);
+            if (dist < bestDist) { bestDist = dist; bestCorner = c; bestOnObst = onObst; }
+        }
+        return (bestCorner + bestOnObst) * 0.5f;
+    }
+
+    private bool CheckCandidateCollision(Vector2 candTractorPos, float candTractorAngle, Vector2 candTrailerPos, float candTrailerAngle, out Collider2D hitObstacle, out bool tractorWasHit)
+    {
+        hitObstacle   = null;
+        tractorWasHit = true; // default
         bool isMovingForward = (currentSpeed > 0f);
 
         // 1. Check Tractor box at candidate destination
@@ -762,7 +797,8 @@ public class TruckController : MonoBehaviour
                     if (!isMovingForward && lastCrashDirection == +1) continue;
                 }
 
-                hitObstacle = col;
+                hitObstacle   = col;
+                tractorWasHit = true;
                 return true;
             }
         }
@@ -783,7 +819,8 @@ public class TruckController : MonoBehaviour
                     if (!isMovingForward && lastCrashDirection == +1) continue;
                 }
 
-                hitObstacle = col;
+                hitObstacle   = col;
+                tractorWasHit = false;
                 return true;
             }
         }
@@ -1194,16 +1231,35 @@ public class TruckController : MonoBehaviour
             // Predictive collision check before applying movement
             if (Mathf.Abs(currentSpeed) > 0.01f)
             {
-                if (CheckCandidateCollision(newTractorCenter, newTractorAngleDeg, newTrailerCenter, newTrailerAngleDeg, out Collider2D hitObstacle))
+                if (CheckCandidateCollision(newTractorCenter, newTractorAngleDeg, newTrailerCenter, newTrailerAngleDeg, out Collider2D hitObstacle, out bool tractorWasHit))
                 {
                     bool forwardImpact = (currentSpeed > 0f);
                     string obstacleName = (hitObstacle != null) ? TruckCollisionDetector.FormatObstacleNameStatic(hitObstacle.name, hitObstacle.transform) : "границу площадки";
                     OnCrash(obstacleName, forwardImpact, hitObstacle);
 
+                    // Flash at the corner of the hitting box that is nearest to the obstacle.
+                    // This is exactly where physics found the intersection — no speed/direction needed.
+                    CollisionFlash.Spawn(hitObstacle != null
+                        ? ContactCornerPoint(hitObstacle,
+                            tractorWasHit ? newTractorCenter  : newTrailerCenter,
+                            tractorWasHit ? newTractorAngleDeg : newTrailerAngleDeg,
+                            tractorWasHit
+                                ? (tractorCollider != null ? tractorCollider.size : Vector2.one)
+                                : (trailerCollider != null ? trailerCollider.size : Vector2.one))
+                        : (tractorWasHit ? newTractorCenter : newTrailerCenter));
+
                     if (TruckCrashEffect.Instance != null)
                     {
-                        Vector3 impactPos = (hitObstacle != null) ? hitObstacle.transform.position : (forwardImpact ? (Vector3)newTractorCenter : (Vector3)newTrailerCenter);
-                        TruckCrashEffect.Instance.TriggerCrash(obstacleName, impactPos, forwardImpact);
+                        TruckCrashEffect.Instance.TriggerCrash(obstacleName,
+                            hitObstacle != null
+                                ? ContactCornerPoint(hitObstacle,
+                                    tractorWasHit ? newTractorCenter  : newTrailerCenter,
+                                    tractorWasHit ? newTractorAngleDeg : newTrailerAngleDeg,
+                                    tractorWasHit
+                                        ? (tractorCollider != null ? tractorCollider.size : Vector2.one)
+                                        : (trailerCollider != null ? trailerCollider.size : Vector2.one))
+                                : (tractorWasHit ? newTractorCenter : newTrailerCenter),
+                            forwardImpact);
                     }
 
                     currentSpeed = 0f;
@@ -1223,17 +1279,19 @@ public class TruckController : MonoBehaviour
             // Solo tractor candidate check
             if (Mathf.Abs(currentSpeed) > 0.01f)
             {
-                if (CheckCandidateCollision(newTractorCenter, newTractorAngleDeg, Vector2.zero, 0f, out Collider2D hitObstacle))
+                if (CheckCandidateCollision(newTractorCenter, newTractorAngleDeg, Vector2.zero, 0f, out Collider2D hitObstacle, out bool _))
                 {
                     bool forwardImpact = (currentSpeed > 0f);
                     string obstacleName = (hitObstacle != null) ? TruckCollisionDetector.FormatObstacleNameStatic(hitObstacle.name, hitObstacle.transform) : "границу площадки";
                     OnCrash(obstacleName, forwardImpact, hitObstacle);
 
+                    Vector2 flashPos2 = (hitObstacle != null && tractorCollider != null)
+                        ? ContactCornerPoint(hitObstacle, newTractorCenter, newTractorAngleDeg, tractorCollider.size)
+                        : newTractorCenter;
+                    CollisionFlash.Spawn(flashPos2);
+
                     if (TruckCrashEffect.Instance != null)
-                    {
-                        Vector3 impactPos = (hitObstacle != null) ? hitObstacle.transform.position : (forwardImpact ? (Vector3)newTractorCenter : (Vector3)prevTrailerRearAxlePos);
-                        TruckCrashEffect.Instance.TriggerCrash(obstacleName, impactPos, forwardImpact);
-                    }
+                        TruckCrashEffect.Instance.TriggerCrash(obstacleName, flashPos2, forwardImpact);
 
                     currentSpeed = 0f;
                     return;

@@ -250,9 +250,24 @@ public class TruckCollisionDetector : MonoBehaviour
         if (Time.time - lastCrashTime >= CrashCooldown)
         {
             lastCrashTime = Time.time;
+
+            // Best-effort contact point: iterative closest points
+            Vector2 contactPoint = (Vector2)transform.position;
+            if (myCollider != null && actualCol != null)
+            {
+                Vector2 myCenter = myCollider.bounds.center;
+                Vector2 ptOnThem = actualCol.ClosestPoint(myCenter);
+                Vector2 ptOnUs   = myCollider.ClosestPoint(ptOnThem);
+                contactPoint     = (ptOnThem + ptOnUs) * 0.5f;
+            }
+
+            // NOTE: CollisionFlash.Spawn is called by TruckController's predictive system
+            // which has the accurate bumper-level contact point. Do NOT call it here to
+            // avoid a second misplaced flash when physics overlap also fires.
+
             if (TruckCrashEffect.Instance != null)
             {
-                TruckCrashEffect.Instance.TriggerCrash(obstacleName, transform.position, forwardImpact);
+                TruckCrashEffect.Instance.TriggerCrash(obstacleName, contactPoint, forwardImpact);
             }
         }
     }
