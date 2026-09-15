@@ -9,191 +9,191 @@ EditorBuildSettings:
     path: Assets/Scenes/MainMenu.unity
     guid: 7d2cb1d16335597449f588b0249828a0
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Alley dock V1.unity
+    path: Assets\Scenes\CustomMaps\Alley dock V1.unity
     guid: 47353e3424589e746bd43d3282dce034
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Alley dock V2.unity
+    path: Assets\Scenes\CustomMaps\Alley dock V2.unity
     guid: c2e7fbe01fa809e45a9f72ba933a079e
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Alley dock V3.unity
+    path: Assets\Scenes\CustomMaps\Alley dock V3.unity
     guid: e99433fc00757524c983c65cc4cd087f
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Alley dock V4.unity
+    path: Assets\Scenes\CustomMaps\Alley dock V4.unity
     guid: e3cbc4e2f61afc94585efa5993ecafc1
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Alley dock V10.unity
+    path: Assets\Scenes\CustomMaps\Alley dock V5.unity
     guid: e0d491081e79d5747b5ffff47cf69718
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Alley dock V11.unity
+    path: Assets\Scenes\CustomMaps\Alley dock V6.unity
     guid: 679be288a07578b4d9ef7767ab1683e8
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Alley dock V12.unity
+    path: Assets\Scenes\CustomMaps\Alley dock V7.unity
     guid: 1b8992231bc097848a2142c78336a716
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Alley dock V13.unity
+    path: Assets\Scenes\CustomMaps\Alley dock V8.unity
     guid: 224c8029af684b74cabd89b9a1aeee86
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Alley dock V14.unity
+    path: Assets\Scenes\CustomMaps\Alley dock V9.unity
     guid: 5f831897c975bd640b88ffa49529f1da
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Alley dock V15.unity
+    path: Assets\Scenes\CustomMaps\Alley dock V10.unity
     guid: ec3dd78f649bddf49aeeded0ac8b4c85
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Alley dock V17.unity
+    path: Assets\Scenes\CustomMaps\Alley dock V11.unity
     guid: 851fd14c2c897a54c8190075ce2715e6
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Alley dock V18.unity
+    path: Assets\Scenes\CustomMaps\Alley dock V12.unity
     guid: 21939c9cbcb2fb542b5d02aa291317b5
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Alley dock V19.unity
+    path: Assets\Scenes\CustomMaps\Alley dock V13.unity
     guid: d32c2396c781f434c8e82324a66b48fe
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Angle back V1.unity
+    path: Assets\Scenes\CustomMaps\Angle back V1.unity
     guid: 0042c9073d63ffd4cbd155d0371b0703
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Angle back V2.unity
+    path: Assets\Scenes\CustomMaps\Angle back V2.unity
     guid: f68081eb28d450b40abd3de4467c1ee2
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Angle back V3.unity
+    path: Assets\Scenes\CustomMaps\Angle back V3.unity
     guid: a41784ccda56a674a89a4327efe2247d
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Facility V1.unity
+    path: Assets\Scenes\CustomMaps\Facility V1.unity
     guid: 48cc5de15a61d4a42b1878d6bfa4763c
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Facility V2.unity
+    path: Assets\Scenes\CustomMaps\Facility V2.unity
     guid: 6bad0ef03a6bbbb4b82ab4b3580209c4
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Facility V3.unity
+    path: Assets\Scenes\CustomMaps\Facility V3.unity
     guid: c43ce9af2d1a9b948853138db90cc817
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Facility V4.unity
+    path: Assets\Scenes\CustomMaps\Facility V4.unity
     guid: 30f83e4a4effbdd44a7c2a1c55b35dc3
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Facility V5.unity
+    path: Assets\Scenes\CustomMaps\Facility V5.unity
     guid: cc6690b3c4ea6d745911c01f436dadd0
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Facility V6.unity
+    path: Assets\Scenes\CustomMaps\Facility V6.unity
     guid: 4e50f950614ff1647ad7bfb9c6f4d929
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Facility V7.unity
+    path: Assets\Scenes\CustomMaps\Facility V7.unity
     guid: 3bc22dfb72da8c14ba6817469f2d8188
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Facility V8.unity
+    path: Assets\Scenes\CustomMaps\Facility V8.unity
     guid: 4a103f5ddbd5587468a72df5c3cf33f9
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Facility V9.unity
+    path: Assets\Scenes\CustomMaps\Facility V9.unity
     guid: 9f9f0b5bc34d28d459a619730cef9fbc
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Facility V10.unity
+    path: Assets\Scenes\CustomMaps\Facility V10.unity
     guid: 71faaef170a40934598e72d106449add
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Facility V12.unity
+    path: Assets\Scenes\CustomMaps\Facility V11.unity
     guid: b6e6e6349fec21f4c95b0fde888e5b90
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Facility V13.unity
+    path: Assets\Scenes\CustomMaps\Facility V12.unity
     guid: ccdbb8bd6bc6d194bafd6e86fe336788
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Parallel parking V1.unity
-    guid: 42bf7609b95ede344984c7f4d3cf6b2f
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Parallel parking V2.unity
-    guid: 4abdeb6fbbfc3d24a8431ff02967e3ef
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Parallel parking V3.unity
-    guid: cfd6cd167e3413c459e83800852203c5
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Parallel parking V4.unity
-    guid: 61ddc80e1ad92dd409d353befef3a0cf
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Parallel parking V5.unity
-    guid: ff5b63c4e4de6ba488ca9c068d8c8b82
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Parallel parking V6.unity
-    guid: 06385ef42ddd19641b83a32c9c71aef5
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Practice V1.unity
-    guid: fe58be441e6d93946844e07714516e28
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Practice V3.unity
-    guid: bb350fb7436ed5647919ff41af73f60f
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Practice V4.unity
-    guid: d0749cbe73319284d8166850abe9b83f
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Practice V5.unity
-    guid: 93a6604f8f1b09b4a9dc6b0ea1aac12b
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Practice V6.unity
-    guid: e6da5ef3b3362004ebb1a14ebc2e7ac6
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Practice V7.unity
-    guid: 2b5517ca9117e1e4ea7fefc8da8d4dee
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Practice V8.unity
-    guid: c5d681ace7de11a4086e1a3235b07196
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Practice V9.unity
-    guid: eee3d38d30d76944fa675bd693cf6d2a
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Practice V10.unity
-    guid: 9fea41d6e278f7d4dbe03359ba1841b2
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Practice V11.unity
-    guid: 75c53cc183cdc6b42a5d2af0cb6ba008
-  - enabled: 1
-    path: Assets/Scenes/CustomMaps/Facility V14.unity
+    path: Assets\Scenes\CustomMaps\Facility V13.unity
     guid: a0676768d90e5914db5a8554c46e7e33
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Facility V15.unity
+    path: Assets\Scenes\CustomMaps\Facility V14.unity
     guid: 79599b29f5da427489de25b62857f25e
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Facility V16.unity
+    path: Assets\Scenes\CustomMaps\Facility V15.unity
     guid: 826bb40e3b408bb4bb2bccfcf3771ddc
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Facility V17.unity
+    path: Assets\Scenes\CustomMaps\Facility V16.unity
     guid: 264535b27a8c22940b837a868fd811e5
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Rest Area V1.unity
+    path: Assets\Scenes\CustomMaps\Facility V17.unity
+    guid: c641bcef488c21b4a941ac6f6a6cf9ee
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Parallel parking V1.unity
+    guid: 42bf7609b95ede344984c7f4d3cf6b2f
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Parallel parking V2.unity
+    guid: 4abdeb6fbbfc3d24a8431ff02967e3ef
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Parallel parking V3.unity
+    guid: cfd6cd167e3413c459e83800852203c5
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Parallel parking V4.unity
+    guid: 61ddc80e1ad92dd409d353befef3a0cf
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Parallel parking V5.unity
+    guid: ff5b63c4e4de6ba488ca9c068d8c8b82
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Parallel parking V6.unity
+    guid: 06385ef42ddd19641b83a32c9c71aef5
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Practice V1.unity
+    guid: fe58be441e6d93946844e07714516e28
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Practice V2.unity
+    guid: bb350fb7436ed5647919ff41af73f60f
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Practice V3.unity
+    guid: d0749cbe73319284d8166850abe9b83f
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Practice V4.unity
+    guid: 93a6604f8f1b09b4a9dc6b0ea1aac12b
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Practice V5.unity
+    guid: e6da5ef3b3362004ebb1a14ebc2e7ac6
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Practice V6.unity
+    guid: 2b5517ca9117e1e4ea7fefc8da8d4dee
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Practice V7.unity
+    guid: c5d681ace7de11a4086e1a3235b07196
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Practice V8.unity
+    guid: eee3d38d30d76944fa675bd693cf6d2a
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Practice V9.unity
+    guid: 9fea41d6e278f7d4dbe03359ba1841b2
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Practice V10.unity
+    guid: 75c53cc183cdc6b42a5d2af0cb6ba008
+  - enabled: 1
+    path: Assets\Scenes\CustomMaps\Rest Area V1.unity
     guid: 606e5cf274da37f44ab7059959d0b234
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Rest Area V2.unity
+    path: Assets\Scenes\CustomMaps\Rest Area V2.unity
     guid: 9820de291047fd34faad22688a1cefe6
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Rest Area V3.unity
+    path: Assets\Scenes\CustomMaps\Rest Area V3.unity
     guid: 659ea647d867d144ab315da95683758b
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Rest Area V4.unity
+    path: Assets\Scenes\CustomMaps\Rest Area V4.unity
     guid: 74317838e38bf25409451184094fafc9
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Rest Area V5.unity
+    path: Assets\Scenes\CustomMaps\Rest Area V5.unity
     guid: 541a689ebc557ea47938351c2292560d
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Rest Area V6.unity
+    path: Assets\Scenes\CustomMaps\Rest Area V6.unity
     guid: 94338fc25db4a264191aa89bf49ed1ec
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Rest Area V7.unity
+    path: Assets\Scenes\CustomMaps\Rest Area V7.unity
     guid: a7c4137c235834c4e9d3e740b43a723a
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Truck stop V1.unity
+    path: Assets\Scenes\CustomMaps\Truck stop V1.unity
     guid: 6516df22556a41c42884dcde1df5d691
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Truck stop V2.unity
+    path: Assets\Scenes\CustomMaps\Truck stop V2.unity
     guid: 8232a1ec30d907847b073dbdbd62077d
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Truck stop V3.unity
+    path: Assets\Scenes\CustomMaps\Truck stop V3.unity
     guid: 4f03d6561483f2346b4ae7d677c5ccc7
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Truck stop V4.unity
+    path: Assets\Scenes\CustomMaps\Truck stop V4.unity
     guid: 1d300a3fc0187a641b18e3f23a5d5ded
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Truck stop V5.unity
+    path: Assets\Scenes\CustomMaps\Truck stop V5.unity
     guid: db4203f0ab036aa49b8bc9648cb73d82
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Truck stop V6.unity
+    path: Assets\Scenes\CustomMaps\Truck stop V6.unity
     guid: 2b4d316e983a2464abe2da60fffd5db1
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Truck Stop V7.unity
+    path: Assets\Scenes\CustomMaps\Truck Stop V7.unity
     guid: 39cebf0e3b4c7f3478fa6912be497c6a
-  m_configObjects:
-    com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
-  m_UseUCBPForAssetBundles: 0
