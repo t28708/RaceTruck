@@ -2427,6 +2427,7 @@ public class MapBuilderEditor : EditorWindow
             cam.orthographicSize = 25f;
             camGo.transform.position = new Vector3(27f, 25f, -10f);
             camGo.transform.rotation = Quaternion.identity;
+            camGo.AddComponent<AudioListener>();
             SafeRegisterCreatedObjectUndo(camGo, "Create Camera");
         }
         else
@@ -2434,6 +2435,10 @@ public class MapBuilderEditor : EditorWindow
             cam.orthographic = true;
             cam.orthographicSize = 25f;
             cam.transform.position = new Vector3(27f, 25f, -10f);
+            if (cam.GetComponent<AudioListener>() == null && FindFirstObjectByType<AudioListener>() == null)
+            {
+                cam.gameObject.AddComponent<AudioListener>();
+            }
         }
 
         // 2. Ensure 2D Global Light
@@ -7221,6 +7226,11 @@ public class MapBuilderEditor : EditorWindow
             Camera.main.orthographicSize = 16.0f;
             Camera.main.transform.position = new Vector3(tractorPos.x, tractorPos.y, -10f);
             Camera.main.transform.rotation = Quaternion.identity;
+
+            if (Camera.main.GetComponent<AudioListener>() == null && FindFirstObjectByType<AudioListener>() == null)
+            {
+                Camera.main.gameObject.AddComponent<AudioListener>();
+            }
 
             CameraFollow camFollow = Camera.main.GetComponent<CameraFollow>();
             if (camFollow == null)

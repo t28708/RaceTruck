@@ -88,6 +88,12 @@ public class CameraFollow : MonoBehaviour
         if (maxZoom < 120f) maxZoom = 120f;
         if (minZoom > 3.5f) minZoom = 3.5f;
 
+        // Ensure an AudioListener is always present in the scene
+        if (GetComponent<AudioListener>() == null && FindFirstObjectByType<AudioListener>() == null)
+        {
+            gameObject.AddComponent<AudioListener>();
+        }
+
         zoomMultiplier = Mathf.Clamp(zoomMultiplier, MinZoomMultiplier, MaxZoomMultiplier);
         targetZoom = defaultZoom * GetActualZoomScale(zoomMultiplier);
         if (cam != null)

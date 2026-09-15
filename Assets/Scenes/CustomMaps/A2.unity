@@ -45364,6 +45364,7 @@ GameObject:
   - component: {fileID: 1977980679}
   - component: {fileID: 1977980678}
   - component: {fileID: 1977980677}
+  - component: {fileID: 1977980680}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -48337,3 +48338,11 @@ SceneRoots:
   - {fileID: 1160978162}
   - {fileID: 1852901345}
   - {fileID: 411905525}
+--- !u!81 &1977980680
+AudioListener:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1977980676}
+  m_Enabled: 1
