@@ -19,7 +19,7 @@ public class TruckCrashEffect : MonoBehaviour
     private AudioSource audioSource;
     private AudioClip impactAudioClip;
     private float lastCrashTriggerTime = -1f;
-    private const float MinCrashInterval = 0.45f;
+    private const float MinCrashInterval = 0.30f;
 
     private void Awake()
     {
@@ -172,9 +172,9 @@ public class TruckCrashEffect : MonoBehaviour
         const float totalDuration = 0.55f;
         const int sortBase = 30;
 
-        // Layer 1 – outer soft glow
+        // Layer 1 – outer strong red glow
         GameObject glowGo = MakeSR("FX_Glow", worldPos,
-            MakeCircleSprite(64, new Color(1f, 0.6f, 0.1f, 0.55f), new Color(1f, 0.2f, 0f, 0f)), sortBase);
+            MakeCircleSprite(64, new Color(1f, 0.10f, 0.05f, 0.88f), new Color(0.9f, 0.05f, 0f, 0.35f)), sortBase);
         glowGo.transform.localScale = Vector3.one * 0.05f;
 
         // Layer 2 – spiky orange burst (12 spikes)
@@ -187,9 +187,9 @@ public class TruckCrashEffect : MonoBehaviour
             MakeCircleSprite(32, Color.white, new Color(1f, 0.9f, 0.3f, 0f)), sortBase + 2);
         coreGo.transform.localScale = Vector3.one * 0.05f;
 
-        // Layer 4 – expanding ring
+        // Layer 4 – expanding ring (strong fiery red)
         GameObject ringGo = MakeSR("FX_Ring", worldPos,
-            MakeRingSprite(96, 0.6f, new Color(1f, 0.3f, 0f, 0.7f)), sortBase);
+            MakeRingSprite(96, 0.5f, new Color(1f, 0.08f, 0.02f, 0.95f)), sortBase);
         ringGo.transform.localScale = Vector3.one * 0.05f;
 
         // Layer 5 – flying sparks
@@ -377,7 +377,7 @@ public class TruckCrashEffect : MonoBehaviour
             yield return null;
         }
 
-        float textFade = 0.7f, textEl = 0f;
+        float textFade = 0.40f, textEl = 0f;
         while (textEl < textFade)
         {
             textEl += Time.deltaTime;

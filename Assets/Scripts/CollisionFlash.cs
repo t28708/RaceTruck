@@ -20,7 +20,7 @@ public class CollisionFlash : MonoBehaviour
     // ── Internal ──────────────────────────────────────────────────────────────
 
     private static float s_lastSpawnTime = -99f;
-    private const  float CooldownSec     = 1.5f;
+    private const  float CooldownSec     = 0.35f;
 
     private void StartExplosion(Vector2 worldPos)
     {
@@ -41,20 +41,20 @@ public class CollisionFlash : MonoBehaviour
 
         // ── Build layers ──────────────────────────────────────────────────────
 
-        // 1. Outer soft glow
-        GameObject glowGo  = MakeSR("CF_Glow",  worldPos, CircleSpr(64, new Color(1f,0.6f,0.1f,0.55f), new Color(1f,0.2f,0f,0f)), sortTop);
+        // 1. Strong red impact circle / glow (rich vivid red, higher opacity)
+        GameObject glowGo  = MakeSR("CF_Glow",  worldPos, CircleSpr(64, new Color(1f, 0.10f, 0.05f, 0.88f), new Color(0.9f, 0.05f, 0f, 0.35f)), sortTop);
         glowGo.transform.localScale = Vector3.one * 0.05f;
 
         // 2. Spiky orange burst — 14 spikes
-        GameObject spikeGo = MakeSR("CF_Spike", worldPos, SpikeSpr(128, 14, new Color(1f,0.5f,0f,1f)),  sortTop + 1);
+        GameObject spikeGo = MakeSR("CF_Spike", worldPos, SpikeSpr(128, 14, new Color(1f, 0.5f, 0f, 1f)),  sortTop + 1);
         spikeGo.transform.localScale = Vector3.one * 0.05f;
 
         // 3. Hot white-yellow core
-        GameObject coreGo  = MakeSR("CF_Core",  worldPos, CircleSpr(32, Color.white, new Color(1f,0.9f,0.3f,0f)), sortTop + 2);
+        GameObject coreGo  = MakeSR("CF_Core",  worldPos, CircleSpr(32, Color.white, new Color(1f, 0.9f, 0.3f, 0f)), sortTop + 2);
         coreGo.transform.localScale = Vector3.one * 0.05f;
 
-        // 4. Expanding shockwave ring
-        GameObject ringGo  = MakeSR("CF_Ring",  worldPos, RingSpr(96, 0.6f, new Color(1f,0.25f,0f,0.75f)), sortTop);
+        // 4. Expanding shockwave ring — strong fiery red
+        GameObject ringGo  = MakeSR("CF_Ring",  worldPos, RingSpr(96, 0.5f, new Color(1f, 0.08f, 0.02f, 0.95f)), sortTop);
         ringGo.transform.localScale = Vector3.one * 0.05f;
 
         // 5. Flying sparks
@@ -83,10 +83,10 @@ public class CollisionFlash : MonoBehaviour
             float t     = elapsed / dur;
             float ease  = 1f - (1f - t) * (1f - t); // ease-out quad
 
-            // Glow
+            // Red circle glow — bold expansion and smooth fade
             if (glowGo) {
-                glowGo.transform.localScale = Vector3.one * Mathf.Lerp(0.05f, 2.2f, ease);
-                Alpha(glowGo, Mathf.Lerp(0.55f, 0f, Mathf.Min(1f, t * 1.3f)));
+                glowGo.transform.localScale = Vector3.one * Mathf.Lerp(0.05f, 2.4f, ease);
+                Alpha(glowGo, Mathf.Lerp(0.88f, 0f, t));
             }
             // Spike burst
             if (spikeGo) {
@@ -98,10 +98,10 @@ public class CollisionFlash : MonoBehaviour
                 coreGo.transform.localScale = Vector3.one * Mathf.Lerp(0.05f, 0.8f, Mathf.Min(1f, ease * 3f));
                 Alpha(coreGo, Mathf.Lerp(1f, 0f, Mathf.Min(1f, t * 3f)));
             }
-            // Ring — flies outward
+            // Red Ring — flies outward
             if (ringGo) {
-                ringGo.transform.localScale = Vector3.one * Mathf.Lerp(0.05f, 2.8f, ease);
-                Alpha(ringGo, Mathf.Lerp(0.75f, 0f, t));
+                ringGo.transform.localScale = Vector3.one * Mathf.Lerp(0.05f, 3.0f, ease);
+                Alpha(ringGo, Mathf.Lerp(0.95f, 0f, t));
             }
             // Sparks
             for (int i = 0; i < N; i++) {

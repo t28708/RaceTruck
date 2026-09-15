@@ -886,7 +886,7 @@ public class TruckController : MonoBehaviour
         // 1. Check Tractor box at candidate destination
         if (tractorCollider != null)
         {
-            Vector2 tractorSize = tractorCollider.size - new Vector2(0.04f, 0.04f);
+            Vector2 tractorSize = tractorCollider.size - new Vector2(0.015f, 0.015f);
             int count = Physics2D.OverlapBox(candTractorPos, tractorSize, candTractorAngle, obstacleFilter, candidateHits);
             for (int i = 0; i < count; i++)
             {
@@ -908,7 +908,7 @@ public class TruckController : MonoBehaviour
         // 2. Check Trailer box at candidate destination
         if (trailerCollider != null && trailerRb != null)
         {
-            Vector2 trailerSize = trailerCollider.size - new Vector2(0.04f, 0.04f);
+            Vector2 trailerSize = trailerCollider.size - new Vector2(0.015f, 0.015f);
             int count = Physics2D.OverlapBox(candTrailerPos, trailerSize, candTrailerAngle, obstacleFilter, candidateHits);
             for (int i = 0; i < count; i++)
             {
