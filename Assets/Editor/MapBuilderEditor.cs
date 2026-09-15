@@ -183,6 +183,8 @@ public class MapBuilderEditor : EditorWindow
     private Sprite stripeSprite;
     private Sprite tractorSprite;
     private Sprite tractorHDSprite;
+    private Sprite tractorBlueHDSprite;
+    private Sprite BlueTractorSprite => tractorBlueHDSprite != null ? tractorBlueHDSprite : tractorSprite;
     private Sprite trailerSprite;
     private Sprite arrowSprite;
     private Sprite yellowArrowSprite;
@@ -762,6 +764,7 @@ public class MapBuilderEditor : EditorWindow
         stripeSprite = LoadOrCreateSprite(SpritesDir + "/ParkingStripe.png", () => CreateStripeTexture(16, 128, Color.white));
         tractorSprite = LoadOrCreateSprite(SpritesDir + "/Tractor.png", () => CreateSolidTexture(32, 64, new Color(0.15f, 0.45f, 0.85f)));
         tractorHDSprite = LoadOrCreateSprite(SpritesDir + "/Tractor_HD.png", null);
+        tractorBlueHDSprite = LoadOrCreateSprite(SpritesDir + "/Tractor_Blue_HD.png", null);
         trailerSprite = LoadOrCreateSprite(SpritesDir + "/Trailer.png", () => CreateSolidTexture(32, 128, new Color(0.88f, 0.88f, 0.90f)));
         arrowSprite = LoadOrCreateSprite(SpritesDir + "/DockArrow.png", null);
         yellowArrowSprite = LoadOrCreateSprite(SpritesDir + "/YellowParkingArrow.png", CreateYellowArrowTexture);
@@ -1168,7 +1171,7 @@ public class MapBuilderEditor : EditorWindow
                     if (sto != null)
                     {
                         sto.position += delta;
-                        sto.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+                        sto.UpdateTransformAndVisual(BlueTractorSprite, trailerSprite, wheelSprite);
                     }
                 }
             }
@@ -1946,7 +1949,7 @@ public class MapBuilderEditor : EditorWindow
         truck.rotationAngle = rotAngle;
         truck.tractorColor = cabCol;
 
-        truck.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+        truck.UpdateTransformAndVisual(BlueTractorSprite, trailerSprite, wheelSprite);
         SafeMarkSceneDirty();
         SceneView.RepaintAll();
 
@@ -2009,7 +2012,7 @@ public class MapBuilderEditor : EditorWindow
         {
             Undo.RecordObject(selectedStandaloneTruck, "Change Standalone Truck Color");
             selectedStandaloneTruck.tractorColor = col;
-            selectedStandaloneTruck.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+            selectedStandaloneTruck.UpdateTransformAndVisual(BlueTractorSprite, trailerSprite, wheelSprite);
             SafeMarkSceneDirty();
         }
         UpdateGhostPreview();
@@ -2023,7 +2026,7 @@ public class MapBuilderEditor : EditorWindow
         {
             Undo.RecordObject(selectedStandaloneTruck, "Rotate Standalone Truck");
             selectedStandaloneTruck.rotationAngle = currentRotation;
-            selectedStandaloneTruck.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+            selectedStandaloneTruck.UpdateTransformAndVisual(BlueTractorSprite, trailerSprite, wheelSprite);
             SafeMarkSceneDirty();
         }
         UpdateGhostPreview();
@@ -3893,7 +3896,7 @@ public class MapBuilderEditor : EditorWindow
             {
                 Undo.RecordObject(selectedStandaloneTruck.transform, "Move Standalone Truck");
                 selectedStandaloneTruck.position = new Vector2(newPos.x, newPos.y);
-                selectedStandaloneTruck.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+                selectedStandaloneTruck.UpdateTransformAndVisual(BlueTractorSprite, trailerSprite, wheelSprite);
                 cursorPosition = selectedStandaloneTruck.position;
                 SafeMarkSceneDirty();
                 Repaint();
@@ -4264,7 +4267,7 @@ public class MapBuilderEditor : EditorWindow
                     {
                         Undo.RecordObject(selectedStandaloneTruck.transform, "Move Standalone Truck");
                         selectedStandaloneTruck.position = rawPos;
-                        selectedStandaloneTruck.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+                        selectedStandaloneTruck.UpdateTransformAndVisual(BlueTractorSprite, trailerSprite, wheelSprite);
                         cursorPosition = rawPos;
                         SafeMarkSceneDirty();
                     }
@@ -4785,7 +4788,7 @@ public class MapBuilderEditor : EditorWindow
                             Undo.RecordObject(selectedStandaloneTruck.transform, "Rotate Standalone Truck");
                             selectedStandaloneTruck.rotationAngle = (selectedStandaloneTruck.rotationAngle + rotDelta) % 360f;
                             if (selectedStandaloneTruck.rotationAngle < 0f) selectedStandaloneTruck.rotationAngle += 360f;
-                            selectedStandaloneTruck.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+                            selectedStandaloneTruck.UpdateTransformAndVisual(BlueTractorSprite, trailerSprite, wheelSprite);
                             currentRotation = selectedStandaloneTruck.rotationAngle;
                             SafeMarkSceneDirty();
                         }
@@ -4841,7 +4844,7 @@ public class MapBuilderEditor : EditorWindow
                     {
                         Undo.RecordObject(selectedStandaloneTruck.transform, "Move Standalone Truck");
                         selectedStandaloneTruck.position += moveDelta;
-                        selectedStandaloneTruck.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+                        selectedStandaloneTruck.UpdateTransformAndVisual(BlueTractorSprite, trailerSprite, wheelSprite);
                         cursorPosition = selectedStandaloneTruck.position;
                         SafeMarkSceneDirty();
                     }
@@ -6068,7 +6071,7 @@ public class MapBuilderEditor : EditorWindow
             {
                 Undo.RecordObject(selectedStandaloneTruck, "Rotate Standalone Truck");
                 selectedStandaloneTruck.rotationAngle = currentRotation;
-                selectedStandaloneTruck.UpdateTransformAndVisual(tractorSprite, trailerSprite, wheelSprite);
+                selectedStandaloneTruck.UpdateTransformAndVisual(BlueTractorSprite, trailerSprite, wheelSprite);
                 SafeMarkSceneDirty();
             }
         }
@@ -7332,16 +7335,19 @@ public class MapBuilderEditor : EditorWindow
             tractor.transform.localPosition = new Vector3(0f, 6.8f, 0f);
             tractor.transform.localRotation = Quaternion.identity;
             SpriteRenderer srTractor = tractor.AddComponent<SpriteRenderer>();
-            srTractor.sprite = tractorSprite;
-            Color cabC = standaloneTruckColor;
-            if (isPreview) cabC.a = 0.7f;
+            srTractor.sprite = BlueTractorSprite;
+            Color cabC = isPreview ? new Color(1f, 1f, 1f, 0.7f) : Color.white;
             srTractor.color = cabC;
             srTractor.sortingOrder = isPreview ? 48 : 8;
-            if (tractorSprite != null && tractorSprite.rect.width > 0)
+            if (BlueTractorSprite != null && !BlueTractorSprite.name.Contains("HD") && BlueTractorSprite.rect.width > 0)
             {
-                float sx = 2.55f / (tractorSprite.rect.width / tractorSprite.pixelsPerUnit);
-                float sy = 8.2f / (tractorSprite.rect.height / tractorSprite.pixelsPerUnit);
+                float sx = 2.55f / (BlueTractorSprite.rect.width / BlueTractorSprite.pixelsPerUnit);
+                float sy = 8.2f / (BlueTractorSprite.rect.height / BlueTractorSprite.pixelsPerUnit);
                 tractor.transform.localScale = new Vector3(sx, sy, 1f);
+            }
+            else
+            {
+                tractor.transform.localScale = Vector3.one;
             }
             return;
         }
@@ -7499,8 +7505,8 @@ public class MapBuilderEditor : EditorWindow
             tractor.transform.localPosition = new Vector3(0f, 6.8f, 0f);
             tractor.transform.localRotation = Quaternion.identity;
             SpriteRenderer srTractor = tractor.AddComponent<SpriteRenderer>();
-            srTractor.sprite = tractorSprite;
-            srTractor.color = isPreview ? new Color(0.7f, 0.9f, 1f, 0.7f) : Color.white;
+            srTractor.sprite = BlueTractorSprite;
+            srTractor.color = isPreview ? new Color(1f, 1f, 1f, 0.7f) : Color.white;
             srTractor.sortingOrder = isPreview ? 48 : 8;
 
             if (!isPreview)

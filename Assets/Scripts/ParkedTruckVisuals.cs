@@ -95,11 +95,15 @@ public class ParkedTruckVisuals : MonoBehaviour
         SpriteRenderer sr = tractorTr.GetComponent<SpriteRenderer>();
         if (sr != null)
         {
-            if (sr.sprite == null)
+            if (sr.sprite == null || sr.sprite.name == "Tractor")
             {
                 sr.sprite = GetTractorSprite();
             }
-            if (sr.color.a < 0.95f)
+            if (sr.sprite != null && sr.sprite.name.Contains("HD"))
+            {
+                sr.color = Color.white;
+            }
+            else if (sr.color.a < 0.95f)
             {
                 sr.color = new Color(sr.color.r, sr.color.g, sr.color.b, 1.0f);
             }
@@ -115,19 +119,19 @@ public class ParkedTruckVisuals : MonoBehaviour
         Sprite tireSprite = GetTireSprite();
         Material mat = GetDefaultSpriteMaterial();
 
-        // 6 Tractor Wheels:
-        // Steer Axle: Y = 2.45, X = +/- 1.02
-        // Drive Tandem 1: Y = -2.25, X = +/- 1.05
-        // Drive Tandem 2: Y = -3.35, X = +/- 1.05
-        EnsureWheel(tractorTr, "FrontLeftWheel", new Vector3(-1.02f, 2.45f, 0f), tireSprite, mat, 7);
-        EnsureWheel(tractorTr, "FrontRightWheel", new Vector3(1.02f, 2.45f, 0f), tireSprite, mat, 7);
-        EnsureWheel(tractorTr, "RearLeftWheel1", new Vector3(-1.05f, -2.25f, 0f), tireSprite, mat, 7);
-        EnsureWheel(tractorTr, "RearLeftWheel2", new Vector3(-1.05f, -3.35f, 0f), tireSprite, mat, 7);
-        EnsureWheel(tractorTr, "RearRightWheel1", new Vector3(1.05f, -2.25f, 0f), tireSprite, mat, 7);
-        EnsureWheel(tractorTr, "RearRightWheel2", new Vector3(1.05f, -3.35f, 0f), tireSprite, mat, 7);
+        // 6 Tractor Wheels matching HD model wheel arches:
+        // Steer Axle: Y = 2.80, X = +/- 1.08
+        // Drive Tandem 1: Y = -2.25, X = +/- 1.08
+        // Drive Tandem 2: Y = -3.35, X = +/- 1.08
+        EnsureWheel(tractorTr, "FrontLeftWheel", new Vector3(-1.08f, 2.80f, 0f), tireSprite, mat, 7);
+        EnsureWheel(tractorTr, "FrontRightWheel", new Vector3(1.08f, 2.80f, 0f), tireSprite, mat, 7);
+        EnsureWheel(tractorTr, "RearLeftWheel1", new Vector3(-1.08f, -2.25f, 0f), tireSprite, mat, 7);
+        EnsureWheel(tractorTr, "RearLeftWheel2", new Vector3(-1.08f, -3.35f, 0f), tireSprite, mat, 7);
+        EnsureWheel(tractorTr, "RearRightWheel1", new Vector3(1.08f, -2.25f, 0f), tireSprite, mat, 7);
+        EnsureWheel(tractorTr, "RearRightWheel2", new Vector3(1.08f, -3.35f, 0f), tireSprite, mat, 7);
 
         // Ground shadow under tractor
-        EnsureShadow(tractorTr, "TractorShadow", new Vector3(0f, 0f, 0f), new Vector2(2.8f, 8.8f), mat);
+        EnsureShadow(tractorTr, "TractorShadow", new Vector3(0f, 0f, 0f), new Vector2(3.1f, 8.8f), mat);
     }
 
     public static void SetupTrailerVisuals(Transform trailerTr)
@@ -276,6 +280,16 @@ public class ParkedTruckVisuals : MonoBehaviour
     {
         if (cachedTractorSprite != null) return cachedTractorSprite;
         Sprite[] allSprites = Resources.FindObjectsOfTypeAll<Sprite>();
+        // 1. Prefer Tractor_Blue_HD (gorgeous detailed blue HD model)
+        foreach (var s in allSprites)
+        {
+            if (s.name == "Tractor_Blue_HD")
+            {
+                cachedTractorSprite = s;
+                return s;
+            }
+        }
+        // 2. Fallback to standard Tractor sprite
         foreach (var s in allSprites)
         {
             if (s.name == "Tractor")

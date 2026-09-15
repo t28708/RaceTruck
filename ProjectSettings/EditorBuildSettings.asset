@@ -15,6 +15,9 @@ EditorBuildSettings:
     path: Assets/Scenes/CustomMaps/A2.unity
     guid: 12594e238b6bddf4e91f670cdfd78961
   - enabled: 1
+    path: Assets/Scenes/CustomMaps/A3.unity
+    guid: d5fdd7319f2e7ef48994a4065f04333e
+  - enabled: 1
     path: Assets/Scenes/CustomMaps/Alley dock V1.unity
     guid: 47353e3424589e746bd43d3282dce034
   - enabled: 1
@@ -68,6 +71,18 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Facility V2.unity
     guid: 6bad0ef03a6bbbb4b82ab4b3580209c4
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Facility V3.unity
+    guid: c43ce9af2d1a9b948853138db90cc817
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Facility V4.unity
+    guid: 30f83e4a4effbdd44a7c2a1c55b35dc3
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Facility V5.unity
+    guid: cc6690b3c4ea6d745911c01f436dadd0
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Facility V6.unity
+    guid: 4e50f950614ff1647ad7bfb9c6f4d929
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Parallel parking V1.unity
     guid: 42bf7609b95ede344984c7f4d3cf6b2f

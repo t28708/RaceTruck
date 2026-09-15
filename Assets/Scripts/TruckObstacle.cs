@@ -96,7 +96,10 @@ public class TruckObstacle : MonoBehaviour
 
         SpriteRenderer srTractor = tractorGo.GetComponent<SpriteRenderer>();
         if (srTractor == null) srTractor = tractorGo.AddComponent<SpriteRenderer>();
-        if (activeTractorSprite != null) srTractor.sprite = activeTractorSprite;
+        if (activeTractorSprite != null && activeTractorSprite.name != "Tractor")
+            srTractor.sprite = activeTractorSprite;
+        else
+            srTractor.sprite = GetTractorSprite();
         srTractor.color = Color.white;
         srTractor.sortingOrder = 8;
 
@@ -114,16 +117,8 @@ public class TruckObstacle : MonoBehaviour
     private static Sprite GetTractorSprite()
     {
         if (cachedTractorSprite != null) return cachedTractorSprite;
-        Sprite[] allSprites = Resources.FindObjectsOfTypeAll<Sprite>();
-        foreach (var s in allSprites)
-        {
-            if (s.name == "Tractor")
-            {
-                cachedTractorSprite = s;
-                return s;
-            }
-        }
-        return null;
+        cachedTractorSprite = ParkedTruckVisuals.GetTractorSprite();
+        return cachedTractorSprite;
     }
 
     private static Sprite GetTrailerSprite()
