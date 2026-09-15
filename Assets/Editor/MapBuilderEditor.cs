@@ -7691,12 +7691,54 @@ public class RenameMapDialog : EditorWindow
         window.oldMapName = currentMapName ?? "";
         window.newMapName = currentMapName ?? "";
         window.oldScenePath = scenePath;
-        window.minSize = new Vector2(400, 160);
-        window.maxSize = new Vector2(460, 175);
+        window.minSize = new Vector2(420, 190);
+        window.maxSize = new Vector2(480, 220);
 
         Resolution res = Screen.currentResolution;
-        window.position = new Rect((res.width - 420) * 0.5f, (res.height - 170) * 0.5f, 420, 170);
+        window.position = new Rect((res.width - 440) * 0.5f, (res.height - 200) * 0.5f, 440, 200);
         window.ShowUtility();
+    }
+
+    public static bool DoesMapNameExist(string candidateName, string currentMapName)
+    {
+        if (string.IsNullOrWhiteSpace(candidateName)) return false;
+
+        string trimmed = candidateName.Trim();
+        if (trimmed.EndsWith(".unity", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed.Substring(0, trimmed.Length - 6).Trim();
+        }
+
+        if (string.Equals(trimmed, currentMapName, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (Directory.Exists(MapBuilderEditor.CustomMapsFolder))
+        {
+            string[] files = Directory.GetFiles(MapBuilderEditor.CustomMapsFolder, "*.unity");
+            foreach (string file in files)
+            {
+                string nameWithoutExt = Path.GetFileNameWithoutExtension(file);
+                if (string.Equals(nameWithoutExt, trimmed, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        foreach (var scene in EditorBuildSettings.scenes)
+        {
+            if (string.IsNullOrEmpty(scene.path)) continue;
+            string sceneName = Path.GetFileNameWithoutExtension(scene.path);
+            if (string.Equals(sceneName, trimmed, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(sceneName, currentMapName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void OnGUI()
@@ -7715,7 +7757,20 @@ public class RenameMapDialog : EditorWindow
             focusSet = true;
         }
 
-        if (!string.IsNullOrEmpty(errorText))
+        string trimmedInput = (newMapName ?? "").Trim();
+        if (trimmedInput.EndsWith(".unity", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmedInput = trimmedInput.Substring(0, trimmedInput.Length - 6).Trim();
+        }
+
+        bool nameExists = DoesMapNameExist(trimmedInput, oldMapName);
+
+        if (nameExists)
+        {
+            EditorGUILayout.Space(2);
+            EditorGUILayout.HelpBox($"⚠️ Карта с названием «{trimmedInput}» уже существует!\nПожалуйста, выберите другое название.", MessageType.Warning);
+        }
+        else if (!string.IsNullOrEmpty(errorText))
         {
             EditorGUILayout.Space(2);
             EditorGUILayout.HelpBox(errorText, MessageType.Error);
@@ -7726,7 +7781,7 @@ public class RenameMapDialog : EditorWindow
         EditorGUILayout.BeginHorizontal();
         GUILayout.FlexibleSpace();
 
-        GUI.backgroundColor = new Color(0.2f, 0.85f, 1f, 1f);
+        GUI.backgroundColor = nameExists ? new Color(1f, 0.6f, 0.4f, 1f) : new Color(0.2f, 0.85f, 1f, 1f);
         if (GUILayout.Button("Переименовать", GUILayout.Width(130), GUILayout.Height(28)))
         {
             DoRename();
@@ -7759,6 +7814,11 @@ public class RenameMapDialog : EditorWindow
     private void DoRename()
     {
         string trimmedNew = (newMapName ?? "").Trim();
+        if (trimmedNew.EndsWith(".unity", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmedNew = trimmedNew.Substring(0, trimmedNew.Length - 6).Trim();
+        }
+
         if (string.IsNullOrEmpty(trimmedNew))
         {
             errorText = "Название карты не может быть пустым!";
@@ -7775,6 +7835,17 @@ public class RenameMapDialog : EditorWindow
         if (trimmedNew == oldMapName)
         {
             Close();
+            return;
+        }
+
+        if (DoesMapNameExist(trimmedNew, oldMapName))
+        {
+            EditorUtility.DisplayDialog(
+                "Карта уже существует",
+                $"Карта с названием «{trimmedNew}» уже существует!\n\nПожалуйста, укажите другое название.",
+                "OK"
+            );
+            errorText = $"Карта с названием '{trimmedNew}' уже существует!";
             return;
         }
 
@@ -7800,22 +7871,26 @@ public class RenameMapDialog : EditorWindow
 
         if (!string.IsNullOrEmpty(resolvedOldPath) && File.Exists(resolvedOldPath))
         {
-            if (File.Exists(newScenePath))
-            {
-                errorText = $"Карта с именем '{trimmedNew}' уже существует!";
-                return;
-            }
-
             bool wasActiveScene = (UnityEngine.SceneManagement.SceneManager.GetActiveScene().path.Replace("\\", "/") == resolvedOldPath.Replace("\\", "/"));
             if (wasActiveScene)
             {
                 EditorSceneManager.SaveOpenScenes();
             }
 
-            string moveError = AssetDatabase.MoveAsset(resolvedOldPath, newScenePath);
+            string moveError;
+            if (string.Equals(resolvedOldPath, newScenePath, StringComparison.OrdinalIgnoreCase))
+            {
+                moveError = AssetDatabase.RenameAsset(resolvedOldPath, trimmedNew);
+            }
+            else
+            {
+                moveError = AssetDatabase.MoveAsset(resolvedOldPath, newScenePath);
+            }
+
             if (!string.IsNullOrEmpty(moveError))
             {
                 errorText = $"Ошибка переименования: {moveError}";
+                EditorUtility.DisplayDialog("Ошибка переименования", moveError, "OK");
                 return;
             }
 
