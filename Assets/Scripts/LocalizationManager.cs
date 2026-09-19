@@ -176,6 +176,7 @@ public static class LocalizationManager
         { "BTN_BACK", new[] { "← НАЗАД", "← BACK", "← RETOUR", "← ATRÁS" } },
         { "BTN_CLOSE", new[] { "✕ ЗАКРЫТЬ", "✕ CLOSE", "✕ FERMER", "✕ CERRAR" } },
         { "MAP_COMPLETED", new[] { "ВЫПОЛНЕНО", "COMPLETED", "TERMINÉ", "COMPLETADO" } },
+        { "MAP_IN_PROGRESS", new[] { "В ПРОЦЕССЕ", "IN PROGRESS", "EN COURS", "EN CURSO" } },
         { "CAT_OTHER", new[] { "ДРУГИЕ КАРТЫ", "OTHER MAPS", "AUTRES CARTES", "OTROS MAPAS" } },
         { "MAP_NO_MAPS_IN_CAT", new[] {
             "🗺 Пока нет карт в этой категории.",

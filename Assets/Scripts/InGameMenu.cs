@@ -181,7 +181,7 @@ public class InGameMenu : MonoBehaviour
         }
         if (titleText != null)
         {
-            titleText.text = LocalizationManager.Get("MENU_TITLE");
+            titleText.text = GetCurrentMapDisplayName();
         }
         if (languageBtnText != null)
         {
@@ -248,6 +248,8 @@ public class InGameMenu : MonoBehaviour
         string cat = MapSelectMenu.GetMapCategory(currentScene);
         MapSelectMenu.PendingCategory = cat;
         PlayerPrefs.SetString(MapSelectMenu.PrefKey_LastCategory, cat);
+        PlayerPrefs.SetString("CurrentActiveMap", currentScene);
+        PlayerPrefs.SetString("LastPlayedMap", currentScene);
         PlayerPrefs.Save();
 #if UNITY_EDITOR
         string mainMenuPath = "Assets/Scenes/MainMenu.unity";
@@ -381,7 +383,7 @@ public class InGameMenu : MonoBehaviour
         cardOutline.effectColor = new Color(0.20f, 0.40f, 0.70f, 0.8f);
         cardOutline.effectDistance = new Vector2(2f, -2f);
 
-        // Title
+        // Title (displays current map name)
         GameObject titleGo = new GameObject("Title");
         titleGo.transform.SetParent(cardGo.transform, false);
         RectTransform titleRt = titleGo.AddComponent<RectTransform>();
@@ -391,11 +393,18 @@ public class InGameMenu : MonoBehaviour
 
         titleText = titleGo.AddComponent<Text>();
         if (font != null) titleText.font = font;
-        titleText.fontSize = 28;
+        titleText.fontSize = 26;
         titleText.fontStyle = FontStyle.Bold;
         titleText.alignment = TextAnchor.MiddleCenter;
         titleText.color = new Color(1f, 0.85f, 0.20f, 1f);
-        titleText.text = LocalizationManager.Get("MENU_TITLE");
+        titleText.resizeTextForBestFit = true;
+        titleText.resizeTextMinSize = 16;
+        titleText.resizeTextMaxSize = 26;
+        titleText.text = GetCurrentMapDisplayName();
+
+        Shadow titleShadow = titleGo.AddComponent<Shadow>();
+        titleShadow.effectColor = new Color(0, 0, 0, 0.85f);
+        titleShadow.effectDistance = new Vector2(1.5f, -1.5f);
 
         // Button 1 (Top item): Смена языка (RU -> EN -> FR -> ES -> RU)
         languageBtnText = CreateModalButton(cardGo.transform, "LanguageBtn",
@@ -476,5 +485,11 @@ public class InGameMenu : MonoBehaviour
         t.text = text;
 
         return t;
+    }
+
+    public static string GetCurrentMapDisplayName()
+    {
+        string sceneName = SceneManager.GetActiveScene().name;
+        return sceneName.Replace("-", " ").Replace("_", " ").ToUpperInvariant();
     }
 }

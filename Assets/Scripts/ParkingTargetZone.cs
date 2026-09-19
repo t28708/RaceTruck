@@ -298,6 +298,8 @@ public class ParkingTargetZone : MonoBehaviour
         isParkedSuccessfully = true;
         string currentScene = SceneManager.GetActiveScene().name;
         PlayerPrefs.SetInt("MapCompleted_" + currentScene, 1);
+        PlayerPrefs.SetString("CurrentActiveMap", currentScene);
+        PlayerPrefs.SetString("LastPlayedMap", currentScene);
         PlayerPrefs.Save();
         Debug.Log($"<color=#55ff55>[ParkingTargetZone] 🏆 ЗАДАНИЕ ВЫПОЛНЕНО! Карта '{currentScene}' отмечена как пройденная!</color>");
         ShowWinUI();
@@ -417,6 +419,8 @@ public class ParkingTargetZone : MonoBehaviour
         string cat = MapSelectMenu.GetMapCategory(currentScene);
         MapSelectMenu.PendingCategory = cat;
         PlayerPrefs.SetString(MapSelectMenu.PrefKey_LastCategory, cat);
+        PlayerPrefs.SetString("CurrentActiveMap", currentScene);
+        PlayerPrefs.SetString("LastPlayedMap", currentScene);
         PlayerPrefs.Save();
 
 #if UNITY_EDITOR

@@ -47,8 +47,12 @@ public class TruckController : MonoBehaviour
     [SerializeField] private float powerSteeringSpeed = 180f;
 
     [Header("Diesel Engine & Driving Dynamics (km/h)")]
-    [Tooltip("Maximum forward maneuvering speed in km/h (fixed at 10.0 km/h)")]
+    [Tooltip("Maximum forward maneuvering speed in km/h (fixed at 10.0 km/h on single press)")]
     [SerializeField] private float maxForwardSpeedKmh = 10.0f;
+    [Tooltip("Fast forward speed in km/h on quick double press (20.0 km/h)")]
+    [SerializeField] private float fastForwardSpeedKmh = 20.0f;
+    [Tooltip("Maximum interval between presses to trigger double tap (seconds)")]
+    [SerializeField] private float doubleTapInterval = 0.35f;
     [Tooltip("Maximum reverse backing speed in km/h (fixed at 10.0 km/h)")]
     [SerializeField] private float maxReverseSpeedKmh = 10.0f;
     [Tooltip("Engine acceleration (smooth ramp to 10 km/h)")]
@@ -62,12 +66,18 @@ public class TruckController : MonoBehaviour
     [Tooltip("Rolling resistance of 18 wheels on asphalt")]
     [SerializeField] private float rollingResistance = 1.6f;
 
-    public float MaxForwardSpeed => maxForwardSpeedKmh / 3.6f;
+    public bool IsFastForwardMode => isFastForwardMode;
+    public float CurrentMaxForwardSpeedKmh => isFastForwardMode ? fastForwardSpeedKmh : maxForwardSpeedKmh;
+    public float MaxForwardSpeed => CurrentMaxForwardSpeedKmh / 3.6f;
     public float MaxReverseSpeed => maxReverseSpeedKmh / 3.6f;
 
     private Rigidbody2D tractorRb;
     private float currentSpeed = 0f;
     private float actualSteerAngle = 0f; // Smooth hydraulic front wheel angle
+
+    // Double tap gas speed boost
+    private bool isFastForwardMode = false;
+    private float lastGasPressTime = -100f;
 
     // Mobile touch pedal & keyboard state
     private bool gasPedalPressed = false;
@@ -168,6 +178,15 @@ public class TruckController : MonoBehaviour
         EnsurePlayerTractorVisuals();
         EnsureAudioController();
         EnsureJackknifeWarningIndicator();
+        EnsureDebugMapNameLabel();
+
+        string sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        if (sceneName != "MainMenu" && sceneName != "SampleScene")
+        {
+            PlayerPrefs.SetString("CurrentActiveMap", sceneName);
+            PlayerPrefs.SetString("LastPlayedMap", sceneName);
+            PlayerPrefs.Save();
+        }
     }
 
     private void EnsureJackknifeWarningIndicator()
@@ -177,6 +196,94 @@ public class TruckController : MonoBehaviour
             gameObject.AddComponent<JackknifeWarningIndicator>();
         }
     }
+
+    #region Temporary Debug Map Name Watermark (To be removed before release)
+    /// <summary>
+    /// TEMPORARY DEBUG HELPER:
+    /// Automatically renders the active map name in world-space just outside the
+    /// bottom-left boundary (matching the user's debug request).
+    /// To be removed before final production release!
+    /// </summary>
+    private void EnsureDebugMapNameLabel()
+    {
+        string sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        if (sceneName == "MainMenu") return;
+
+        string displayName = sceneName.ToUpperInvariant();
+
+        const string labelObjName = "DEBUG_MapName_Watermark";
+        GameObject labelGo = GameObject.Find(labelObjName);
+        if (labelGo == null)
+        {
+            labelGo = new GameObject(labelObjName);
+        }
+
+        // Position: right outside the bottom-left boundary fence (near (0, 0))
+        labelGo.transform.position = new Vector3(0.5f, -2.4f, -2.0f);
+        labelGo.transform.rotation = Quaternion.identity;
+
+        // Dynamic width according to map name length
+        float textWidth = Mathf.Max(12.0f, displayName.Length * 1.05f + 4.0f);
+        float plateHeight = 2.8f;
+
+        // Background dark backing plashka
+        GameObject bgGo = labelGo.transform.Find("Background")?.gameObject;
+        if (bgGo == null)
+        {
+            bgGo = new GameObject("Background");
+            bgGo.transform.SetParent(labelGo.transform, false);
+        }
+        bgGo.transform.localPosition = new Vector3(textWidth * 0.5f - 0.2f, -plateHeight * 0.5f + 0.2f, 0.1f);
+        bgGo.transform.localScale = new Vector3(textWidth, plateHeight, 1.0f);
+
+        SpriteRenderer sr = bgGo.GetComponent<SpriteRenderer>();
+        if (sr == null) sr = bgGo.AddComponent<SpriteRenderer>();
+        sr.sprite = GetWhiteStripeSprite();
+        sr.color = new Color(0.06f, 0.09f, 0.14f, 0.88f); // High-contrast dark slate
+        sr.sortingOrder = 48;
+
+        // Subtle border frame on the plashka
+        GameObject frameGo = labelGo.transform.Find("Frame")?.gameObject;
+        if (frameGo == null)
+        {
+            frameGo = new GameObject("Frame");
+            frameGo.transform.SetParent(labelGo.transform, false);
+        }
+        frameGo.transform.localPosition = new Vector3(textWidth * 0.5f - 0.2f, -plateHeight * 0.5f + 0.2f, 0.15f);
+        frameGo.transform.localScale = new Vector3(textWidth + 0.35f, plateHeight + 0.35f, 1.0f);
+
+        SpriteRenderer frameSr = frameGo.GetComponent<SpriteRenderer>();
+        if (frameSr == null) frameSr = frameGo.AddComponent<SpriteRenderer>();
+        frameSr.sprite = GetWhiteStripeSprite();
+        frameSr.color = new Color(0.20f, 0.45f, 0.75f, 0.75f); // Crisp cyan-blue border
+        frameSr.sortingOrder = 47;
+
+        // TextMesh component
+        TextMesh tm = labelGo.GetComponent<TextMesh>();
+        if (tm == null) tm = labelGo.AddComponent<TextMesh>();
+
+        Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        if (font != null)
+        {
+            tm.font = font;
+            MeshRenderer mr = labelGo.GetComponent<MeshRenderer>();
+            if (mr != null)
+            {
+                mr.sharedMaterial = font.material;
+                mr.sortingOrder = 50;
+            }
+        }
+
+        tm.text = $"📍 MAP: {displayName}";
+        tm.fontSize = 52;
+        tm.characterSize = 0.038f;
+        tm.anchor = TextAnchor.UpperLeft;
+        tm.alignment = TextAlignment.Left;
+        tm.fontStyle = FontStyle.Bold;
+        tm.color = new Color(0.35f, 0.90f, 1.0f, 0.95f); // Glowing debug cyan
+    }
+    #endregion
 
     private void EnsureAudioController()
     {
@@ -1169,6 +1276,35 @@ public class TruckController : MonoBehaviour
         bool prevForwardInput = prevWPressed || prevGasPedalPressed;
         bool prevReverseInput = prevSPressed || prevBrakePedalPressed;
 
+        bool forwardDown = forwardInput && !prevForwardInput;
+        bool forwardUp = !forwardInput && prevForwardInput;
+
+        if (forwardDown)
+        {
+            float timeSinceLastPress = Time.time - lastGasPressTime;
+            if (timeSinceLastPress <= doubleTapInterval && timeSinceLastPress >= 0.04f)
+            {
+                // Quick double press detected -> 20 km/h mode!
+                isFastForwardMode = true;
+                lastGasPressTime = -100f; // Consume double tap so subsequent taps start fresh
+            }
+            else
+            {
+                // Normal single press -> 10 km/h mode
+                isFastForwardMode = false;
+                lastGasPressTime = Time.time;
+            }
+        }
+        else if (forwardUp)
+        {
+            if (isFastForwardMode)
+            {
+                // Released the 20 km/h gas hold -> reset mode and consume timer
+                isFastForwardMode = false;
+                lastGasPressTime = -100f;
+            }
+        }
+
         prevWPressed = wPressed;
         prevSPressed = sPressed;
         prevGasPedalPressed = gasPedalPressed;
@@ -1221,7 +1357,7 @@ public class TruckController : MonoBehaviour
         {
             gear = "D";
             if (reverseInput) mode = "ТОРМОЖЕНИЕ";
-            else if (forwardInput) mode = "ГАЗ (10 км/ч)";
+            else if (forwardInput) mode = isFastForwardMode ? "ГАЗ x2 (20 км/ч)" : "ГАЗ (10 км/ч)";
             else mode = "НАКАТ";
         }
         else if (currentSpeed < -0.05f)
@@ -1234,7 +1370,7 @@ public class TruckController : MonoBehaviour
         else
         {
             if (spacePressed) mode = "РУЧНИК";
-            else if (forwardInput) mode = "ВПЕРЕД";
+            else if (forwardInput) mode = isFastForwardMode ? "ВПЕРЕД x2 (20 км/ч)" : "ВПЕРЕД";
             else if (reverseInput) mode = "НАЗАД";
             else mode = "СТОП";
         }
@@ -1515,8 +1651,10 @@ public class TruckController : MonoBehaviour
             else
             {
                 // If moving backward, apply strong braking force towards 0, then smoothly accelerate forward
-                float rate = (currentSpeed < 0f) ? brakePower : acceleration;
-                currentSpeed = Mathf.MoveTowards(currentSpeed, MaxForwardSpeed, rate * dt);
+                float targetMaxSpeed = MaxForwardSpeed;
+                float currentAccel = isFastForwardMode ? (acceleration * 1.6f) : acceleration;
+                float rate = (currentSpeed < 0f) ? brakePower : currentAccel;
+                currentSpeed = Mathf.MoveTowards(currentSpeed, targetMaxSpeed, rate * dt);
             }
             return;
         }

@@ -308,6 +308,8 @@ public class MapSelectMenu : MonoBehaviour
         string cat = GetMapCategory(mapName);
         PendingCategory = cat;
         PlayerPrefs.SetString(PrefKey_LastCategory, cat);
+        PlayerPrefs.SetString("CurrentActiveMap", mapName);
+        PlayerPrefs.SetString("LastPlayedMap", mapName);
         PlayerPrefs.Save();
         SetMenuOpen(false);
 
@@ -345,7 +347,14 @@ public class MapSelectMenu : MonoBehaviour
             "UI_Panel_Frame",
             "UI_Btn_Normal",
             "UI_Btn_Special",
+            "UI_Btn_Active",
+            "UI_Card_Category",
+            "UI_Card_Category_Gold",
             "UI_Btn_Back",
+            "UI_Btn_Close",
+            "UI_ProgressBar_Slot",
+            "UI_ProgressBar_Fill",
+            "UI_ProgressBar_Fill_Gold",
             "UI_Logo_RaceTruck",
             "UI_Status_LEDs",
             "UI_Checkered_Divider"
@@ -554,29 +563,32 @@ public class MapSelectMenu : MonoBehaviour
         Image backImg = backGo.AddComponent<Image>();
         Sprite backSp = GetSprite("UI_Btn_Back");
         if (backSp != null) backImg.sprite = backSp;
-        else backImg.color = new Color(1.0f, 0.70f, 0.0f);
+        backImg.color = Color.white;
 
         Button backBtn = backGo.AddComponent<Button>();
         backBtn.targetGraphic = backImg;
         ColorBlock backCb = backBtn.colors;
         backCb.normalColor = Color.white;
-        backCb.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
+        backCb.highlightedColor = new Color(1.10f, 1.10f, 1.10f, 1f);
         backCb.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
         backBtn.colors = backCb;
         backBtn.onClick.AddListener(BackToCategories);
 
         GameObject backTextGo = CreateUIObject("Label", backGo.transform);
         StretchFull(backTextGo.GetComponent<RectTransform>());
-        backTextGo.GetComponent<RectTransform>().offsetMin = new Vector2(4, 4);
-        backTextGo.GetComponent<RectTransform>().offsetMax = new Vector2(-4, -4);
+        backTextGo.GetComponent<RectTransform>().offsetMin = new Vector2(4, 6);
+        backTextGo.GetComponent<RectTransform>().offsetMax = new Vector2(-4, -2);
         Text backText = backTextGo.AddComponent<Text>();
         if (font != null) backText.font = font;
         backText.fontSize = 18;
         backText.fontStyle = FontStyle.Bold;
         backText.alignment = TextAnchor.MiddleCenter;
-        backText.color = new Color(0.08f, 0.10f, 0.15f);
+        backText.color = new Color(0.15f, 0.10f, 0.02f);
         backText.raycastTarget = false;
         backText.text = LocalizationManager.Get("BTN_BACK");
+        Shadow backShadow = backTextGo.AddComponent<Shadow>();
+        backShadow.effectColor = new Color(1f, 1f, 1f, 0.35f);
+        backShadow.effectDistance = new Vector2(0, -1f);
         backButtonText = backText;
         backButtonGo = backGo;
         backButtonGo.SetActive(!string.IsNullOrEmpty(currentCategory));
@@ -592,31 +604,34 @@ public class MapSelectMenu : MonoBehaviour
         closeRt.anchoredPosition = new Vector2(-20, -18);
 
         Image closeImg = closeGo.AddComponent<Image>();
-        Sprite closeSp = GetSprite("UI_Btn_Back");
+        Sprite closeSp = GetSprite("UI_Btn_Close") ?? GetSprite("UI_Btn_Back");
         if (closeSp != null) closeImg.sprite = closeSp;
-        else closeImg.color = new Color(0.85f, 0.25f, 0.25f);
+        closeImg.color = Color.white;
 
         Button closeBtn = closeGo.AddComponent<Button>();
         closeBtn.targetGraphic = closeImg;
         ColorBlock closeCb = closeBtn.colors;
         closeCb.normalColor = Color.white;
-        closeCb.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
+        closeCb.highlightedColor = new Color(1.10f, 1.10f, 1.10f, 1f);
         closeCb.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
         closeBtn.colors = closeCb;
         closeBtn.onClick.AddListener(CloseMenu);
 
         GameObject closeTextGo = CreateUIObject("Label", closeGo.transform);
         StretchFull(closeTextGo.GetComponent<RectTransform>());
-        closeTextGo.GetComponent<RectTransform>().offsetMin = new Vector2(4, 4);
-        closeTextGo.GetComponent<RectTransform>().offsetMax = new Vector2(-4, -4);
+        closeTextGo.GetComponent<RectTransform>().offsetMin = new Vector2(4, 6);
+        closeTextGo.GetComponent<RectTransform>().offsetMax = new Vector2(-4, -2);
         Text closeText = closeTextGo.AddComponent<Text>();
         if (font != null) closeText.font = font;
         closeText.fontSize = 17;
         closeText.fontStyle = FontStyle.Bold;
         closeText.alignment = TextAnchor.MiddleCenter;
-        closeText.color = new Color(0.08f, 0.10f, 0.15f);
+        closeText.color = new Color(0.90f, 0.94f, 1.0f);
         closeText.raycastTarget = false;
         closeText.text = LocalizationManager.Get("BTN_CLOSE");
+        Shadow closeShadow = closeTextGo.AddComponent<Shadow>();
+        closeShadow.effectColor = new Color(0, 0, 0, 0.85f);
+        closeShadow.effectDistance = new Vector2(1f, -1f);
         closeButtonText = closeText;
         closeButtonGo = closeGo;
         closeButtonGo.SetActive(curScene != "MainMenu");
@@ -708,13 +723,13 @@ public class MapSelectMenu : MonoBehaviour
         Image img = btnGo.AddComponent<Image>();
         Sprite sp = GetSprite("UI_Btn_Back");
         if (sp != null) img.sprite = sp;
-        else img.color = new Color(1.0f, 0.70f, 0.0f);
+        img.color = Color.white;
 
         Button btn = btnGo.AddComponent<Button>();
         btn.targetGraphic = img;
         ColorBlock cb = btn.colors;
         cb.normalColor = Color.white;
-        cb.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
+        cb.highlightedColor = new Color(1.10f, 1.10f, 1.10f, 1f);
         cb.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
         btn.colors = cb;
 
@@ -726,17 +741,21 @@ public class MapSelectMenu : MonoBehaviour
         // Text
         GameObject textGo = CreateUIObject("Label", btnGo.transform);
         StretchFull(textGo.GetComponent<RectTransform>());
-        textGo.GetComponent<RectTransform>().offsetMin = new Vector2(5, 5);
-        textGo.GetComponent<RectTransform>().offsetMax = new Vector2(-5, -5);
+        textGo.GetComponent<RectTransform>().offsetMin = new Vector2(5, 7);
+        textGo.GetComponent<RectTransform>().offsetMax = new Vector2(-5, -3);
 
         Text text = textGo.AddComponent<Text>();
         if (font != null) text.font = font;
         text.fontSize = 22;
         text.fontStyle = FontStyle.Bold;
         text.alignment = TextAnchor.MiddleCenter;
-        text.color = new Color(0.08f, 0.10f, 0.15f); // Dark bold text on amber
+        text.color = new Color(0.15f, 0.10f, 0.02f);
         text.raycastTarget = false;
         text.text = label;
+
+        Shadow textShadow = textGo.AddComponent<Shadow>();
+        textShadow.effectColor = new Color(1f, 1f, 1f, 0.35f);
+        textShadow.effectDistance = new Vector2(0, -1f);
 
         return btnGo;
     }
@@ -829,16 +848,16 @@ public class MapSelectMenu : MonoBehaviour
             Destroy(mapCardsContainer.GetChild(i).gameObject);
         }
 
-        if (menuScrollRect != null)
-        {
-            menuScrollRect.normalizedPosition = new Vector2(0, 1);
-        }
-
         Font font = GetAppFont();
         GridLayoutGroup glg = mapCardsContainer.GetComponent<GridLayoutGroup>();
 
         if (string.IsNullOrEmpty(currentCategory))
         {
+            if (menuScrollRect != null)
+            {
+                menuScrollRect.normalizedPosition = new Vector2(0, 1);
+            }
+
             // ===== 1. CATEGORIES VIEW =====
             if (backButtonGo != null) backButtonGo.SetActive(false);
             if (headerTitleText != null) headerTitleText.text = LocalizationManager.Get("MENU_SELECT_MODE");
@@ -892,6 +911,11 @@ public class MapSelectMenu : MonoBehaviour
 
             if (categoryMaps.Count == 0)
             {
+                if (menuScrollRect != null)
+                {
+                    menuScrollRect.normalizedPosition = new Vector2(0, 1);
+                }
+
                 GameObject emptyGo = CreateUIObject("EmptyText", mapCardsContainer);
                 LayoutElement le = emptyGo.AddComponent<LayoutElement>();
                 le.minWidth = 550;
@@ -906,9 +930,36 @@ public class MapSelectMenu : MonoBehaviour
                 return;
             }
 
-            foreach (string mapName in categoryMaps)
+            RectTransform targetCardRt = null;
+            int targetIndex = -1;
+            string curScene = SceneManager.GetActiveScene().name;
+            string targetMap = PlayerPrefs.GetString("CurrentActiveMap", PlayerPrefs.GetString("LastPlayedMap", ""));
+            if (string.IsNullOrEmpty(targetMap) && curScene != "MainMenu" && curScene != "SampleScene")
             {
-                CreateMapCard(mapName, font);
+                targetMap = curScene;
+            }
+
+            for (int i = 0; i < categoryMaps.Count; i++)
+            {
+                string mapName = categoryMaps[i];
+                GameObject cardGo = CreateMapCard(mapName, font);
+                if (!string.IsNullOrEmpty(targetMap) && string.Equals(mapName, targetMap, StringComparison.OrdinalIgnoreCase))
+                {
+                    targetCardRt = cardGo.GetComponent<RectTransform>();
+                    targetIndex = i;
+                }
+            }
+
+            if (targetCardRt != null)
+            {
+                ScrollToTargetCard(targetCardRt, targetIndex, glg);
+            }
+            else
+            {
+                if (menuScrollRect != null)
+                {
+                    menuScrollRect.normalizedPosition = new Vector2(0, 1);
+                }
             }
         }
     }
@@ -923,16 +974,17 @@ public class MapSelectMenu : MonoBehaviour
         cardRt.sizeDelta = new Vector2(560, 115);
 
         Image cardImg = cardGo.AddComponent<Image>();
-        Sprite sp = GetSprite(isAllCompleted ? "UI_Btn_Special" : "UI_Btn_Normal");
+        Sprite sp = GetSprite(isAllCompleted ? "UI_Card_Category_Gold" : "UI_Card_Category") ??
+                    GetSprite(isAllCompleted ? "UI_Btn_Special" : "UI_Btn_Normal");
         if (sp != null) cardImg.sprite = sp;
-        else cardImg.color = isAllCompleted ? new Color(0.18f, 0.28f, 0.18f) : new Color(0.18f, 0.22f, 0.28f);
+        cardImg.color = Color.white;
 
         Button cardBtn = cardGo.AddComponent<Button>();
         cardBtn.targetGraphic = cardImg;
         ColorBlock cb = cardBtn.colors;
         cb.normalColor = Color.white;
-        cb.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
-        cb.pressedColor = new Color(0.3f, 0.8f, 0.4f, 1f);
+        cb.highlightedColor = new Color(1.10f, 1.10f, 1.10f, 1f);
+        cb.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
         cardBtn.colors = cb;
 
         cardBtn.onClick.AddListener(() =>
@@ -949,7 +1001,7 @@ public class MapSelectMenu : MonoBehaviour
         titleRt.anchorMin = new Vector2(0, 1);
         titleRt.anchorMax = new Vector2(0.68f, 1);
         titleRt.pivot = new Vector2(0, 1);
-        titleRt.anchoredPosition = new Vector2(25, -14);
+        titleRt.anchoredPosition = new Vector2(25, -16);
         titleRt.sizeDelta = new Vector2(0, 28);
 
         Text titleText = titleGo.AddComponent<Text>();
@@ -957,12 +1009,12 @@ public class MapSelectMenu : MonoBehaviour
         titleText.fontSize = 21;
         titleText.fontStyle = FontStyle.Bold;
         titleText.alignment = TextAnchor.MiddleLeft;
-        titleText.color = isAllCompleted ? new Color(1.0f, 0.88f, 0.25f) : Color.white;
+        titleText.color = isAllCompleted ? new Color(1.0f, 0.95f, 0.60f) : Color.white;
         titleText.raycastTarget = false;
         titleText.text = $"{iconPrefix}{displayTitle}";
 
         Shadow titleShadow = titleGo.AddComponent<Shadow>();
-        titleShadow.effectColor = new Color(0, 0, 0, 0.85f);
+        titleShadow.effectColor = new Color(0, 0, 0, 0.90f);
         titleShadow.effectDistance = new Vector2(1.5f, -1.5f);
 
         // 2. Top Row: Ratio & Percentage (Right)
@@ -971,7 +1023,7 @@ public class MapSelectMenu : MonoBehaviour
         ratioRt.anchorMin = new Vector2(0.68f, 1);
         ratioRt.anchorMax = new Vector2(1, 1);
         ratioRt.pivot = new Vector2(1, 1);
-        ratioRt.anchoredPosition = new Vector2(-25, -14);
+        ratioRt.anchoredPosition = new Vector2(-25, -16);
         ratioRt.sizeDelta = new Vector2(0, 28);
 
         Text ratioText = ratioGo.AddComponent<Text>();
@@ -983,7 +1035,7 @@ public class MapSelectMenu : MonoBehaviour
 
         if (isAllCompleted)
         {
-            ratioText.color = new Color(1.0f, 0.88f, 0.25f);
+            ratioText.color = new Color(1.0f, 0.95f, 0.60f);
             ratioText.text = "🏆 100%";
         }
         else if (total > 0 && completed > 0)
@@ -1001,7 +1053,7 @@ public class MapSelectMenu : MonoBehaviour
         }
 
         Shadow ratioShadow = ratioGo.AddComponent<Shadow>();
-        ratioShadow.effectColor = new Color(0, 0, 0, 0.85f);
+        ratioShadow.effectColor = new Color(0, 0, 0, 0.90f);
         ratioShadow.effectDistance = new Vector2(1.5f, -1.5f);
 
         // 3. Middle Row: Detailed Localized Progress Text
@@ -1010,36 +1062,40 @@ public class MapSelectMenu : MonoBehaviour
         summaryRt.anchorMin = new Vector2(0, 1);
         summaryRt.anchorMax = new Vector2(1, 1);
         summaryRt.pivot = new Vector2(0, 1);
-        summaryRt.anchoredPosition = new Vector2(25, -44);
+        summaryRt.anchoredPosition = new Vector2(25, -46);
         summaryRt.sizeDelta = new Vector2(-50, 20);
 
         Text summaryText = summaryGo.AddComponent<Text>();
         if (font != null) summaryText.font = font;
         summaryText.fontSize = 14;
         summaryText.alignment = TextAnchor.MiddleLeft;
-        summaryText.color = new Color(0.65f, 0.75f, 0.88f, 0.95f);
+        summaryText.color = isAllCompleted ? new Color(0.95f, 0.88f, 0.70f, 0.95f) : new Color(0.68f, 0.78f, 0.90f, 0.95f);
         summaryText.raycastTarget = false;
         summaryText.text = LocalizationManager.GetProgressText(completed, total);
 
         Shadow summaryShadow = summaryGo.AddComponent<Shadow>();
-        summaryShadow.effectColor = new Color(0, 0, 0, 0.85f);
+        summaryShadow.effectColor = new Color(0, 0, 0, 0.90f);
         summaryShadow.effectDistance = new Vector2(1.5f, -1.5f);
 
-        // 4. Bottom Row: Progress Toolbar (Тулбар прогресса)
+        // 4. Bottom Row: Progress Bar (3D Inset Cavity Slot & 3D Glossy Fill)
         GameObject barBgGo = CreateUIObject("ProgressBarBg", cardGo.transform);
         RectTransform barBgRt = barBgGo.GetComponent<RectTransform>();
         barBgRt.anchorMin = new Vector2(0, 0);
         barBgRt.anchorMax = new Vector2(1, 0);
         barBgRt.pivot = new Vector2(0.5f, 0);
-        barBgRt.anchoredPosition = new Vector2(0, 18);
+        barBgRt.anchoredPosition = new Vector2(0, 16);
         barBgRt.sizeDelta = new Vector2(-50, 18);
 
         Image barBgImg = barBgGo.AddComponent<Image>();
-        barBgImg.color = new Color(0.06f, 0.08f, 0.12f, 0.95f);
-
-        Outline barOutline = barBgGo.AddComponent<Outline>();
-        barOutline.effectColor = new Color(0.22f, 0.30f, 0.42f, 0.85f);
-        barOutline.effectDistance = new Vector2(1.5f, -1.5f);
+        Sprite slotSp = GetSprite("UI_ProgressBar_Slot");
+        if (slotSp != null)
+        {
+            barBgImg.sprite = slotSp;
+        }
+        else
+        {
+            barBgImg.color = new Color(0.06f, 0.08f, 0.12f, 0.95f);
+        }
 
         // Fill Bar
         float fillRatio = (total > 0) ? Mathf.Clamp01((float)completed / total) : 0f;
@@ -1050,27 +1106,31 @@ public class MapSelectMenu : MonoBehaviour
             barFillRt.anchorMin = new Vector2(0, 0);
             barFillRt.anchorMax = new Vector2(fillRatio, 1f);
             barFillRt.pivot = new Vector2(0, 0.5f);
-            barFillRt.offsetMin = Vector2.zero;
-            barFillRt.offsetMax = Vector2.zero;
+            barFillRt.offsetMin = new Vector2(2, 2);
+            barFillRt.offsetMax = new Vector2(-2, -2);
 
             Image barFillImg = barFillGo.AddComponent<Image>();
-            barFillImg.color = isAllCompleted
-                ? new Color(1.0f, 0.82f, 0.18f, 1f)  // Golden amber for 100%
-                : new Color(0.20f, 0.88f, 0.44f, 1f); // Vibrant emerald green
-        }
-
-        if (isAllCompleted)
-        {
-            Outline cardOutline = cardGo.AddComponent<Outline>();
-            cardOutline.effectColor = new Color(0.2f, 0.85f, 0.35f, 0.75f);
-            cardOutline.effectDistance = new Vector2(2f, -2f);
+            Sprite fillSp = GetSprite(isAllCompleted ? "UI_ProgressBar_Fill_Gold" : "UI_ProgressBar_Fill");
+            if (fillSp != null)
+            {
+                barFillImg.sprite = fillSp;
+            }
+            else
+            {
+                barFillImg.color = isAllCompleted
+                    ? new Color(1.0f, 0.85f, 0.20f, 1f)
+                    : new Color(0.20f, 0.88f, 0.44f, 1f);
+            }
         }
     }
 
-    private void CreateMapCard(string mapName, Font font)
+    private GameObject CreateMapCard(string mapName, Font font)
     {
         string capturedName = mapName;
         bool isCompleted = PlayerPrefs.GetInt("MapCompleted_" + capturedName, 0) == 1;
+        string activeMap = PlayerPrefs.GetString("CurrentActiveMap", PlayerPrefs.GetString("LastPlayedMap", ""));
+        bool isCurrentPlaying = string.Equals(capturedName, activeMap, StringComparison.OrdinalIgnoreCase);
+
         string displayName = FormatMapDisplayName(capturedName);
 
         GameObject cardGo = CreateUIObject($"Card_{capturedName}", mapCardsContainer);
@@ -1078,16 +1138,32 @@ public class MapSelectMenu : MonoBehaviour
         cardRt.sizeDelta = new Vector2(275, 125);
 
         Image cardImg = cardGo.AddComponent<Image>();
-        Sprite sp = GetSprite(isCompleted ? "UI_Btn_Special" : "UI_Btn_Normal");
+        Sprite sp;
+        if (isCompleted)
+        {
+            // ── 1. ЖЁЛТАЯ/ЗОЛОТАЯ КАРТА (ВСЕГДА, КОГДА ПРОЙДЕНА) ──
+            sp = GetSprite("UI_Btn_Special");
+        }
+        else if (isCurrentPlaying)
+        {
+            // ── 2. ЗЕЛЁНАЯ КАРТА (ТОЛЬКО ОДНА: НАЧАТА И НЕ ПРОЙДЕНА) ──
+            sp = GetSprite("UI_Btn_Active") ?? GetSprite("UI_Btn_Normal");
+        }
+        else
+        {
+            // ── 3. ОБЫЧНАЯ КАРТА (СТАНДАРТНЫЙ 3D ТИТАНОВЫЙ СТИЛЬ) ──
+            sp = GetSprite("UI_Btn_Normal");
+        }
+
         if (sp != null) cardImg.sprite = sp;
-        else cardImg.color = isCompleted ? new Color(0.18f, 0.28f, 0.18f) : new Color(0.18f, 0.22f, 0.28f);
+        cardImg.color = Color.white;
 
         Button cardBtn = cardGo.AddComponent<Button>();
         cardBtn.targetGraphic = cardImg;
         ColorBlock cb = cardBtn.colors;
         cb.normalColor = Color.white;
-        cb.highlightedColor = new Color(1.2f, 1.2f, 1.2f, 1f);
-        cb.pressedColor = new Color(0.3f, 0.8f, 0.4f, 1f);
+        cb.highlightedColor = new Color(1.10f, 1.10f, 1.10f, 1f);
+        cb.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
         cardBtn.colors = cb;
 
         cardBtn.onClick.AddListener(() =>
@@ -1095,11 +1171,11 @@ public class MapSelectMenu : MonoBehaviour
             LoadMap(capturedName);
         });
 
-        // Card Text Label
+        // Card Text Label (centered on raised 3D faceplate)
         GameObject textGo = CreateUIObject("Title", cardGo.transform);
         StretchFull(textGo.GetComponent<RectTransform>());
-        textGo.GetComponent<RectTransform>().offsetMin = new Vector2(10, 8);
-        textGo.GetComponent<RectTransform>().offsetMax = new Vector2(-10, -6);
+        textGo.GetComponent<RectTransform>().offsetMin = new Vector2(10, 14);
+        textGo.GetComponent<RectTransform>().offsetMax = new Vector2(-10, -4);
 
         Text text = textGo.AddComponent<Text>();
         if (font != null) text.font = font;
@@ -1112,28 +1188,117 @@ public class MapSelectMenu : MonoBehaviour
 
         if (isCompleted)
         {
-            text.color = new Color(1.0f, 0.92f, 0.35f); // Golden yellow
+            text.color = new Color(1.0f, 0.95f, 0.70f);
             string completedLabel = LocalizationManager.Get("MAP_COMPLETED");
-            text.text = $"👍 {displayName}\n<size=14><color=#55ff88>{completedLabel}</color></size>";
+            text.text = $"{displayName}\n<size=13><color=#FFE066>★ {completedLabel}</color></size>";
+        }
+        else if (isCurrentPlaying)
+        {
+            text.color = Color.white;
+            string inProgressLabel = LocalizationManager.Get("MAP_IN_PROGRESS");
+            text.text = $"▶ {displayName}\n<size=13><color=#8AFFB8>{inProgressLabel}</color></size>";
         }
         else
         {
-            text.color = Color.white;
+            text.color = new Color(0.88f, 0.92f, 0.98f);
             text.text = displayName;
         }
 
         Shadow ts = textGo.AddComponent<Shadow>();
-        ts.effectColor = new Color(0, 0, 0, 0.85f);
-        ts.effectDistance = new Vector2(1.5f, -1.5f);
+        ts.effectColor = new Color(0, 0, 0, 0.95f);
+        ts.effectDistance = new Vector2(1.5f, -1.8f);
 
-        // If completed, add a distinctive outline
-        if (isCompleted)
-        {
-            Outline outline = cardGo.AddComponent<Outline>();
-            outline.effectColor = new Color(0.2f, 0.85f, 0.35f, 0.75f); // Bright green outline
-            outline.effectDistance = new Vector2(2f, -2f);
-        }
+        return cardGo;
     }
+
+    #region Auto-Scroll to Active / Completed Card
+    private Coroutine scrollToCardCoroutine;
+
+    public void ScrollToTargetCard(RectTransform targetCardRt, int targetIndex, GridLayoutGroup glg)
+    {
+        if (targetCardRt == null || menuScrollRect == null) return;
+        if (scrollToCardCoroutine != null)
+        {
+            StopCoroutine(scrollToCardCoroutine);
+        }
+        scrollToCardCoroutine = StartCoroutine(ScrollToCardRoutine(targetCardRt, targetIndex, glg));
+    }
+
+    private System.Collections.IEnumerator ScrollToCardRoutine(RectTransform targetCardRt, int targetIndex, GridLayoutGroup glg)
+    {
+        // 1. Initial immediate pass
+        Canvas.ForceUpdateCanvases();
+        if (menuScrollRect != null && menuScrollRect.content != null)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(menuScrollRect.content);
+        }
+        ApplyScrollToCard(targetCardRt, targetIndex, glg);
+
+        // 2. Wait for end of frame (after Unity UI layout pass completes)
+        yield return new WaitForEndOfFrame();
+
+        if (menuScrollRect != null && menuScrollRect.content != null)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(menuScrollRect.content);
+        }
+        ApplyScrollToCard(targetCardRt, targetIndex, glg);
+
+        // 3. Extra safety pass on next frame
+        yield return null;
+        ApplyScrollToCard(targetCardRt, targetIndex, glg);
+    }
+
+    private void ApplyScrollToCard(RectTransform targetCardRt, int targetIndex, GridLayoutGroup glg)
+    {
+        if (targetCardRt == null || menuScrollRect == null || menuScrollRect.content == null || menuScrollRect.viewport == null)
+            return;
+
+        RectTransform contentRt = menuScrollRect.content;
+        RectTransform viewportRt = menuScrollRect.viewport;
+
+        float contentHeight = contentRt.rect.height;
+        float viewportHeight = viewportRt.rect.height;
+
+        // Fallback estimate if ContentSizeFitter has not yet calculated rect
+        if (contentHeight <= viewportHeight && glg != null && targetIndex >= 0)
+        {
+            int totalRows = (mapCardsContainer.childCount + glg.constraintCount - 1) / Mathf.Max(1, glg.constraintCount);
+            float estimatedHeight = glg.padding.top + glg.padding.bottom + totalRows * glg.cellSize.y + Mathf.Max(0, totalRows - 1) * glg.spacing.y;
+            if (estimatedHeight > contentHeight)
+            {
+                contentHeight = estimatedHeight;
+            }
+        }
+
+        if (contentHeight <= viewportHeight)
+        {
+            menuScrollRect.verticalNormalizedPosition = 1f;
+            return;
+        }
+
+        float scrollableDistance = contentHeight - viewportHeight;
+        if (scrollableDistance <= 0.001f)
+        {
+            menuScrollRect.verticalNormalizedPosition = 1f;
+            return;
+        }
+
+        // Calculate card center Y from top of content
+        float cardCenterY = -targetCardRt.localPosition.y;
+        if (cardCenterY <= 1f && glg != null && targetIndex >= 0)
+        {
+            int row = targetIndex / Mathf.Max(1, glg.constraintCount);
+            cardCenterY = glg.padding.top + row * (glg.cellSize.y + glg.spacing.y) + glg.cellSize.y * 0.5f;
+        }
+
+        // Target scroll to center the card inside the viewport
+        float targetScrollY = cardCenterY - (viewportHeight * 0.5f);
+        targetScrollY = Mathf.Clamp(targetScrollY, 0f, scrollableDistance);
+
+        float normPos = 1.0f - (targetScrollY / scrollableDistance);
+        menuScrollRect.verticalNormalizedPosition = Mathf.Clamp01(normPos);
+    }
+    #endregion
 
     public static string FormatMapDisplayName(string rawName)
     {

@@ -49,6 +49,7 @@ public class TruckAudioController : MonoBehaviour
     private bool wasMovingForward = false;
     private bool wasBraking = false;
     private bool isMenuMuted = false;
+    private float suppressReverseBeepUntil = -1f;
 
     private void Awake()
     {
@@ -136,6 +137,13 @@ public class TruckAudioController : MonoBehaviour
         if (Time.time - lastCrashSoundTime < MinCrashSoundInterval) return;
         lastCrashSoundTime = Time.time;
 
+        // Immediately mute and stop reverse beeper so impact sound plays clean and loud
+        if (reverseBeepSource != null)
+        {
+            reverseBeepSource.Stop();
+        }
+        suppressReverseBeepUntil = Time.time + 1.25f;
+
         if (crashSource != null)
         {
             AudioClip clip = crashClip != null ? crashClip : Resources.Load<AudioClip>("Audio/Truck_Crash_Impact");
@@ -151,6 +159,13 @@ public class TruckAudioController : MonoBehaviour
     {
         if (!force && Time.time - lastJackknifeSoundTime < 0.12f) return;
         lastJackknifeSoundTime = Time.time;
+
+        // Suppress reverse beeper during jackknife crunch
+        if (reverseBeepSource != null)
+        {
+            reverseBeepSource.Stop();
+        }
+        suppressReverseBeepUntil = Time.time + 0.6f;
 
         if (crashSource != null)
         {
@@ -348,7 +363,10 @@ public class TruckAudioController : MonoBehaviour
         // ----------------------------------------------------
         // 4. Reverse Driving & Backup Beeper Warning
         // ----------------------------------------------------
-        bool inReverse = (speed < -0.1f) || (brakePressed && speed <= 0.05f);
+        bool isReverseBlocked = (controller != null) && (controller.IsBlockedReverse || controller.IsJackknifed);
+        bool isBeepSuppressed = (Time.time < suppressReverseBeepUntil) || isReverseBlocked;
+
+        bool inReverse = !isBeepSuppressed && ((speed < -0.1f) || (brakePressed && speed <= 0.05f));
         if (reverseBeepSource != null)
         {
             if (inReverse && !reverseBeepSource.isPlaying)
