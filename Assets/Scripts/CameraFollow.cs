@@ -31,6 +31,7 @@ public class CameraFollow : MonoBehaviour
 
     public const int MinZoomMultiplier = 1;
     public const int MaxZoomMultiplier = 10;
+    public const string PrefKey_ZoomMultiplier = "CameraZoomMultiplier";
 
     [Header("Camera Framing Offset")]
     [Tooltip("Fixed camera offset along tractor forward axis (locked to reverse framing: -6.5f)")]
@@ -49,9 +50,6 @@ public class CameraFollow : MonoBehaviour
     private float lastScrollStepTime = 0f;
     private int lastScrollDirection = 0;
     private const float MinScrollStepInterval = 0.12f;
-
-    private float pinchAccumulator = 0f;
-    private const float PinchStepThreshold = 45f; // Screen pixels of touch pinch motion per 1x zoom step
 
     public bool RotateWithTruck => rotateWithTruck;
     public float CurrentZoom => cam != null ? cam.orthographicSize : targetZoom;
@@ -94,7 +92,9 @@ public class CameraFollow : MonoBehaviour
             gameObject.AddComponent<AudioListener>();
         }
 
-        zoomMultiplier = Mathf.Clamp(zoomMultiplier, MinZoomMultiplier, MaxZoomMultiplier);
+        // Restore saved zoom multiplier (persists across all maps and restarts)
+        int savedMult = PlayerPrefs.GetInt(PrefKey_ZoomMultiplier, zoomMultiplier);
+        zoomMultiplier = Mathf.Clamp(savedMult, MinZoomMultiplier, MaxZoomMultiplier);
         targetZoom = defaultZoom * GetActualZoomScale(zoomMultiplier);
         if (cam != null)
         {
@@ -114,6 +114,8 @@ public class CameraFollow : MonoBehaviour
     public void SetZoomMultiplier(int mult)
     {
         zoomMultiplier = Mathf.Clamp(mult, MinZoomMultiplier, MaxZoomMultiplier);
+        PlayerPrefs.SetInt(PrefKey_ZoomMultiplier, zoomMultiplier);
+        PlayerPrefs.Save();
         targetZoom = defaultZoom * GetActualZoomScale(zoomMultiplier);
         OnZoomMultiplierChanged?.Invoke(zoomMultiplier);
     }
@@ -130,6 +132,8 @@ public class CameraFollow : MonoBehaviour
         if (mult != zoomMultiplier)
         {
             zoomMultiplier = mult;
+            PlayerPrefs.SetInt(PrefKey_ZoomMultiplier, zoomMultiplier);
+            PlayerPrefs.Save();
             OnZoomMultiplierChanged?.Invoke(zoomMultiplier);
         }
     }
@@ -200,93 +204,7 @@ public class CameraFollow : MonoBehaviour
     private void Update()
     {
         HandleInput();
-        HandleTouchPinchZoom();
         HandleZoom();
-    }
-
-    private void HandleTouchPinchZoom()
-    {
-#if ENABLE_INPUT_SYSTEM
-        var ts = Touchscreen.current;
-        if (ts != null)
-        {
-            var touches = ts.touches;
-            int activeCount = 0;
-            Vector2 p0 = Vector2.zero, p1 = Vector2.zero;
-            Vector2 d0 = Vector2.zero, d1 = Vector2.zero;
-
-            for (int i = 0; i < touches.Count; i++)
-            {
-                if (touches[i].press.isPressed)
-                {
-                    if (activeCount == 0)
-                    {
-                        p0 = touches[i].position.ReadValue();
-                        d0 = touches[i].delta.ReadValue();
-                        activeCount++;
-                    }
-                    else if (activeCount == 1)
-                    {
-                        p1 = touches[i].position.ReadValue();
-                        d1 = touches[i].delta.ReadValue();
-                        activeCount++;
-                        break;
-                    }
-                }
-            }
-
-            if (activeCount >= 2)
-            {
-                Vector2 prevP0 = p0 - d0;
-                Vector2 prevP1 = p1 - d1;
-                float prevDist = Vector2.Distance(prevP0, prevP1);
-                float curDist = Vector2.Distance(p0, p1);
-                float delta = curDist - prevDist;
-
-                ProcessPinchDelta(delta);
-                return;
-            }
-        }
-#endif
-
-        if (Input.touchCount >= 2)
-        {
-            Touch t0 = Input.GetTouch(0);
-            Touch t1 = Input.GetTouch(1);
-
-            Vector2 prevP0 = t0.position - t0.deltaPosition;
-            Vector2 prevP1 = t1.position - t1.deltaPosition;
-            float prevDist = Vector2.Distance(prevP0, prevP1);
-            float curDist = Vector2.Distance(t0.position, t1.position);
-            float delta = curDist - prevDist;
-
-            ProcessPinchDelta(delta);
-            return;
-        }
-
-        // Reset accumulator when no multi-touch is active
-        pinchAccumulator = 0f;
-    }
-
-    private void ProcessPinchDelta(float delta)
-    {
-        if (Mathf.Abs(delta) < 0.1f) return;
-
-        pinchAccumulator += delta;
-
-        // Spreading fingers apart (pinch out, delta > 0) -> Zoom In closer (-1 multiplier step: e.g. 5x -> 4x -> 3x -> 2x -> 1x)
-        while (pinchAccumulator >= PinchStepThreshold)
-        {
-            pinchAccumulator -= PinchStepThreshold;
-            StepZoom(-1);
-        }
-
-        // Pinching fingers together (pinch in, delta < 0) -> Zoom Out wider (+1 multiplier step: e.g. 1x -> 2x -> ... -> 10x)
-        while (pinchAccumulator <= -PinchStepThreshold)
-        {
-            pinchAccumulator += PinchStepThreshold;
-            StepZoom(+1);
-        }
     }
 
     private void HandleInput()

@@ -413,6 +413,12 @@ public class ParkingTargetZone : MonoBehaviour
             winCanvasGo.SetActive(false);
         }
 
+        string currentScene = SceneManager.GetActiveScene().name;
+        string cat = MapSelectMenu.GetMapCategory(currentScene);
+        MapSelectMenu.PendingCategory = cat;
+        PlayerPrefs.SetString(MapSelectMenu.PrefKey_LastCategory, cat);
+        PlayerPrefs.Save();
+
 #if UNITY_EDITOR
         string mainMenuPath = "Assets/Scenes/MainMenu.unity";
         if (System.IO.File.Exists(mainMenuPath))

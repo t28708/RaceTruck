@@ -40,6 +40,9 @@ public class MapSelectMenu : MonoBehaviour
     [SerializeField] private bool isMenuOpen = false;
     [SerializeField] private string currentCategory = null;
 
+    public static string PendingCategory = null;
+    public const string PrefKey_LastCategory = "LastSelectedCategory";
+
     private List<string> availableMaps = new List<string>();
 
     private GameObject menuCanvasGo;
@@ -132,13 +135,26 @@ public class MapSelectMenu : MonoBehaviour
         string currentScene = SceneManager.GetActiveScene().name;
         if (currentScene == "MainMenu" || currentScene == "SampleScene")
         {
-            currentCategory = null;
+            string catToOpen = !string.IsNullOrEmpty(PendingCategory)
+                ? PendingCategory
+                : PlayerPrefs.GetString(PrefKey_LastCategory, "");
+
+            if (!string.IsNullOrEmpty(catToOpen) && GetCategoryInfo(catToOpen) != null)
+            {
+                currentCategory = catToOpen;
+            }
+            else
+            {
+                currentCategory = null;
+            }
             SetMenuOpen(true);
         }
         else
         {
             string cat = GetMapCategory(currentScene);
             currentCategory = cat;
+            PendingCategory = cat;
+            PlayerPrefs.SetString(PrefKey_LastCategory, cat);
             SetMenuOpen(false);
         }
     }
@@ -188,7 +204,6 @@ public class MapSelectMenu : MonoBehaviour
         string currentScene = SceneManager.GetActiveScene().name;
         if (currentScene == "MainMenu")
         {
-            currentCategory = null;
             SetMenuOpen(true);
             return;
         }
@@ -205,7 +220,6 @@ public class MapSelectMenu : MonoBehaviour
         if (currentScene == "MainMenu")
         {
             open = true; // Always visible in MainMenu
-            currentCategory = null;
         }
 
         isMenuOpen = open;
@@ -291,6 +305,10 @@ public class MapSelectMenu : MonoBehaviour
     public void LoadMap(string mapName)
     {
         Debug.Log($"<color=#55ff55>[MapSelectMenu] Loading Map: {mapName}...</color>");
+        string cat = GetMapCategory(mapName);
+        PendingCategory = cat;
+        PlayerPrefs.SetString(PrefKey_LastCategory, cat);
+        PlayerPrefs.Save();
         SetMenuOpen(false);
 
 #if UNITY_EDITOR
@@ -435,11 +453,22 @@ public class MapSelectMenu : MonoBehaviour
 
         menuCanvasGo.AddComponent<GraphicRaycaster>();
 
-        // 2. Fullscreen Dark Dimming Backdrop
+        // 2. Fullscreen Dark Dimming Backdrop (clicking empty area outside returns to map if not MainMenu)
         GameObject bgGo = CreateUIObject("DarkBackdrop", menuCanvasGo.transform);
         StretchFull(bgGo.GetComponent<RectTransform>());
         Image bgImg = bgGo.AddComponent<Image>();
         bgImg.color = new Color(0.06f, 0.07f, 0.09f, 0.96f);
+        bgImg.raycastTarget = true;
+
+        Button bgBtn = bgGo.AddComponent<Button>();
+        bgBtn.transition = Selectable.Transition.None;
+        bgBtn.onClick.AddListener(() =>
+        {
+            if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != "MainMenu")
+            {
+                CloseMenu();
+            }
+        });
 
         // 3. Top Header Bar (RACE TRUCK Logo on Left, LEDs on Right)
         GameObject topBarGo = CreateUIObject("TopBar", menuCanvasGo.transform);
@@ -487,6 +516,7 @@ public class MapSelectMenu : MonoBehaviour
 
         // Frame Graphic
         Image centerImg = centerWindowGo.AddComponent<Image>();
+        centerImg.raycastTarget = true;
         Sprite frameSp = GetSprite("UI_Panel_Frame");
         if (frameSp != null) centerImg.sprite = frameSp;
         else centerImg.color = new Color(0.14f, 0.17f, 0.21f, 1.0f);
@@ -714,12 +744,18 @@ public class MapSelectMenu : MonoBehaviour
     public void OpenCategory(string category)
     {
         currentCategory = category;
+        PendingCategory = category;
+        PlayerPrefs.SetString(PrefKey_LastCategory, category);
+        PlayerPrefs.Save();
         PopulateCards();
     }
 
     public void BackToCategories()
     {
         currentCategory = null;
+        PendingCategory = null;
+        PlayerPrefs.SetString(PrefKey_LastCategory, "");
+        PlayerPrefs.Save();
         PopulateCards();
     }
 

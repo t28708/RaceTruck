@@ -24,6 +24,7 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
 
     public const string PrefKey_ControlType = "SteeringControlType";
     public const string PrefKey_PedalSide = "PedalSide";
+    public const string PrefKey_AutoCenter = "SteeringAutoCenter";
 
     [Header("Wheel Settings")]
     [Tooltip("Maximum rotation angle of the steering wheel in degrees (e.g., 450 = 1.25 turns each side)")]
@@ -89,6 +90,26 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
         PlayerPrefs.SetInt(PrefKey_PedalSide, (int)side);
         PlayerPrefs.Save();
         ApplyPedalSideLayout(side);
+    }
+
+    public static bool AutoCenterEnabled
+    {
+        get
+        {
+            return PlayerPrefs.GetInt(PrefKey_AutoCenter, 1) == 1;
+        }
+        set
+        {
+            PlayerPrefs.SetInt(PrefKey_AutoCenter, value ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+    }
+
+    public static bool ToggleAutoCenter()
+    {
+        bool newVal = !AutoCenterEnabled;
+        AutoCenterEnabled = newVal;
+        return newVal;
     }
 
     public static void ApplyPedalSideLayout(PedalSide side)
@@ -640,12 +661,12 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
                 );
                 UpdateWheelVisual();
             }
-            else if (!hasKeyInput && returnToCenterSpeed > 0f && Mathf.Abs(currentWheelAngle) > 0.01f)
+            else if (!hasKeyInput && AutoCenterEnabled && returnToCenterSpeed > 0f && Mathf.Abs(currentWheelAngle) > 0.01f)
             {
                 currentWheelAngle = Mathf.MoveTowards(currentWheelAngle, 0f, returnToCenterSpeed * Time.deltaTime);
                 UpdateWheelVisual();
             }
-            else if (!hasKeyInput && Mathf.Abs(currentWheelAngle) <= 0.01f && currentWheelAngle != 0f)
+            else if (!hasKeyInput && AutoCenterEnabled && Mathf.Abs(currentWheelAngle) <= 0.01f && currentWheelAngle != 0f)
             {
                 currentWheelAngle = 0f;
                 UpdateWheelVisual();
@@ -653,8 +674,8 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
         }
         else if (controlType == SteeringControlType.Slider)
         {
-            // Slider spring return to center (0) when finger is released
-            if (!isSliderDragging && !hasKeyInput && Mathf.Abs(currentWheelAngle) > 0.01f)
+            // Slider spring return to center (0) when finger is released (only if auto-center is enabled)
+            if (!isSliderDragging && !hasKeyInput && AutoCenterEnabled && Mathf.Abs(currentWheelAngle) > 0.01f)
             {
                 currentWheelAngle = Mathf.MoveTowards(currentWheelAngle, 0f, returnToCenterSpeed * 2.5f * Time.deltaTime);
                 if (touchSliderScript != null)
@@ -664,7 +685,7 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
                 }
                 UpdateWheelVisual();
             }
-            else if (!isSliderDragging && !hasKeyInput && Mathf.Abs(currentWheelAngle) <= 0.01f && currentWheelAngle != 0f)
+            else if (!isSliderDragging && !hasKeyInput && AutoCenterEnabled && Mathf.Abs(currentWheelAngle) <= 0.01f && currentWheelAngle != 0f)
             {
                 currentWheelAngle = 0f;
                 if (touchSliderScript != null)
@@ -676,13 +697,13 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
         }
         else // SteeringControlType.Wheel
         {
-            // Wheel spring return to center (0) when released
-            if (!isDragging && !hasKeyInput && returnToCenterSpeed > 0f && Mathf.Abs(currentWheelAngle) > 0.01f)
+            // Wheel spring return to center (0) when released (only if auto-center is enabled)
+            if (!isDragging && !hasKeyInput && AutoCenterEnabled && returnToCenterSpeed > 0f && Mathf.Abs(currentWheelAngle) > 0.01f)
             {
                 currentWheelAngle = Mathf.MoveTowards(currentWheelAngle, 0f, returnToCenterSpeed * Time.deltaTime);
                 UpdateWheelVisual();
             }
-            else if (!isDragging && !hasKeyInput && Mathf.Abs(currentWheelAngle) <= 0.01f && currentWheelAngle != 0f)
+            else if (!isDragging && !hasKeyInput && AutoCenterEnabled && Mathf.Abs(currentWheelAngle) <= 0.01f && currentWheelAngle != 0f)
             {
                 currentWheelAngle = 0f;
                 UpdateWheelVisual();
