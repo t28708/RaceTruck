@@ -123,6 +123,12 @@ EditorBuildSettings:
     path: Assets/Scenes/CustomMaps/Facility V22.unity
     guid: 5a09953c2436db045bc818604f6f9133
   - enabled: 1
+    path: Assets/Scenes/CustomMaps/Facility V23.unity
+    guid: 4097ab2bfd20ac941ab3fcf5d89f81fe
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Facility V24.unity
+    guid: 24f5129ebda598b418020824cd640345
+  - enabled: 1
     path: Assets/Scenes/CustomMaps/Parallel parking V1.unity
     guid: 42bf7609b95ede344984c7f4d3cf6b2f
   - enabled: 1

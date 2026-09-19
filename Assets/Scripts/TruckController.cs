@@ -218,13 +218,67 @@ public class TruckController : MonoBehaviour
             labelGo = new GameObject(labelObjName);
         }
 
-        // Position: right outside the bottom-left boundary fence (near (0, 0))
-        labelGo.transform.position = new Vector3(0.5f, -2.4f, -2.0f);
-        labelGo.transform.rotation = Quaternion.identity;
+        // 1. Detect which of the 4 map corners is closest to the truck's spawn position
+        Vector2 truckPos = (tractorRb != null) ? tractorRb.position : (Vector2)transform.position;
+        float w = (mapWidth > 10f) ? mapWidth : 54f;
+        float h = (mapHeight > 10f) ? mapHeight : 60f;
 
-        // Dynamic width according to map name length
-        float textWidth = Mathf.Max(12.0f, displayName.Length * 1.05f + 4.0f);
-        float plateHeight = 2.8f;
+        Vector2 cornerBL = new Vector2(0f, 0f);
+        Vector2 cornerBR = new Vector2(w, 0f);
+        Vector2 cornerTL = new Vector2(0f, h);
+        Vector2 cornerTR = new Vector2(w, h);
+
+        float dBL = Vector2.SqrMagnitude(truckPos - cornerBL);
+        float dBR = Vector2.SqrMagnitude(truckPos - cornerBR);
+        float dTL = Vector2.SqrMagnitude(truckPos - cornerTL);
+        float dTR = Vector2.SqrMagnitude(truckPos - cornerTR);
+
+        float minD = Mathf.Min(dBL, Mathf.Min(dBR, Mathf.Min(dTL, dTR)));
+
+        // Dynamic dimensions (extra large scale)
+        float textWidth = Mathf.Max(35.0f, displayName.Length * 3.4f + 8.0f);
+        float plateHeight = 10.0f;
+
+        Vector3 labelPos;
+        Vector3 bgOffset;
+        TextAnchor anchor;
+        TextAlignment alignment;
+
+        if (minD == dBL)
+        {
+            // Bottom-Left corner: outside bottom edge near (0, 0)
+            labelPos = new Vector3(1.5f, -2.5f, -2.0f);
+            bgOffset = new Vector3(textWidth * 0.5f - 0.5f, -plateHeight * 0.5f + 0.5f, 0.1f);
+            anchor = TextAnchor.UpperLeft;
+            alignment = TextAlignment.Left;
+        }
+        else if (minD == dBR)
+        {
+            // Bottom-Right corner: outside bottom edge near (w, 0)
+            labelPos = new Vector3(w - 1.5f, -2.5f, -2.0f);
+            bgOffset = new Vector3(-textWidth * 0.5f + 0.5f, -plateHeight * 0.5f + 0.5f, 0.1f);
+            anchor = TextAnchor.UpperRight;
+            alignment = TextAlignment.Right;
+        }
+        else if (minD == dTL)
+        {
+            // Top-Left corner: outside top edge near (0, h)
+            labelPos = new Vector3(1.5f, h + 2.5f, -2.0f);
+            bgOffset = new Vector3(textWidth * 0.5f - 0.5f, plateHeight * 0.5f - 0.5f, 0.1f);
+            anchor = TextAnchor.LowerLeft;
+            alignment = TextAlignment.Left;
+        }
+        else
+        {
+            // Top-Right corner: outside top edge near (w, h)
+            labelPos = new Vector3(w - 1.5f, h + 2.5f, -2.0f);
+            bgOffset = new Vector3(-textWidth * 0.5f + 0.5f, plateHeight * 0.5f - 0.5f, 0.1f);
+            anchor = TextAnchor.LowerRight;
+            alignment = TextAlignment.Right;
+        }
+
+        labelGo.transform.position = labelPos;
+        labelGo.transform.rotation = Quaternion.identity;
 
         // Background dark backing plashka
         GameObject bgGo = labelGo.transform.Find("Background")?.gameObject;
@@ -233,37 +287,38 @@ public class TruckController : MonoBehaviour
             bgGo = new GameObject("Background");
             bgGo.transform.SetParent(labelGo.transform, false);
         }
-        bgGo.transform.localPosition = new Vector3(textWidth * 0.5f - 0.2f, -plateHeight * 0.5f + 0.2f, 0.1f);
+        bgGo.transform.localPosition = bgOffset;
         bgGo.transform.localScale = new Vector3(textWidth, plateHeight, 1.0f);
 
         SpriteRenderer sr = bgGo.GetComponent<SpriteRenderer>();
         if (sr == null) sr = bgGo.AddComponent<SpriteRenderer>();
         sr.sprite = GetWhiteStripeSprite();
-        sr.color = new Color(0.06f, 0.09f, 0.14f, 0.88f); // High-contrast dark slate
+        sr.color = new Color(0.05f, 0.08f, 0.13f, 0.92f); // High-contrast dark slate
         sr.sortingOrder = 48;
 
-        // Subtle border frame on the plashka
+        // Vibrant border frame on the plashka
         GameObject frameGo = labelGo.transform.Find("Frame")?.gameObject;
         if (frameGo == null)
         {
             frameGo = new GameObject("Frame");
             frameGo.transform.SetParent(labelGo.transform, false);
         }
-        frameGo.transform.localPosition = new Vector3(textWidth * 0.5f - 0.2f, -plateHeight * 0.5f + 0.2f, 0.15f);
-        frameGo.transform.localScale = new Vector3(textWidth + 0.35f, plateHeight + 0.35f, 1.0f);
+        frameGo.transform.localPosition = new Vector3(bgOffset.x, bgOffset.y, 0.15f);
+        frameGo.transform.localScale = new Vector3(textWidth + 0.8f, plateHeight + 0.8f, 1.0f);
 
         SpriteRenderer frameSr = frameGo.GetComponent<SpriteRenderer>();
         if (frameSr == null) frameSr = frameGo.AddComponent<SpriteRenderer>();
         frameSr.sprite = GetWhiteStripeSprite();
-        frameSr.color = new Color(0.20f, 0.45f, 0.75f, 0.75f); // Crisp cyan-blue border
+        frameSr.color = new Color(0.18f, 0.55f, 0.90f, 0.85f); // Crisp cyan-blue border
         frameSr.sortingOrder = 47;
 
-        // TextMesh component
-        TextMesh tm = labelGo.GetComponent<TextMesh>();
-        if (tm == null) tm = labelGo.AddComponent<TextMesh>();
-
+        // Font reference
         Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+
+        // TextMesh component (Map title without "MAP:" prefix)
+        TextMesh tm = labelGo.GetComponent<TextMesh>();
+        if (tm == null) tm = labelGo.AddComponent<TextMesh>();
         if (font != null)
         {
             tm.font = font;
@@ -275,13 +330,43 @@ public class TruckController : MonoBehaviour
             }
         }
 
-        tm.text = $"📍 MAP: {displayName}";
-        tm.fontSize = 52;
-        tm.characterSize = 0.038f;
-        tm.anchor = TextAnchor.UpperLeft;
-        tm.alignment = TextAlignment.Left;
+        tm.text = displayName;
+        tm.fontSize = 96;
+        tm.characterSize = 0.115f;
+        tm.anchor = anchor;
+        tm.alignment = alignment;
         tm.fontStyle = FontStyle.Bold;
-        tm.color = new Color(0.35f, 0.90f, 1.0f, 0.95f); // Glowing debug cyan
+        tm.color = new Color(0.35f, 0.92f, 1.0f, 0.98f); // Glowing bright debug cyan
+
+        // Text drop-shadow for maximum readability from any camera zoom
+        GameObject shadowGo = labelGo.transform.Find("TextShadow")?.gameObject;
+        if (shadowGo == null)
+        {
+            shadowGo = new GameObject("TextShadow");
+            shadowGo.transform.SetParent(labelGo.transform, false);
+        }
+        shadowGo.transform.localPosition = new Vector3(0.16f, -0.16f, 0.05f);
+        shadowGo.transform.localScale = Vector3.one;
+
+        TextMesh shadowTm = shadowGo.GetComponent<TextMesh>();
+        if (shadowTm == null) shadowTm = shadowGo.AddComponent<TextMesh>();
+        if (font != null)
+        {
+            shadowTm.font = font;
+            MeshRenderer smr = shadowGo.GetComponent<MeshRenderer>();
+            if (smr != null)
+            {
+                smr.sharedMaterial = font.material;
+                smr.sortingOrder = 49;
+            }
+        }
+        shadowTm.text = tm.text;
+        shadowTm.fontSize = tm.fontSize;
+        shadowTm.characterSize = tm.characterSize;
+        shadowTm.anchor = anchor;
+        shadowTm.alignment = alignment;
+        shadowTm.fontStyle = tm.fontStyle;
+        shadowTm.color = new Color(0f, 0f, 0f, 0.90f);
     }
     #endregion
 
@@ -1348,31 +1433,38 @@ public class TruckController : MonoBehaviour
 
         float kmh = Mathf.Abs(currentSpeed) * 3.6f;
         string gear = "N";
-        string mode = "СТОП";
+        string mode = LocalizationManager.Get("HUD_MODE_STOP");
 
         bool forwardInput = wPressed || gasPedalPressed;
         bool reverseInput = sPressed || brakePedalPressed;
 
+        string modeBrake = LocalizationManager.Get("HUD_MODE_BRAKE");
+        string modeCoast = LocalizationManager.Get("HUD_MODE_COAST");
+        string modeGas = LocalizationManager.Get("HUD_MODE_GAS");
+        string modeForward = LocalizationManager.Get("HUD_MODE_FORWARD");
+        string modeReverse = LocalizationManager.Get("HUD_MODE_REVERSE");
+        string kmhUnit = LocalizationManager.Get("HUD_KMH");
+
         if (currentSpeed > 0.05f)
         {
             gear = "D";
-            if (reverseInput) mode = "ТОРМОЖЕНИЕ";
-            else if (forwardInput) mode = isFastForwardMode ? "ГАЗ x2 (20 км/ч)" : "ГАЗ (10 км/ч)";
-            else mode = "НАКАТ";
+            if (reverseInput) mode = modeBrake;
+            else if (forwardInput) mode = isFastForwardMode ? $"{modeGas} x2 (20{kmhUnit})" : $"{modeGas} (10{kmhUnit})";
+            else mode = modeCoast;
         }
         else if (currentSpeed < -0.05f)
         {
             gear = "R";
-            if (forwardInput) mode = "ТОРМОЖЕНИЕ";
-            else if (reverseInput) mode = "НАЗАД (10 км/ч)";
-            else mode = "НАКАТ";
+            if (forwardInput) mode = modeBrake;
+            else if (reverseInput) mode = $"{modeReverse} (10{kmhUnit})";
+            else mode = modeCoast;
         }
         else
         {
-            if (spacePressed) mode = "РУЧНИК";
-            else if (forwardInput) mode = isFastForwardMode ? "ВПЕРЕД x2 (20 км/ч)" : "ВПЕРЕД";
-            else if (reverseInput) mode = "НАЗАД";
-            else mode = "СТОП";
+            if (spacePressed) mode = LocalizationManager.Get("HUD_MODE_PARK");
+            else if (forwardInput) mode = isFastForwardMode ? $"{modeForward} x2 (20{kmhUnit})" : modeForward;
+            else if (reverseInput) mode = modeReverse;
+            else mode = LocalizationManager.Get("HUD_MODE_STOP");
         }
 
         float steer = actualSteerAngle;
@@ -1392,22 +1484,28 @@ public class TruckController : MonoBehaviour
         string warning = "";
         if (isJackknifed)
         {
-            warning = " | <color=#FF2222>💥 СКЛАДЫВАНИЕ! НАЖМИТЕ [ГАЗ / W] 💥</color>";
+            warning = $" | <color=#FF2222>{LocalizationManager.Get("HUD_WARN_JACKKNIFE")}</color>";
         }
         else if (isBlockedReverse)
         {
-            warning = " | <color=#FF4444>⚠️ УДАР СЗАДИ! НАЖМИТЕ [ГАЗ / W] ⚠️</color>";
+            warning = $" | <color=#FF4444>{LocalizationManager.Get("HUD_WARN_REAR_HIT")}</color>";
         }
         else if (isBlockedForward)
         {
-            warning = " | <color=#FF4444>⚠️ УДАР СПЕРЕДИ! НАЖМИТЕ [ТОРМОЗ / S] ⚠️</color>";
+            warning = $" | <color=#FF4444>{LocalizationManager.Get("HUD_WARN_FRONT_HIT")}</color>";
         }
         else if (Mathf.Abs(articulation) >= maxArticulationAngle - 10.0f)
         {
-            warning = $" | <color=#FFCC00>⚠️ ОПАСНОСТЬ ЗАЛОМА ({Mathf.Abs(articulation):0}°/{maxArticulationAngle:0}°)</color>";
+            string riskFmt = LocalizationManager.Get("HUD_WARN_JACKKNIFE_RISK");
+            warning = $" | <color=#FFCC00>{string.Format(riskFmt, Mathf.RoundToInt(Mathf.Abs(articulation)), Mathf.RoundToInt(maxArticulationAngle))}</color>";
         }
 
-        hudText.text = $"СКОРОСТЬ: <color=#55FFFF>{kmh:0.0} км/ч</color> [{gear}:{mode}] | РУЛЬ: <color=#FFFF55>{steerStr}</color> | СЦЕПКА: <color=#55FF55>{Mathf.Abs(articulation):0.0}°</color> | ЗУМ: <color=#FFAA55>{camZoom}</color>{warning}";
+        string lblSpeed = LocalizationManager.Get("HUD_SPEED");
+        string lblSteer = LocalizationManager.Get("HUD_STEER");
+        string lblHitch = LocalizationManager.Get("HUD_HITCH");
+        string lblZoom  = LocalizationManager.Get("HUD_ZOOM");
+
+        hudText.text = $"{lblSpeed}<color=#55FFFF>{kmh:0.0}{kmhUnit}</color> [{gear}:{mode}] | {lblSteer}<color=#FFFF55>{steerStr}</color> | {lblHitch}<color=#55FF55>{Mathf.Abs(articulation):0.0}°</color> | {lblZoom}<color=#FFAA55>{camZoom}</color>{warning}";
     }
 
     private void FixedUpdate()

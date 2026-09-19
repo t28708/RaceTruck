@@ -309,8 +309,8 @@ public class ParkingTargetZone : MonoBehaviour
     {
         if (winCanvasGo != null)
         {
-            winCanvasGo.SetActive(true);
-            return;
+            Destroy(winCanvasGo);
+            winCanvasGo = null;
         }
 
         winCanvasGo = new GameObject("VictoryCanvas");
@@ -418,6 +418,8 @@ public class ParkingTargetZone : MonoBehaviour
         string currentScene = SceneManager.GetActiveScene().name;
         string cat = MapSelectMenu.GetMapCategory(currentScene);
         MapSelectMenu.PendingCategory = cat;
+        MapSelectMenu.JustCompletedMapName = currentScene;
+        PlayerPrefs.SetString(MapSelectMenu.PrefKey_JustCompletedMap, currentScene);
         PlayerPrefs.SetString(MapSelectMenu.PrefKey_LastCategory, cat);
         PlayerPrefs.SetString("CurrentActiveMap", currentScene);
         PlayerPrefs.SetString("LastPlayedMap", currentScene);

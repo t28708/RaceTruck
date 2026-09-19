@@ -200,7 +200,7 @@ public class TruckCollisionDetector : MonoBehaviour
         while (p != null)
         {
             string pn = p.name;
-            if (pn.StartsWith("MapBuilder_") || pn.StartsWith("Stall_") || pn.StartsWith("TruckObstacle"))
+            if (pn.StartsWith("MapBuilder_") || pn.StartsWith("Stall_") || pn.StartsWith("TruckObstacle") || pn.StartsWith("TrailerObstacle"))
             {
                 return false;
             }

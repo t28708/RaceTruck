@@ -93,6 +93,18 @@ public static class LocalizationManager
         return prefix + GetLanguageName(CurrentLanguage);
     }
 
+    public static string GetLanguageShortButtonText()
+    {
+        switch (CurrentLanguage)
+        {
+            case GameLanguage.Russian: return "🌐 RU";
+            case GameLanguage.English: return "🌐 EN";
+            case GameLanguage.French:  return "🌐 FR";
+            case GameLanguage.Spanish: return "🌐 ES";
+            default: return "🌐 RU";
+        }
+    }
+
     public static string GetPedalSideButtonText(bool isLeft)
     {
         return isLeft ? Get("PEDALS_LEFT") : Get("PEDALS_RIGHT");
@@ -177,6 +189,12 @@ public static class LocalizationManager
         { "BTN_CLOSE", new[] { "✕ ЗАКРЫТЬ", "✕ CLOSE", "✕ FERMER", "✕ CERRAR" } },
         { "MAP_COMPLETED", new[] { "ВЫПОЛНЕНО", "COMPLETED", "TERMINÉ", "COMPLETADO" } },
         { "MAP_IN_PROGRESS", new[] { "В ПРОЦЕССЕ", "IN PROGRESS", "EN COURS", "EN CURSO" } },
+        { "CAT_ALLEY_DOCK", new[] { "ЗАЕЗД В БОКС", "ALLEY DOCK", "MISE À QUAI", "MUELLE DE CARGA" } },
+        { "CAT_ANGLE_BACK", new[] { "ПОД УГЛОМ", "ANGLE BACK", "EN ÉPI ARRIÈRE", "EN ÁNGULO" } },
+        { "CAT_FACILITY", new[] { "ТЕРМИНАЛ / СКЛАД", "FACILITY", "ZONE INDUSTRIELLE", "INSTALACIONES" } },
+        { "CAT_PARALLEL", new[] { "ПАРАЛЛЕЛЬНАЯ ПАРКОВКА", "PARALLEL PARKING", "CRÉNEAU", "PARALELO" } },
+        { "CAT_REST_AREA", new[] { "ЗОНА ОТДЫХА", "REST AREA", "AIRE DE REPOS", "ÁREA DE DESCANSO" } },
+        { "CAT_TRUCK_STOP", new[] { "СТОЯНКА ГРУЗОВИКОВ", "TRUCK STOP", "RELAIS ROUTIER", "PARADA DE CAMIONES" } },
         { "CAT_OTHER", new[] { "ДРУГИЕ КАРТЫ", "OTHER MAPS", "AUTRES CARTES", "OTROS MAPAS" } },
         { "MAP_NO_MAPS_IN_CAT", new[] {
             "🗺 Пока нет карт в этой категории.",
@@ -247,7 +265,47 @@ public static class LocalizationManager
         { "OBS_BOOTH", new[] { "БУДКУ КПП", "GUARD BOOTH", "POSTE DE GARDE", "CASETA DE CONTROL" } },
         { "OBS_TIRES", new[] { "СТОПКУ ШИН", "TIRE STACK", "PILE DE PNEUS", "PILA DE NEUMÁTICOS" } },
         { "OBS_HYDRANT", new[] { "ПОЖАРНЫЙ ГИДРАНТ", "FIRE HYDRANT", "BORNE D'INCENDIE", "BOCA DE INCENDIO" } },
-        { "OBS_BORDER", new[] { "ГРАНИЦУ ПЛОЩАДКИ", "YARD BORDER", "BORDURE DU TERRAIN", "LÍMITE DEL TERRENO" } }
+        { "OBS_BORDER", new[] { "ГРАНИЦУ ПЛОЩАДКИ", "YARD BORDER", "BORDURE DU TERRAIN", "LÍMITE DEL TERRENO" } },
+
+        // ========================
+        // Telemetry HUD Bar
+        // ========================
+        { "HUD_SPEED", new[] { "СКОРОСТЬ: ", "SPEED: ", "VITESSE : ", "VELOCIDAD: " } },
+        { "HUD_STEER", new[] { "РУЛЬ: ", "STEER: ", "DIRECTION : ", "VOLANTE: " } },
+        { "HUD_HITCH", new[] { "СЦЕПКА: ", "HITCH: ", "ATTELAGE : ", "ENGANCHE: " } },
+        { "HUD_ZOOM", new[] { "ЗУМ: ", "ZOOM: ", "ZOOM : ", "ZOOM: " } },
+        { "HUD_KMH", new[] { " км/ч", " km/h", " km/h", " km/h" } },
+        { "HUD_MODE_STOP", new[] { "СТОП", "STOP", "ARRÊT", "PARADA" } },
+        { "HUD_MODE_BRAKE", new[] { "ТОРМОЖЕНИЕ", "BRAKING", "FREINAGE", "FRENADO" } },
+        { "HUD_MODE_COAST", new[] { "НАКАТ", "COAST", "ROUE LIBRE", "INERCIA" } },
+        { "HUD_MODE_PARK", new[] { "РУЧНИК", "PARK", "FREIN À MAIN", "FRENO MANO" } },
+        { "HUD_MODE_GAS", new[] { "ГАЗ", "GAS", "GAZ", "GAS" } },
+        { "HUD_MODE_FORWARD", new[] { "ВПЕРЕД", "FORWARD", "AVANT", "ADELANTE" } },
+        { "HUD_MODE_REVERSE", new[] { "НАЗАД", "REVERSE", "ARRIÈRE", "ATRÁS" } },
+        { "HUD_WARN_JACKKNIFE", new[] {
+            "💥 СКЛАДЫВАНИЕ! НАЖМИТЕ [ГАЗ / W] 💥",
+            "💥 JACKKNIFE! PRESS [GAS / W] 💥",
+            "💥 PORTEFEUILLE ! APPUYEZ SUR [GAZ / W] 💥",
+            "💥 ¡TIJERAZO! PRESIONA [GAS / W] 💥"
+        } },
+        { "HUD_WARN_REAR_HIT", new[] {
+            "⚠️ УДАР СЗАДИ! НАЖМИТЕ [ГАЗ / W] ⚠️",
+            "⚠️ REAR HIT! PRESS [GAS / W] ⚠️",
+            "⚠️ CHOC ARRIÈRE ! APPUYEZ SUR [GAZ / W] ⚠️",
+            "⚠️ ¡IMPACTO TRASERO! PRESIONA [GAS / W] ⚠️"
+        } },
+        { "HUD_WARN_FRONT_HIT", new[] {
+            "⚠️ УДАР СПЕРЕДИ! НАЖМИТЕ [ТОРМОЗ / S] ⚠️",
+            "⚠️ FRONT HIT! PRESS [BRAKE / S] ⚠️",
+            "⚠️ CHOC AVANT ! APPUYEZ SUR [FREIN / S] ⚠️",
+            "⚠️ ¡IMPACTO FRONTAL! PRESIONA [FRENO / S] ⚠️"
+        } },
+        { "HUD_WARN_JACKKNIFE_RISK", new[] {
+            "⚠️ ОПАСНОСТЬ ЗАЛОМА ({0}°/{1}°)",
+            "⚠️ JACKKNIFE RISK ({0}°/{1}°)",
+            "⚠️ RISQUE DE PORTEFEUILLE ({0}°/{1}°)",
+            "⚠️ RIESGO DE TIJERAZO ({0}°/{1}°)"
+        } }
     };
 
     public static string Get(string key)

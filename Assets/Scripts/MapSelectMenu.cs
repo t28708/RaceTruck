@@ -42,6 +42,9 @@ public class MapSelectMenu : MonoBehaviour
 
     public static string PendingCategory = null;
     public const string PrefKey_LastCategory = "LastSelectedCategory";
+    public const string PrefKey_JustCompletedMap = "JustCompletedMap";
+    public static string JustCompletedMapName = null;
+    private static string activeAnimatedCompletedMap = null;
 
     private List<string> availableMaps = new List<string>();
 
@@ -52,8 +55,10 @@ public class MapSelectMenu : MonoBehaviour
     private GameObject topButtonGo;
     private GameObject backButtonGo;
     private GameObject closeButtonGo;
+    private GameObject languageButtonGo;
     private Text backButtonText;
     private Text closeButtonText;
+    private Text languageButtonText;
 
     private Dictionary<string, Sprite> cachedSprites = new Dictionary<string, Sprite>();
 
@@ -108,6 +113,10 @@ public class MapSelectMenu : MonoBehaviour
         {
             closeButtonText.text = LocalizationManager.Get("BTN_CLOSE");
         }
+        if (languageButtonText != null)
+        {
+            languageButtonText.text = LocalizationManager.GetLanguageShortButtonText();
+        }
         if (headerTitleText != null)
         {
             if (string.IsNullOrEmpty(currentCategory))
@@ -118,15 +127,50 @@ public class MapSelectMenu : MonoBehaviour
             {
                 CategoryInfo catInfo = GetCategoryInfo(currentCategory);
                 string iconPrefix = (catInfo != null && !string.IsNullOrEmpty(catInfo.icon)) ? (catInfo.icon + " ") : "";
-                string displayTitle = (currentCategory == "Other") ? LocalizationManager.Get("CAT_OTHER") : currentCategory.ToUpperInvariant();
+                string displayTitle = GetCategoryTitle(currentCategory);
                 headerTitleText.text = $"{iconPrefix}{displayTitle}";
             }
+        }
+    }
+
+    public static string GetCategoryTitle(string catId)
+    {
+        if (string.IsNullOrEmpty(catId)) return "";
+        switch (catId)
+        {
+            case "Alley dock":       return LocalizationManager.Get("CAT_ALLEY_DOCK");
+            case "Angle Back":       return LocalizationManager.Get("CAT_ANGLE_BACK");
+            case "Facility":         return LocalizationManager.Get("CAT_FACILITY");
+            case "Parallel Parking": return LocalizationManager.Get("CAT_PARALLEL");
+            case "Rest Area":        return LocalizationManager.Get("CAT_REST_AREA");
+            case "Truck Stop":       return LocalizationManager.Get("CAT_TRUCK_STOP");
+            case "Other":            return LocalizationManager.Get("CAT_OTHER");
+            default:                 return catId.ToUpperInvariant();
         }
     }
 
     private void Awake()
     {
         Instance = this;
+
+        if (!string.IsNullOrEmpty(JustCompletedMapName))
+        {
+            activeAnimatedCompletedMap = JustCompletedMapName;
+            JustCompletedMapName = null;
+            PlayerPrefs.DeleteKey(PrefKey_JustCompletedMap);
+            PlayerPrefs.Save();
+        }
+        else if (PlayerPrefs.HasKey(PrefKey_JustCompletedMap))
+        {
+            activeAnimatedCompletedMap = PlayerPrefs.GetString(PrefKey_JustCompletedMap, "");
+            PlayerPrefs.DeleteKey(PrefKey_JustCompletedMap);
+            PlayerPrefs.Save();
+        }
+        else
+        {
+            activeAnimatedCompletedMap = null;
+        }
+
         EnsureEventSystem();
         LoadUISprites();
         RefreshMapsList();
@@ -305,6 +349,10 @@ public class MapSelectMenu : MonoBehaviour
     public void LoadMap(string mapName)
     {
         Debug.Log($"<color=#55ff55>[MapSelectMenu] Loading Map: {mapName}...</color>");
+        activeAnimatedCompletedMap = null;
+        JustCompletedMapName = null;
+        PlayerPrefs.DeleteKey(PrefKey_JustCompletedMap);
+
         string cat = GetMapCategory(mapName);
         PendingCategory = cat;
         PlayerPrefs.SetString(PrefKey_LastCategory, cat);
@@ -636,6 +684,51 @@ public class MapSelectMenu : MonoBehaviour
         closeButtonGo = closeGo;
         closeButtonGo.SetActive(curScene != "MainMenu");
 
+        // Header Language Switch Button (Right: visible in MainMenu where Close button is hidden)
+        GameObject langGo = CreateUIObject("Btn_Language", centerWindowGo.transform);
+        RectTransform langRt = langGo.GetComponent<RectTransform>();
+        langRt.anchorMin = new Vector2(1, 1);
+        langRt.anchorMax = new Vector2(1, 1);
+        langRt.pivot = new Vector2(1, 1);
+        langRt.sizeDelta = new Vector2(110, 46);
+        langRt.anchoredPosition = new Vector2(-20, -18);
+
+        Image langImg = langGo.AddComponent<Image>();
+        Sprite langSp = GetSprite("UI_Btn_Active") ?? GetSprite("UI_Btn_Back");
+        if (langSp != null) langImg.sprite = langSp;
+        langImg.color = Color.white;
+
+        Button langBtn = langGo.AddComponent<Button>();
+        langBtn.targetGraphic = langImg;
+        ColorBlock langCb = langBtn.colors;
+        langCb.normalColor = Color.white;
+        langCb.highlightedColor = new Color(1.10f, 1.10f, 1.10f, 1f);
+        langCb.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+        langBtn.colors = langCb;
+        langBtn.onClick.AddListener(() =>
+        {
+            LocalizationManager.CycleLanguage();
+        });
+
+        GameObject langTextGo = CreateUIObject("Label", langGo.transform);
+        StretchFull(langTextGo.GetComponent<RectTransform>());
+        langTextGo.GetComponent<RectTransform>().offsetMin = new Vector2(4, 6);
+        langTextGo.GetComponent<RectTransform>().offsetMax = new Vector2(-4, -2);
+        Text langText = langTextGo.AddComponent<Text>();
+        if (font != null) langText.font = font;
+        langText.fontSize = 17;
+        langText.fontStyle = FontStyle.Bold;
+        langText.alignment = TextAnchor.MiddleCenter;
+        langText.color = new Color(0.08f, 0.22f, 0.12f);
+        langText.raycastTarget = false;
+        langText.text = LocalizationManager.GetLanguageShortButtonText();
+        Shadow langShadow = langTextGo.AddComponent<Shadow>();
+        langShadow.effectColor = new Color(1f, 1f, 1f, 0.4f);
+        langShadow.effectDistance = new Vector2(0, -1f);
+        languageButtonText = langText;
+        languageButtonGo = langGo;
+        languageButtonGo.SetActive(curScene == "MainMenu");
+
         // 5. Scroll View for Maps (Middle Area)
         GameObject scrollGo = CreateUIObject("MapsScrollView", centerWindowGo.transform);
         RectTransform scrollRt = scrollGo.GetComponent<RectTransform>();
@@ -688,6 +781,10 @@ public class MapSelectMenu : MonoBehaviour
     public void RestartCurrentMap()
     {
         SetMenuOpen(false);
+        activeAnimatedCompletedMap = null;
+        JustCompletedMapName = null;
+        PlayerPrefs.DeleteKey(PrefKey_JustCompletedMap);
+
         string currentScene = SceneManager.GetActiveScene().name;
         string currentPath = SceneManager.GetActiveScene().path;
 
@@ -895,7 +992,7 @@ public class MapSelectMenu : MonoBehaviour
             if (backButtonGo != null) backButtonGo.SetActive(true);
             CategoryInfo currentCatInfo = GetCategoryInfo(currentCategory);
             string iconStr = (currentCatInfo != null && !string.IsNullOrEmpty(currentCatInfo.icon)) ? (currentCatInfo.icon + " ") : "";
-            string catDisplayName = (currentCategory == "Other") ? LocalizationManager.Get("CAT_OTHER") : currentCategory.ToUpperInvariant();
+            string catDisplayName = GetCategoryTitle(currentCategory);
             if (headerTitleText != null) headerTitleText.text = $"{iconStr}{catDisplayName}";
 
             if (glg != null)
@@ -933,7 +1030,9 @@ public class MapSelectMenu : MonoBehaviour
             RectTransform targetCardRt = null;
             int targetIndex = -1;
             string curScene = SceneManager.GetActiveScene().name;
-            string targetMap = PlayerPrefs.GetString("CurrentActiveMap", PlayerPrefs.GetString("LastPlayedMap", ""));
+            string targetMap = !string.IsNullOrEmpty(activeAnimatedCompletedMap)
+                ? activeAnimatedCompletedMap
+                : PlayerPrefs.GetString("CurrentActiveMap", PlayerPrefs.GetString("LastPlayedMap", ""));
             if (string.IsNullOrEmpty(targetMap) && curScene != "MainMenu" && curScene != "SampleScene")
             {
                 targetMap = curScene;
@@ -994,7 +1093,7 @@ public class MapSelectMenu : MonoBehaviour
 
         // 1. Top Row: Title (Left) with optional icon prefix
         string iconPrefix = !string.IsNullOrEmpty(cat.icon) ? (cat.icon + " ") : "";
-        string displayTitle = (cat.id == "Other") ? LocalizationManager.Get("CAT_OTHER") : cat.title.ToUpperInvariant();
+        string displayTitle = GetCategoryTitle(cat.id);
 
         GameObject titleGo = CreateUIObject("Title", cardGo.transform);
         RectTransform titleRt = titleGo.GetComponent<RectTransform>();
@@ -1130,6 +1229,8 @@ public class MapSelectMenu : MonoBehaviour
         bool isCompleted = PlayerPrefs.GetInt("MapCompleted_" + capturedName, 0) == 1;
         string activeMap = PlayerPrefs.GetString("CurrentActiveMap", PlayerPrefs.GetString("LastPlayedMap", ""));
         bool isCurrentPlaying = string.Equals(capturedName, activeMap, StringComparison.OrdinalIgnoreCase);
+        bool isJustCompleted = !string.IsNullOrEmpty(activeAnimatedCompletedMap) &&
+                               string.Equals(capturedName, activeAnimatedCompletedMap, StringComparison.OrdinalIgnoreCase);
 
         string displayName = FormatMapDisplayName(capturedName);
 
@@ -1139,7 +1240,12 @@ public class MapSelectMenu : MonoBehaviour
 
         Image cardImg = cardGo.AddComponent<Image>();
         Sprite sp;
-        if (isCompleted)
+        if (isJustCompleted)
+        {
+            // Starts in green active appearance, will animate to gold!
+            sp = GetSprite("UI_Btn_Active") ?? GetSprite("UI_Btn_Normal");
+        }
+        else if (isCompleted)
         {
             // ── 1. ЖЁЛТАЯ/ЗОЛОТАЯ КАРТА (ВСЕГДА, КОГДА ПРОЙДЕНА) ──
             sp = GetSprite("UI_Btn_Special");
@@ -1171,42 +1277,113 @@ public class MapSelectMenu : MonoBehaviour
             LoadMap(capturedName);
         });
 
-        // Card Text Label (centered on raised 3D faceplate)
-        GameObject textGo = CreateUIObject("Title", cardGo.transform);
-        StretchFull(textGo.GetComponent<RectTransform>());
-        textGo.GetComponent<RectTransform>().offsetMin = new Vector2(10, 14);
-        textGo.GetComponent<RectTransform>().offsetMax = new Vector2(-10, -4);
+        if (isJustCompleted)
+        {
+            // ── ANIMATED JUST-COMPLETED CARD SETUP ──
+            Sprite goldSp = GetSprite("UI_Btn_Special");
 
-        Text text = textGo.AddComponent<Text>();
-        if (font != null) text.font = font;
-        text.fontSize = 17;
-        text.fontStyle = FontStyle.Bold;
-        text.alignment = TextAnchor.MiddleCenter;
-        text.horizontalOverflow = HorizontalWrapMode.Wrap;
-        text.verticalOverflow = VerticalWrapMode.Truncate;
-        text.raycastTarget = false;
+            // 1. Pulsing border glow aura behind the card
+            GameObject borderGlowGo = CreateUIObject("BorderGlow", cardGo.transform);
+            borderGlowGo.transform.SetAsFirstSibling();
+            StretchFull(borderGlowGo.GetComponent<RectTransform>());
+            RectTransform bgRt = borderGlowGo.GetComponent<RectTransform>();
+            bgRt.offsetMin = new Vector2(-6, -6);
+            bgRt.offsetMax = new Vector2(6, 6);
+            Image borderGlowImg = borderGlowGo.AddComponent<Image>();
+            if (goldSp != null) borderGlowImg.sprite = goldSp;
+            borderGlowImg.color = new Color(1.0f, 0.85f, 0.20f, 0f);
+            borderGlowImg.raycastTarget = false;
+
+            // 2. Animated outline on card body
+            Outline outline = cardGo.AddComponent<Outline>();
+            outline.effectColor = new Color(1.0f, 0.88f, 0.25f, 0f);
+            outline.effectDistance = new Vector2(2.5f, -2.5f);
+
+            // 3. Gold transition overlay (fades in)
+            GameObject goldOverlayGo = CreateUIObject("GoldOverlay", cardGo.transform);
+            StretchFull(goldOverlayGo.GetComponent<RectTransform>());
+            Image goldOverlayImg = goldOverlayGo.AddComponent<Image>();
+            if (goldSp != null) goldOverlayImg.sprite = goldSp;
+            goldOverlayImg.color = new Color(1f, 1f, 1f, 0f);
+            goldOverlayImg.raycastTarget = false;
+
+            // 4. Gold flash sparkle overlay
+            GameObject flashOverlayGo = CreateUIObject("FlashOverlay", cardGo.transform);
+            StretchFull(flashOverlayGo.GetComponent<RectTransform>());
+            Image flashOverlayImg = flashOverlayGo.AddComponent<Image>();
+            if (goldSp != null) flashOverlayImg.sprite = goldSp;
+            flashOverlayImg.color = new Color(1f, 0.95f, 0.50f, 0f);
+            flashOverlayImg.raycastTarget = false;
+
+            // 5. Text Label
+            GameObject textGo = CreateUIObject("Title", cardGo.transform);
+            textGo.transform.SetAsLastSibling();
+            StretchFull(textGo.GetComponent<RectTransform>());
+            textGo.GetComponent<RectTransform>().offsetMin = new Vector2(10, 14);
+            textGo.GetComponent<RectTransform>().offsetMax = new Vector2(-10, -4);
+
+            Text text = textGo.AddComponent<Text>();
+            if (font != null) text.font = font;
+            text.fontSize = 17;
+            text.fontStyle = FontStyle.Bold;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            text.verticalOverflow = VerticalWrapMode.Truncate;
+            text.raycastTarget = false;
+
+            string inProgressLabel = LocalizationManager.Get("MAP_IN_PROGRESS");
+            string completedLabel = LocalizationManager.Get("MAP_COMPLETED");
+
+            text.color = Color.white;
+            text.text = $"▶ {displayName}\n<size=13><color=#8AFFB8>{inProgressLabel}</color></size>";
+
+            Shadow ts = textGo.AddComponent<Shadow>();
+            ts.effectColor = new Color(0, 0, 0, 0.95f);
+            ts.effectDistance = new Vector2(1.5f, -1.8f);
+
+            // 6. Attach animation driver
+            JustCompletedCardAnimator anim = cardGo.AddComponent<JustCompletedCardAnimator>();
+            anim.Initialize(cardImg, goldOverlayImg, flashOverlayImg, borderGlowImg, outline, text, displayName, completedLabel);
+
+            return cardGo;
+        }
+
+        // Standard Card Text Label (centered on raised 3D faceplate)
+        GameObject stdTextGo = CreateUIObject("Title", cardGo.transform);
+        StretchFull(stdTextGo.GetComponent<RectTransform>());
+        stdTextGo.GetComponent<RectTransform>().offsetMin = new Vector2(10, 14);
+        stdTextGo.GetComponent<RectTransform>().offsetMax = new Vector2(-10, -4);
+
+        Text stdText = stdTextGo.AddComponent<Text>();
+        if (font != null) stdText.font = font;
+        stdText.fontSize = 17;
+        stdText.fontStyle = FontStyle.Bold;
+        stdText.alignment = TextAnchor.MiddleCenter;
+        stdText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        stdText.verticalOverflow = VerticalWrapMode.Truncate;
+        stdText.raycastTarget = false;
 
         if (isCompleted)
         {
-            text.color = new Color(1.0f, 0.95f, 0.70f);
+            stdText.color = new Color(1.0f, 0.95f, 0.70f);
             string completedLabel = LocalizationManager.Get("MAP_COMPLETED");
-            text.text = $"{displayName}\n<size=13><color=#FFE066>★ {completedLabel}</color></size>";
+            stdText.text = $"{displayName}\n<size=13><color=#FFE066>★ {completedLabel}</color></size>";
         }
         else if (isCurrentPlaying)
         {
-            text.color = Color.white;
+            stdText.color = Color.white;
             string inProgressLabel = LocalizationManager.Get("MAP_IN_PROGRESS");
-            text.text = $"▶ {displayName}\n<size=13><color=#8AFFB8>{inProgressLabel}</color></size>";
+            stdText.text = $"▶ {displayName}\n<size=13><color=#8AFFB8>{inProgressLabel}</color></size>";
         }
         else
         {
-            text.color = new Color(0.88f, 0.92f, 0.98f);
-            text.text = displayName;
+            stdText.color = new Color(0.88f, 0.92f, 0.98f);
+            stdText.text = displayName;
         }
 
-        Shadow ts = textGo.AddComponent<Shadow>();
-        ts.effectColor = new Color(0, 0, 0, 0.95f);
-        ts.effectDistance = new Vector2(1.5f, -1.8f);
+        Shadow stdTs = stdTextGo.AddComponent<Shadow>();
+        stdTs.effectColor = new Color(0, 0, 0, 0.95f);
+        stdTs.effectDistance = new Vector2(1.5f, -1.8f);
 
         return cardGo;
     }
@@ -1383,4 +1560,131 @@ public class MapSelectMenu : MonoBehaviour
         rt.anchoredPosition = Vector2.zero;
     }
     #endregion
+
+    /// <summary>
+    /// Animates the freshly completed map card:
+    /// 1. Plays a smooth color transition from green/active to standard gold completed style with flash & badge pop.
+    /// 2. Keeps an active pulsating golden border glow around the card for the rest of the menu visit.
+    /// </summary>
+    public class JustCompletedCardAnimator : MonoBehaviour
+    {
+        private Image baseImg;
+        private Image goldOverlayImg;
+        private Image flashOverlayImg;
+        private Image borderGlowImg;
+        private Outline outline;
+        private Text titleText;
+        private string displayName;
+        private string completedLabel;
+
+        public void Initialize(
+            Image baseCardImg,
+            Image goldOverlay,
+            Image flashOverlay,
+            Image borderGlow,
+            Outline cardOutline,
+            Text textComponent,
+            string mapDisplayName,
+            string completedText)
+        {
+            baseImg = baseCardImg;
+            goldOverlayImg = goldOverlay;
+            flashOverlayImg = flashOverlay;
+            borderGlowImg = borderGlow;
+            outline = cardOutline;
+            titleText = textComponent;
+            displayName = mapDisplayName;
+            completedLabel = completedText;
+
+            StartCoroutine(AnimateCompletionRoutine());
+        }
+
+        private System.Collections.IEnumerator AnimateCompletionRoutine()
+        {
+            // Brief wait so scroll rect centers and player eye focuses on the card
+            yield return new WaitForSecondsRealtime(0.28f);
+
+            float duration = 0.85f;
+            float elapsed = 0f;
+            bool textSwitched = false;
+            Vector3 origScale = Vector3.one;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+
+                // 1. Smooth gold transition overlay fade in
+                if (goldOverlayImg != null)
+                {
+                    goldOverlayImg.color = new Color(1f, 1f, 1f, Mathf.SmoothStep(0f, 1f, t));
+                }
+
+                // 2. Bright gold flash at peak (~0.35s)
+                if (flashOverlayImg != null)
+                {
+                    float flash;
+                    if (t < 0.40f)
+                    {
+                        flash = Mathf.Lerp(0f, 0.85f, t / 0.40f);
+                    }
+                    else
+                    {
+                        flash = Mathf.Lerp(0.85f, 0f, (t - 0.40f) / 0.60f);
+                    }
+                    flashOverlayImg.color = new Color(1f, 0.95f, 0.50f, flash);
+                }
+
+                // 3. Punch scale at peak
+                float scaleMultiplier;
+                if (t < 0.40f)
+                {
+                    scaleMultiplier = Mathf.Lerp(1.0f, 1.07f, t / 0.40f);
+                }
+                else
+                {
+                    scaleMultiplier = Mathf.Lerp(1.07f, 1.0f, (t - 0.40f) / 0.60f);
+                }
+                transform.localScale = origScale * scaleMultiplier;
+
+                // 4. Switch text to completed ★ badge at peak
+                if (t >= 0.35f && !textSwitched && titleText != null)
+                {
+                    textSwitched = true;
+                    titleText.color = new Color(1.0f, 0.95f, 0.70f);
+                    titleText.text = $"{displayName}\n<size=13><color=#FFE066>★ {completedLabel}</color></size>";
+                }
+
+                yield return null;
+            }
+
+            transform.localScale = origScale;
+            if (flashOverlayImg != null) flashOverlayImg.color = new Color(1f, 0.95f, 0.50f, 0f);
+            if (baseImg != null && goldOverlayImg != null && goldOverlayImg.sprite != null)
+            {
+                baseImg.sprite = goldOverlayImg.sprite;
+            }
+            if (goldOverlayImg != null)
+            {
+                goldOverlayImg.color = Color.white;
+            }
+        }
+
+        private void Update()
+        {
+            // Continuous breathing border glow animation while standing in menu
+            float wave = (Mathf.Sin(Time.unscaledTime * 4.0f) + 1f) * 0.5f; // 0..1
+
+            if (borderGlowImg != null)
+            {
+                borderGlowImg.color = new Color(1.0f, 0.85f, 0.20f, Mathf.Lerp(0.35f, 0.90f, wave));
+            }
+            if (outline != null)
+            {
+                float dist = Mathf.Lerp(2.0f, 4.5f, wave);
+                outline.effectDistance = new Vector2(dist, -dist);
+                outline.effectColor = new Color(1.0f, 0.92f, 0.35f, Mathf.Lerp(0.50f, 0.95f, wave));
+            }
+        }
+    }
 }
