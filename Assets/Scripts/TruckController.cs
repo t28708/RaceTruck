@@ -119,6 +119,9 @@ public class TruckController : MonoBehaviour
             return steeringWheel != null ? steeringWheel.CurrentSteerAngle : 0f;
         }
     }
+    public float MaxArticulationAngle => maxArticulationAngle;
+    public float KingpinLocalOffset => kingpinLocalOffset;
+    public float HitchLocalOffset => hitchLocalOffset;
     public Rigidbody2D TrailerRb => trailerRb;
     public Transform FrontLeftWheel => frontLeftWheel;
     public Transform FrontRightWheel => frontRightWheel;
@@ -164,6 +167,15 @@ public class TruckController : MonoBehaviour
         EnsureMapBoundaries();
         EnsurePlayerTractorVisuals();
         EnsureAudioController();
+        EnsureJackknifeWarningIndicator();
+    }
+
+    private void EnsureJackknifeWarningIndicator()
+    {
+        if (GetComponent<JackknifeWarningIndicator>() == null)
+        {
+            gameObject.AddComponent<JackknifeWarningIndicator>();
+        }
     }
 
     private void EnsureAudioController()
@@ -613,9 +625,29 @@ public class TruckController : MonoBehaviour
     public Collider2D LastCrashedObstacle => lastCrashedObstacle;
     public bool IsForwardInputActive => wPressed || gasPedalPressed;
     public bool IsReverseInputActive => sPressed || brakePedalPressed;
+    public float CurrentArticulationAngle
+    {
+        get
+        {
+            if (tractorRb != null && trailerRb != null)
+                return Mathf.DeltaAngle(tractorRb.rotation, trailerRb.rotation);
+            return 0f;
+        }
+    }
 
     public void OnCrash(string obstacleName, bool forwardImpact, Collider2D hitObstacle = null)
     {
+        // Play solid impact audio
+        if (TruckAudioController.Instance != null)
+        {
+            TruckAudioController.Instance.PlayCrashSound();
+        }
+        else
+        {
+            var audioCtrl = GetComponent<TruckAudioController>();
+            if (audioCtrl != null) audioCtrl.PlayCrashSound();
+        }
+
         // Stop the truck dead in its tracks without bouncing or displacing position
         currentSpeed = 0f;
 
@@ -650,6 +682,16 @@ public class TruckController : MonoBehaviour
         }
     }
 
+    public Vector2 GetJackknifePinchPoint()
+    {
+        if (trailerRb != null)
+        {
+            // Pinned directly to the trailer's kingpin pivot (always in one place on the trailer)
+            return trailerRb.transform.TransformPoint(new Vector3(0f, kingpinLocalOffset, 0f));
+        }
+        return transform.TransformPoint(new Vector3(0f, hitchLocalOffset, 0f));
+    }
+
     private void HandleJackknifeImpact(bool hitRightSide, Vector2 tractorCenter, Vector2 tractorForward)
     {
         // Stop dead: truck cannot push further into the trailer
@@ -660,8 +702,18 @@ public class TruckController : MonoBehaviour
         if (Time.time - lastJackknifeCrashTime > JackknifeCrashCooldown)
         {
             lastJackknifeCrashTime = Time.time;
-            Vector2 tractorRight = new Vector2(tractorForward.y, -tractorForward.x);
-            Vector2 contactPos = prevHitchPos + (hitRightSide ? tractorRight : -tractorRight) * 1.3f;
+            Vector2 contactPos = GetJackknifePinchPoint();
+
+            // Play jackknife crunch audio
+            if (TruckAudioController.Instance != null)
+            {
+                TruckAudioController.Instance.PlayJackknifeSound(0.95f, force: true);
+            }
+            else
+            {
+                var audioCtrl = GetComponent<TruckAudioController>();
+                if (audioCtrl != null) audioCtrl.PlayJackknifeSound(0.95f, force: true);
+            }
 
             if (TruckCrashEffect.Instance != null)
             {
@@ -1214,9 +1266,9 @@ public class TruckController : MonoBehaviour
         {
             warning = " | <color=#FF4444>⚠️ УДАР СПЕРЕДИ! НАЖМИТЕ [ТОРМОЗ / S] ⚠️</color>";
         }
-        else if (Mathf.Abs(articulation) > maxArticulationAngle * 0.8f)
+        else if (Mathf.Abs(articulation) >= maxArticulationAngle - 10.0f)
         {
-            warning = $" | <color=#FFAA00>⚠️ ОПАСНОСТЬ СКЛАДЫВАНИЯ ({Mathf.Abs(articulation):0}°/{maxArticulationAngle:0}°)</color>";
+            warning = $" | <color=#FFCC00>⚠️ ОПАСНОСТЬ ЗАЛОМА ({Mathf.Abs(articulation):0}°/{maxArticulationAngle:0}°)</color>";
         }
 
         hudText.text = $"СКОРОСТЬ: <color=#55FFFF>{kmh:0.0} км/ч</color> [{gear}:{mode}] | РУЛЬ: <color=#FFFF55>{steerStr}</color> | СЦЕПКА: <color=#55FF55>{Mathf.Abs(articulation):0.0}°</color> | ЗУМ: <color=#FFAA55>{camZoom}</color>{warning}";

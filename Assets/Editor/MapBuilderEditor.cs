@@ -7184,6 +7184,7 @@ public class MapBuilderEditor : EditorWindow
         TruckController truckController = tractor.AddComponent<TruckController>();
         truckController.SetupWheelReferences(frontLeftWheel.transform, frontRightWheel.transform);
         tractor.AddComponent<TruckAudioController>();
+        tractor.AddComponent<JackknifeWarningIndicator>();
 
         // 2. Trailer
         GameObject trailer = new GameObject("Trailer");

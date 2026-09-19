@@ -14,6 +14,8 @@ using UnityEngine;
 [RequireComponent(typeof(TruckController))]
 public class TruckAudioController : MonoBehaviour
 {
+    public static TruckAudioController Instance { get; private set; }
+
     private TruckController controller;
 
     // Dedicated Audio Sources
@@ -22,6 +24,7 @@ public class TruckAudioController : MonoBehaviour
     private AudioSource driveSource;
     private AudioSource airBrakeSource;
     private AudioSource reverseBeepSource;
+    private AudioSource crashSource;
 
     // Audio Clips
     private AudioClip startupClip;
@@ -29,6 +32,8 @@ public class TruckAudioController : MonoBehaviour
     private AudioClip driveClip;
     private AudioClip airBrakeClip;
     private AudioClip reverseBeepClip;
+    private AudioClip crashClip;
+    private AudioClip jackknifeClip;
 
     private bool isStartingUp = true;
     private float startupTimer = 0f;
@@ -38,12 +43,16 @@ public class TruckAudioController : MonoBehaviour
     private float currentDriveVolume = 0f;
     private float targetDriveVolume = 0f;
     private float lastBrakeTriggerTime = -1f;
+    private float lastCrashSoundTime = -1f;
+    private float lastJackknifeSoundTime = -1f;
+    private const float MinCrashSoundInterval = 0.20f;
     private bool wasMovingForward = false;
     private bool wasBraking = false;
     private bool isMenuMuted = false;
 
     private void Awake()
     {
+        Instance = this;
         controller = GetComponent<TruckController>();
         SetupAudioSources();
         LoadAudioClips();
@@ -68,6 +77,8 @@ public class TruckAudioController : MonoBehaviour
         driveSource = CreateAudioSource("Audio_Drive", loop: true);
         airBrakeSource = CreateAudioSource("Audio_AirBrake", loop: false);
         reverseBeepSource = CreateAudioSource("Audio_ReverseBeep", loop: true);
+        crashSource = CreateAudioSource("Audio_Crash", loop: false);
+        if (crashSource != null) crashSource.volume = 1.0f;
     }
 
     private AudioSource CreateAudioSource(string childName, bool loop)
@@ -102,6 +113,8 @@ public class TruckAudioController : MonoBehaviour
         driveClip = Resources.Load<AudioClip>("Audio/Truck_Engine_Drive");
         airBrakeClip = Resources.Load<AudioClip>("Audio/Truck_AirBrake_Release");
         reverseBeepClip = Resources.Load<AudioClip>("Audio/Truck_Reverse_Beep");
+        crashClip = Resources.Load<AudioClip>("Audio/Truck_Crash_Impact");
+        jackknifeClip = Resources.Load<AudioClip>("Audio/Truck_Jackknife_Crunch");
 
         // Fallback procedural generators in case resource files are missing
         if (startupClip == null) startupClip = FallbackAudio.GetStartupClip();
@@ -115,6 +128,39 @@ public class TruckAudioController : MonoBehaviour
         if (driveSource != null) driveSource.clip = driveClip;
         if (airBrakeSource != null) airBrakeSource.clip = airBrakeClip;
         if (reverseBeepSource != null) reverseBeepSource.clip = reverseBeepClip;
+        if (crashSource != null) crashSource.clip = crashClip;
+    }
+
+    public void PlayCrashSound(float volume = 0.95f)
+    {
+        if (Time.time - lastCrashSoundTime < MinCrashSoundInterval) return;
+        lastCrashSoundTime = Time.time;
+
+        if (crashSource != null)
+        {
+            AudioClip clip = crashClip != null ? crashClip : Resources.Load<AudioClip>("Audio/Truck_Crash_Impact");
+            if (clip != null)
+            {
+                crashSource.pitch = UnityEngine.Random.Range(0.94f, 1.06f);
+                crashSource.PlayOneShot(clip, volume);
+            }
+        }
+    }
+
+    public void PlayJackknifeSound(float volume = 0.95f, bool force = false)
+    {
+        if (!force && Time.time - lastJackknifeSoundTime < 0.12f) return;
+        lastJackknifeSoundTime = Time.time;
+
+        if (crashSource != null)
+        {
+            AudioClip clip = jackknifeClip != null ? jackknifeClip : (crashClip != null ? crashClip : Resources.Load<AudioClip>("Audio/Truck_Jackknife_Crunch"));
+            if (clip != null)
+            {
+                crashSource.pitch = UnityEngine.Random.Range(0.93f, 1.07f);
+                crashSource.PlayOneShot(clip, volume);
+            }
+        }
     }
 
     public void StartEngine()
@@ -314,6 +360,43 @@ public class TruckAudioController : MonoBehaviour
             else if (!inReverse && reverseBeepSource.isPlaying)
             {
                 reverseBeepSource.Stop();
+            }
+        }
+
+        // ----------------------------------------------------
+        // 5. Jackknife Continuous Knocking while Folded / Pushing
+        // ----------------------------------------------------
+        UpdateJackknifeKnockAudio();
+    }
+
+    private void UpdateJackknifeKnockAudio()
+    {
+        if (controller == null) return;
+
+        bool isFolding = controller.IsJackknifed;
+        if (!isFolding)
+        {
+            float curArt = Mathf.Abs(controller.CurrentArticulationAngle);
+            if (curArt >= controller.MaxArticulationAngle - 0.5f && controller.IsReverseInputActive)
+            {
+                isFolding = true;
+            }
+        }
+
+        // If player is pulling forward (W / Gas pedal), rig is pulling out of the fold -> stop knocking immediately
+        if (controller.IsForwardInputActive)
+        {
+            isFolding = false;
+        }
+
+        if (isFolding)
+        {
+            // Rapid energetic knocking when actively forcing reverse into the trailer; periodic knocks when stationary in fold
+            float cadence = controller.IsReverseInputActive ? 0.20f : 0.34f;
+            float vol = controller.IsReverseInputActive ? 0.95f : 0.78f;
+            if (Time.time - lastJackknifeSoundTime >= cadence)
+            {
+                PlayJackknifeSound(vol);
             }
         }
     }

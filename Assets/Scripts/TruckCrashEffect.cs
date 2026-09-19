@@ -18,6 +18,7 @@ public class TruckCrashEffect : MonoBehaviour
     private Coroutine currentCrashRoutine;
     private AudioSource audioSource;
     private AudioClip impactAudioClip;
+    private AudioClip jackknifeAudioClip;
     private float lastCrashTriggerTime = -1f;
     private const float MinCrashInterval = 0.30f;
 
@@ -60,7 +61,12 @@ public class TruckCrashEffect : MonoBehaviour
             audioSource = GetComponent<AudioSource>();
             if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
             audioSource.playOnAwake = false;
+            audioSource.spatialBlend = 0f;
         }
+        if (impactAudioClip == null)
+            impactAudioClip = Resources.Load<AudioClip>("Audio/Truck_Crash_Impact");
+        if (jackknifeAudioClip == null)
+            jackknifeAudioClip = Resources.Load<AudioClip>("Audio/Truck_Jackknife_Crunch");
         if (impactAudioClip == null)
             impactAudioClip = GenerateMetalImpactClip();
     }
@@ -276,9 +282,13 @@ public class TruckCrashEffect : MonoBehaviour
         if (Time.time - lastCrashTriggerTime < MinCrashInterval) return;
         lastCrashTriggerTime = Time.time;
 
-        EnsureAudio();
-        if (audioSource != null && impactAudioClip != null)
-            audioSource.PlayOneShot(impactAudioClip, 0.45f);
+        if (TruckAudioController.Instance == null)
+        {
+            EnsureAudio();
+            AudioClip clip = jackknifeAudioClip != null ? jackknifeAudioClip : impactAudioClip;
+            if (audioSource != null && clip != null)
+                audioSource.PlayOneShot(clip, 0.90f);
+        }
 
         SpawnImpactBurst(contactWorldPos);
 
@@ -334,9 +344,12 @@ public class TruckCrashEffect : MonoBehaviour
         if (Time.time - lastCrashTriggerTime < MinCrashInterval) return;
         lastCrashTriggerTime = Time.time;
 
-        EnsureAudio();
-        if (audioSource != null && impactAudioClip != null)
-            audioSource.PlayOneShot(impactAudioClip, 0.40f);
+        if (TruckAudioController.Instance == null)
+        {
+            EnsureAudio();
+            if (audioSource != null && impactAudioClip != null)
+                audioSource.PlayOneShot(impactAudioClip, 0.90f);
+        }
 
         if (contactPos.HasValue)
             SpawnImpactBurst(contactPos.Value);

@@ -28,6 +28,7 @@ public class InGameMenu : MonoBehaviour
     private Text controlModeBtnText;
     private Text pedalSideBtnText;
     private Text autoCenterBtnText;
+    private Text soundBtnText;
     private Text restartBtnText;
     private Text mainMenuBtnText;
     private Text resumeBtnText;
@@ -38,6 +39,7 @@ public class InGameMenu : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+        ApplySoundSetting();
     }
 
     private void OnEnable()
@@ -136,6 +138,41 @@ public class InGameMenu : MonoBehaviour
         }
     }
 
+    public const string PrefKey_Sound = "GameSoundEnabled";
+
+    public static bool SoundEnabled
+    {
+        get => PlayerPrefs.GetInt(PrefKey_Sound, 1) == 1;
+        set
+        {
+            PlayerPrefs.SetInt(PrefKey_Sound, value ? 1 : 0);
+            PlayerPrefs.Save();
+            ApplySoundSetting();
+        }
+    }
+
+    public static void ApplySoundSetting()
+    {
+        bool enabled = SoundEnabled;
+        AudioListener.volume = enabled ? 1.0f : 0.0f;
+    }
+
+    public static bool ToggleSound()
+    {
+        bool newVal = !SoundEnabled;
+        SoundEnabled = newVal;
+        return newVal;
+    }
+
+    public void OnToggleSound()
+    {
+        bool newVal = ToggleSound();
+        if (soundBtnText != null)
+        {
+            soundBtnText.text = LocalizationManager.GetSoundButtonText(newVal);
+        }
+    }
+
     public void UpdateAllTexts()
     {
         if (topMenuBtnText != null)
@@ -162,6 +199,10 @@ public class InGameMenu : MonoBehaviour
         if (autoCenterBtnText != null)
         {
             autoCenterBtnText.text = LocalizationManager.GetAutoCenterButtonText(SteeringWheelUI.AutoCenterEnabled);
+        }
+        if (soundBtnText != null)
+        {
+            soundBtnText.text = LocalizationManager.GetSoundButtonText(SoundEnabled);
         }
         if (restartBtnText != null)
         {
@@ -322,14 +363,14 @@ public class InGameMenu : MonoBehaviour
         bgBtn.transition = Selectable.Transition.None;
         bgBtn.onClick.AddListener(CloseMenu);
 
-        // Modal Card Box (Height 650 to comfortably hold 7 buttons)
+        // Modal Card Box (Height 710 to comfortably hold 8 buttons)
         GameObject cardGo = new GameObject("MenuCard");
         cardGo.transform.SetParent(menuModalGo.transform, false);
         RectTransform cardRt = cardGo.AddComponent<RectTransform>();
         cardRt.anchorMin = new Vector2(0.5f, 0.5f);
         cardRt.anchorMax = new Vector2(0.5f, 0.5f);
         cardRt.pivot = new Vector2(0.5f, 0.5f);
-        cardRt.sizeDelta = new Vector2(560f, 650f);
+        cardRt.sizeDelta = new Vector2(560f, 710f);
         cardRt.anchoredPosition = Vector2.zero;
 
         Image cardImg = cardGo.AddComponent<Image>();
@@ -344,7 +385,7 @@ public class InGameMenu : MonoBehaviour
         GameObject titleGo = new GameObject("Title");
         titleGo.transform.SetParent(cardGo.transform, false);
         RectTransform titleRt = titleGo.AddComponent<RectTransform>();
-        titleRt.anchorMin = new Vector2(0f, 0.86f);
+        titleRt.anchorMin = new Vector2(0f, 0.88f);
         titleRt.anchorMax = new Vector2(1f, 0.98f);
         titleRt.sizeDelta = Vector2.zero;
 
@@ -359,38 +400,43 @@ public class InGameMenu : MonoBehaviour
         // Button 1 (Top item): Смена языка (RU -> EN -> FR -> ES -> RU)
         languageBtnText = CreateModalButton(cardGo.transform, "LanguageBtn",
             LocalizationManager.GetLanguageButtonText(),
-            new Vector2(0f, 175f), new Color(0.42f, 0.28f, 0.82f, 1f), font, OnToggleLanguage);
+            new Vector2(0f, 202f), new Color(0.42f, 0.28f, 0.82f, 1f), font, OnToggleLanguage);
 
         // Button 2: Сменить тип управления (Стрелки / Слайдер / Руль)
         controlModeBtnText = CreateModalButton(cardGo.transform, "ControlModeBtn",
             LocalizationManager.Get("MENU_CONTROLS_PREFIX") + SteeringWheelUI.GetControlTypeName(SteeringWheelUI.CurrentControlType),
-            new Vector2(0f, 117f), new Color(0.20f, 0.50f, 0.90f, 1f), font, OnToggleControlMode);
+            new Vector2(0f, 146f), new Color(0.20f, 0.50f, 0.90f, 1f), font, OnToggleControlMode);
 
         // Button 3: Положение педалей (Педали слева / Педали справа)
         bool isPedalsLeft = (SteeringWheelUI.CurrentPedalSide == SteeringWheelUI.PedalSide.Left);
         pedalSideBtnText = CreateModalButton(cardGo.transform, "PedalSideBtn",
             LocalizationManager.GetPedalSideButtonText(isPedalsLeft),
-            new Vector2(0f, 59f), new Color(0.85f, 0.45f, 0.15f, 1f), font, OnTogglePedalSide);
+            new Vector2(0f, 90f), new Color(0.85f, 0.45f, 0.15f, 1f), font, OnTogglePedalSide);
 
         // Button 4: Возврат руля (ВКЛ / ВЫКЛ)
         autoCenterBtnText = CreateModalButton(cardGo.transform, "AutoCenterBtn",
             LocalizationManager.GetAutoCenterButtonText(SteeringWheelUI.AutoCenterEnabled),
-            new Vector2(0f, 1f), new Color(0.12f, 0.60f, 0.55f, 1f), font, OnToggleAutoCenter);
+            new Vector2(0f, 34f), new Color(0.12f, 0.60f, 0.55f, 1f), font, OnToggleAutoCenter);
 
-        // Button 5: Перезапустить карту
+        // Button 5 (Под возвратом руля): Звук (ВКЛ / ВЫКЛ)
+        soundBtnText = CreateModalButton(cardGo.transform, "SoundBtn",
+            LocalizationManager.GetSoundButtonText(SoundEnabled),
+            new Vector2(0f, -22f), new Color(0.72f, 0.28f, 0.60f, 1f), font, OnToggleSound);
+
+        // Button 6: Перезапустить карту
         restartBtnText = CreateModalButton(cardGo.transform, "RestartBtn",
             LocalizationManager.Get("MENU_RESTART"),
-            new Vector2(0f, -57f), new Color(0.18f, 0.65f, 0.85f, 1f), font, RestartCurrentMap);
+            new Vector2(0f, -78f), new Color(0.18f, 0.65f, 0.85f, 1f), font, RestartCurrentMap);
 
-        // Button 6: В главное меню (Выбор всех карт)
+        // Button 7: В главное меню (Выбор всех карт)
         mainMenuBtnText = CreateModalButton(cardGo.transform, "MainMenuBtn",
             LocalizationManager.Get("MENU_MAIN"),
-            new Vector2(0f, -115f), new Color(0.18f, 0.75f, 0.45f, 1f), font, GoToMainMenu);
+            new Vector2(0f, -134f), new Color(0.18f, 0.75f, 0.45f, 1f), font, GoToMainMenu);
 
-        // Button 7: Продолжить
+        // Button 8: Продолжить
         resumeBtnText = CreateModalButton(cardGo.transform, "ResumeBtn",
             LocalizationManager.Get("MENU_RESUME"),
-            new Vector2(0f, -173f), new Color(0.35f, 0.38f, 0.45f, 1f), font, CloseMenu);
+            new Vector2(0f, -190f), new Color(0.35f, 0.38f, 0.45f, 1f), font, CloseMenu);
 
         UpdateAllTexts();
         menuModalGo.SetActive(false);

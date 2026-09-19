@@ -103,6 +103,11 @@ public static class LocalizationManager
         return isEnabled ? Get("STEERING_AUTOCENTER_ON") : Get("STEERING_AUTOCENTER_OFF");
     }
 
+    public static string GetSoundButtonText(bool isEnabled)
+    {
+        return isEnabled ? Get("SOUND_ON") : Get("SOUND_OFF");
+    }
+
     public static string GetProgressText(int completed, int total)
     {
         if (total <= 0)
@@ -133,6 +138,8 @@ public static class LocalizationManager
         { "PEDALS_RIGHT", new[] { "🦶 ПЕДАЛИ: СПРАВА", "🦶 PEDALS: RIGHT", "🦶 PÉDALES: DROITE", "🦶 PEDALES: DERECHA" } },
         { "STEERING_AUTOCENTER_ON", new[] { "🔄 ВОЗВРАТ РУЛЯ: ВКЛ", "🔄 AUTO-CENTER: ON", "🔄 RETOUR AU CENTRE: OUI", "🔄 AUTOCENTRADO: SÍ" } },
         { "STEERING_AUTOCENTER_OFF", new[] { "🔄 ВОЗВРАТ РУЛЯ: ВЫКЛ", "🔄 AUTO-CENTER: OFF", "🔄 RETOUR AU CENTRE: NON", "🔄 AUTOCENTRADO: NO" } },
+        { "SOUND_ON", new[] { "🔊 ЗВУК: ВКЛ", "🔊 SOUND: ON", "🔊 SON: OUI", "🔊 SONIDO: SÍ" } },
+        { "SOUND_OFF", new[] { "🔇 ЗВУК: ВЫКЛ", "🔇 SOUND: OFF", "🔇 SON: NON", "🔇 SONIDO: NO" } },
         { "MENU_RESTART", new[] { "🔄 ПЕРЕЗАПУСТИТЬ КАРТУ", "🔄 RESTART MAP", "🔄 REDÉMARRER LA CARTE", "🔄 REINICIAR MAPA" } },
         { "MENU_MAIN", new[] { "🗺 В ГЛАВНОЕ МЕНЮ", "🗺 MAIN MENU", "🗺 MENU PRINCIPAL", "🗺 MENÚ PRINCIPAL" } },
         { "MENU_RESUME", new[] { "▶ ПРОДОЛЖИТЬ", "▶ RESUME", "▶ REPRENDRE", "▶ CONTINUAR" } },
