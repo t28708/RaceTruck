@@ -62,7 +62,8 @@ public class MapBuilderEditor : EditorWindow
         Eraser = 17,              // 18. 🧹 Ластик / Удаление (Клик по объекту)
         RouteLine = 18,           // 19. 🛣️ Направляющая линия маршрута (Полилиния / Route)
         Lawn = 19,                // 20. 🌱 Газон (Замкнутая область 45°/90°)
-        StandaloneTrailer = 20    // 21. 🚚 Трейлер (Любой угол)
+        StandaloneTrailer = 20,   // 21. 🚚 Трейлер (Любой угол)
+        SplineRoad = 21           // 22. 🛣️ Дорога (Сплайн)
     }
 
     public const string CustomMapsFolder = "Assets/Scenes/CustomMaps";
@@ -78,6 +79,7 @@ public class MapBuilderEditor : EditorWindow
     private const string PropsContainerName = "MapBuilder_Props";
     private const string RoutesContainerName = "MapBuilder_Routes";
     private const string LawnsContainerName = "MapBuilder_Lawns";
+    private const string SplineRoadsContainerName = "MapBuilder_SplineRoads";
     private const string GhostPreviewName = "__MapBuilder_GhostPreview__";
 
     public const float SlotWidth = 4.5f;         // Фиксированная ширина стандартного места (4.5м)
@@ -183,6 +185,21 @@ public class MapBuilderEditor : EditorWindow
     [SerializeField] private float routeArrowSize = 1.0f;
     [SerializeField] private RouteGuideLine.DisplayMode routeDisplayMode = RouteGuideLine.DisplayMode.AlwaysVisible;
 
+    // Spline Road Tool state (Road with asphalt, curbs and colliders)
+    [SerializeField] private SplineRoad2D selectedSplineRoad = null;
+    private SplineRoad2D lastSelectedSplineRoad = null;
+    [SerializeField] private int selectedRoadPointIndex = -1;
+    [SerializeField] private bool isDrawingRoad = false;
+    private bool isDraggingRoadPoint = false;
+    [SerializeField] private float splineRoadWidth = 8.0f;
+    [SerializeField] private float splineRoadBorderWidth = 0.8f;
+    [SerializeField] private int splineRoadSegments = 12;
+    [SerializeField] private bool splineRoadClosedLoop = false;
+    [SerializeField] private bool splineRoadColliders = true;
+    [SerializeField] private SplineRoad2D.SplineInterpolation splineRoadInterpolation = SplineRoad2D.SplineInterpolation.CatmullRom;
+    [SerializeField] private bool splineRoadTruckTurnAssist = true;
+    [SerializeField] private float splineRoadMinTurnRadius = 13.5f;
+
     private GameObject ghostPreviewObj;
     private ObjectType lastBuiltPreviewType = (ObjectType)(-1);
     private Sprite asphaltSprite;
@@ -229,7 +246,8 @@ public class MapBuilderEditor : EditorWindow
         "18. 🧹 Ластик / Удаление (Клик по объекту)",
         "19. 🛣️ Направляющая линия маршрута (Полилиния / Route)",
         "20. 🌱 Газон (Замкнутая область 45°/90°)",
-        "21. 🚚 Трейлер (Любой угол)"
+        "21. 🚚 Трейлер (Любой угол)",
+        "22. 🛣️ Дорога (Сплайн)"
     };
 
     [MenuItem("Tools/Map Builder/Open Editor", false, 1)]
@@ -293,6 +311,26 @@ public class MapBuilderEditor : EditorWindow
     {
         DetectCurrentSceneMapName();
         Repaint();
+    }
+
+    private void OnSelectionChange()
+    {
+        if (Selection.activeGameObject != null)
+        {
+            SplineRoad2D sr = Selection.activeGameObject.GetComponent<SplineRoad2D>();
+            if (sr != null)
+            {
+                selectedSplineRoad = sr;
+                lastSelectedSplineRoad = sr;
+                currentObjectType = ObjectType.SplineRoad;
+                if (selectedRoadPointIndex < 0 || (sr.points != null && selectedRoadPointIndex >= sr.points.Count))
+                {
+                    selectedRoadPointIndex = (sr.points != null && sr.points.Count > 0) ? sr.points.Count - 1 : -1;
+                }
+                SyncRoadSettingsFrom(sr);
+                Repaint();
+            }
+        }
     }
 
     private void OnDisable()
@@ -538,7 +576,7 @@ public class MapBuilderEditor : EditorWindow
     private Vector2 GetMagneticSnappedPosition(Vector2 rawPos, float rot)
     {
         // Only apply magnetic snap for parking stalls (StandardEmpty, StandardParked, TargetParking)
-        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || currentObjectType == ObjectType.StandaloneTrailer || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine || currentObjectType == ObjectType.Lawn) return rawPos;
+        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || currentObjectType == ObjectType.StandaloneTrailer || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine || currentObjectType == ObjectType.Lawn || currentObjectType == ObjectType.SplineRoad) return rawPos;
 
         GameObject workspace = GameObject.Find(WorkspaceRootName);
         if (workspace == null) return rawPos;
@@ -730,7 +768,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void SnapCursorToGrid()
     {
-        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || currentObjectType == ObjectType.StandaloneTrailer || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine || currentObjectType == ObjectType.Lawn) return;
+        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || currentObjectType == ObjectType.StandaloneTrailer || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine || currentObjectType == ObjectType.Lawn || currentObjectType == ObjectType.SplineRoad) return;
 
         float rem = Mathf.Abs(currentRotation) % 90f;
         if (rem > 1.0f && rem < 89.0f)
@@ -1249,6 +1287,24 @@ public class MapBuilderEditor : EditorWindow
                 }
             }
 
+            Transform splineRoadsContainer = workspace.transform.Find(SplineRoadsContainerName);
+            if (splineRoadsContainer != null)
+            {
+                if (!EditorApplication.isPlaying) Undo.RegisterFullObjectHierarchyUndo(splineRoadsContainer.gameObject, "Shift Spline Roads");
+                for (int i = 0; i < splineRoadsContainer.childCount; i++)
+                {
+                    SplineRoad2D road = splineRoadsContainer.GetChild(i).GetComponent<SplineRoad2D>();
+                    if (road != null && road.points != null)
+                    {
+                        for (int p = 0; p < road.points.Count; p++)
+                        {
+                            road.points[p] += delta;
+                        }
+                        road.RebuildMesh();
+                    }
+                }
+            }
+
             cursorPosition += delta;
             UpdateGhostPreview();
             SafeMarkSceneDirty();
@@ -1627,6 +1683,272 @@ public class MapBuilderEditor : EditorWindow
             }
         }
         return bestRoute;
+    }
+
+    public SplineRoad2D CreateSplineRoad(Vector2 firstPoint)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null)
+        {
+            EnsureCleanWorkPlane(clearExistingScene: false);
+            workspace = GameObject.Find(WorkspaceRootName);
+        }
+
+        Transform container = workspace.transform.Find(SplineRoadsContainerName);
+        if (container == null)
+        {
+            GameObject containerGo = new GameObject(SplineRoadsContainerName);
+            containerGo.transform.SetParent(workspace.transform, false);
+            container = containerGo.transform;
+            SafeRegisterCreatedObjectUndo(containerGo, "Create Spline Roads Container");
+        }
+
+        int index = container.childCount + 1;
+        GameObject roadGo = new GameObject($"SplineRoad_{index}");
+        roadGo.transform.SetParent(container, false);
+
+        SplineRoad2D roadComp = roadGo.AddComponent<SplineRoad2D>();
+        roadComp.roadWidth = splineRoadWidth;
+        roadComp.borderWidth = splineRoadBorderWidth;
+        roadComp.segmentsPerCurve = splineRoadSegments;
+        roadComp.IsClosedLoop = false;
+        splineRoadClosedLoop = false;
+        roadComp.createColliders = splineRoadColliders;
+        roadComp.interpolation = splineRoadInterpolation;
+        roadComp.sortingOrder = -8;
+        roadComp.highlightImpassableTurns = true;
+        roadComp.minPassableRadius = splineRoadMinTurnRadius;
+        roadComp.points = new List<Vector2> { firstPoint };
+        roadComp.RebuildMesh();
+
+        SafeRegisterCreatedObjectUndo(roadGo, $"Create SplineRoad_{index}");
+        SafeMarkSceneDirty();
+        SceneView.RepaintAll();
+        return roadComp;
+    }
+
+    public void ClearAllSplineRoads()
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace != null)
+        {
+            Transform container = workspace.transform.Find(SplineRoadsContainerName);
+            if (container != null)
+            {
+                if (!EditorApplication.isPlaying)
+                {
+                    Undo.RegisterFullObjectHierarchyUndo(container.gameObject, "Clear All Spline Roads");
+                }
+                for (int i = container.childCount - 1; i >= 0; i--)
+                {
+                    SafeDestroyObject(container.GetChild(i).gameObject);
+                }
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+        }
+        selectedSplineRoad = null;
+        selectedRoadPointIndex = -1;
+        isDrawingRoad = false;
+    }
+
+    public void SyncRoadSettingsFrom(SplineRoad2D road)
+    {
+        if (road == null) return;
+        splineRoadWidth = road.roadWidth;
+        splineRoadBorderWidth = road.borderWidth;
+        splineRoadSegments = road.segmentsPerCurve;
+        splineRoadColliders = road.createColliders;
+        splineRoadInterpolation = road.interpolation;
+        if (road.minPassableRadius > 0.1f)
+        {
+            splineRoadMinTurnRadius = road.minPassableRadius;
+        }
+    }
+
+    public void ApplyOptimalRoadParameters()
+    {
+        splineRoadWidth = 6.5f;
+        splineRoadBorderWidth = 0.5f;
+        splineRoadSegments = 12;
+        splineRoadMinTurnRadius = 15.0f;
+        splineRoadTruckTurnAssist = true;
+
+        if (selectedSplineRoad != null)
+        {
+            Undo.RecordObject(selectedSplineRoad, "Apply Optimal Road Parameters");
+            selectedSplineRoad.roadWidth = 6.5f;
+            selectedSplineRoad.borderWidth = 0.5f;
+            selectedSplineRoad.segmentsPerCurve = 12;
+            selectedSplineRoad.minPassableRadius = 15.0f;
+            selectedSplineRoad.highlightImpassableTurns = true;
+            selectedSplineRoad.RebuildMesh();
+            SafeMarkSceneDirty();
+            SceneView.RepaintAll();
+        }
+
+        SceneView.lastActiveSceneView?.ShowNotification(new GUIContent("✓ Выставлены оптимальные параметры дороги (Ширина 6.5м, R=15.0м)"));
+    }
+
+    private SplineRoad2D FindSplineRoadNear(Vector2 worldPos, float maxDist, out int pointIndex)
+    {
+        pointIndex = -1;
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null) return null;
+        Transform container = workspace.transform.Find(SplineRoadsContainerName);
+        if (container == null) return null;
+
+        SplineRoad2D bestRoad = null;
+        float bestDist = maxDist;
+
+        for (int i = 0; i < container.childCount; i++)
+        {
+            SplineRoad2D road = container.GetChild(i).GetComponent<SplineRoad2D>();
+            if (road == null || road.points == null || road.points.Count == 0) continue;
+
+            Vector2 localPos = (Vector2)road.transform.InverseTransformPoint(worldPos);
+
+            for (int p = 0; p < road.points.Count; p++)
+            {
+                float d = Vector2.Distance(localPos, road.points[p]);
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    bestRoad = road;
+                    pointIndex = p;
+                }
+            }
+
+            int count = road.points.Count;
+            int segCount = road.IsClosedLoop ? count : count - 1;
+            for (int p = 0; p < segCount; p++)
+            {
+                Vector2 p0 = road.points[p];
+                Vector2 p1 = road.points[(p + 1) % count];
+                float dSeg = DistanceToSegment(localPos, p0, p1);
+                float effectiveDist = Mathf.Max(0f, dSeg - road.roadWidth * 0.5f);
+                if (effectiveDist < bestDist)
+                {
+                    bestDist = effectiveDist;
+                    bestRoad = road;
+                    float d1 = Vector2.Distance(localPos, p0);
+                    float d2 = Vector2.Distance(localPos, p1);
+                    pointIndex = (d2 < d1) ? ((p + 1) % count) : p;
+                }
+            }
+        }
+        return bestRoad;
+    }
+
+    public struct TruckTurnAnalysis
+    {
+        public float angleDeg;
+        public float currentRadius;
+        public float minRequiredDistance;
+        public Vector2 recommendedPos;
+        public bool isPassable; // true if R >= minRadius
+        public bool isCritical; // true if R < minRadius * 0.8f
+        public string statusText;
+        public Color statusColor;
+    }
+
+    private TruckTurnAnalysis AnalyzeTruckTurn(Vector2 lastPoint, Vector2 prevPoint, Vector2 candidatePoint, float minRadius)
+    {
+        TruckTurnAnalysis res = new TruckTurnAnalysis();
+        Vector2 dirIn = (lastPoint - prevPoint).normalized;
+        Vector2 vOut = candidatePoint - lastPoint;
+        float dist = vOut.magnitude;
+
+        if (dist < 0.05f || dirIn.sqrMagnitude < 0.001f)
+        {
+            res.angleDeg = 0f;
+            res.currentRadius = 999f;
+            res.minRequiredDistance = 1f;
+            res.recommendedPos = candidatePoint;
+            res.isPassable = true;
+            res.isCritical = false;
+            res.statusText = "✓ Прямой участок";
+            res.statusColor = new Color(0.2f, 1f, 0.4f);
+            return res;
+        }
+
+        Vector2 dirOut = vOut / dist;
+        float angle = Vector2.Angle(dirIn, dirOut);
+        res.angleDeg = angle;
+
+        if (angle < 2.5f)
+        {
+            res.currentRadius = 999f;
+            res.minRequiredDistance = dist;
+            res.recommendedPos = candidatePoint;
+            res.isPassable = true;
+            res.isCritical = false;
+            res.statusText = "✓ Прямой участок";
+            res.statusColor = new Color(0.2f, 1f, 0.4f);
+            return res;
+        }
+
+        // Circular arc matching Catmull-Rom curvature:
+        // Chord = dist, Angle between chord and tangent = angle / 2.
+        // Radius R = dist / (2 * sin(angle / 2))
+        float halfAngleRad = (angle * 0.5f) * Mathf.Deg2Rad;
+        float sinHalf = Mathf.Sin(halfAngleRad);
+
+        // Required chord distance for R = minRadius:
+        float distMin = 2.0f * minRadius * Mathf.Max(0.01f, sinHalf);
+        res.minRequiredDistance = distMin;
+
+        float radius = dist / (2.0f * Mathf.Max(0.001f, sinHalf));
+        res.currentRadius = radius;
+
+        if (radius >= minRadius)
+        {
+            res.isPassable = true;
+            res.isCritical = false;
+            res.statusText = $"✓ R = {radius:F1}м (Трак свободно проедет)";
+            res.statusColor = new Color(0.2f, 1f, 0.4f);
+            res.recommendedPos = candidatePoint;
+        }
+        else if (radius >= minRadius * 0.82f)
+        {
+            res.isPassable = false;
+            res.isCritical = false;
+            res.statusText = $"⚠️ R = {radius:F1}м (На пределе, прицеп прижмётся к бордюру)";
+            res.statusColor = new Color(1.0f, 0.75f, 0.1f);
+            res.recommendedPos = lastPoint + dirOut * Mathf.Max(dist, distMin);
+        }
+        else
+        {
+            res.isPassable = false;
+            res.isCritical = true;
+            res.statusText = $"⚠️ R = {radius:F1}м (Слишком крутой поворот! Трак не повернёт)";
+            res.statusColor = new Color(1.0f, 0.55f, 0.0f);
+            res.recommendedPos = lastPoint + dirOut * distMin;
+        }
+
+        return res;
+    }
+
+    private Vector2 CalculateTurnArcMidPoint(Vector2 pLast, Vector2 pPrev, Vector2 targetPt, float minRadius)
+    {
+        Vector2 dirIn = (pLast - pPrev).normalized;
+        Vector2 vOut = targetPt - pLast;
+        float distOut = vOut.magnitude;
+        if (distOut < 0.1f || dirIn.sqrMagnitude < 0.001f) return (pLast + targetPt) * 0.5f;
+
+        Vector2 dirOut = vOut / distOut;
+        float angle = Vector2.Angle(dirIn, dirOut);
+        float cross = dirIn.x * dirOut.y - dirIn.y * dirOut.x;
+        float sign = (cross >= 0f) ? 1.0f : -1.0f;
+
+        // Midpoint on circular arc at quarter-angle
+        float quarterAngleRad = (angle * 0.25f) * Mathf.Deg2Rad * sign;
+        float cosA = Mathf.Cos(quarterAngleRad);
+        float sinA = Mathf.Sin(quarterAngleRad);
+        Vector2 midDir = new Vector2(dirIn.x * cosA - dirIn.y * sinA, dirIn.x * sinA + dirIn.y * cosA);
+
+        float midChord = 2.0f * minRadius * Mathf.Sin(Mathf.Abs(quarterAngleRad));
+        return pLast + midDir * midChord;
     }
 
     public RoadDirectionArrow CreateRoadArrow(Vector2 pos, float rot, float scale = 1.0f, Color? color = null)
@@ -2375,6 +2697,21 @@ public class MapBuilderEditor : EditorWindow
             }
         }
 
+        // 1.15 Check Spline Roads
+        if (!erased)
+        {
+            SplineRoad2D hitRoad = FindSplineRoadNear(worldPos, 2.5f, out _);
+            if (hitRoad != null)
+            {
+                erasedName = hitRoad.gameObject.name;
+                SafeDestroyObject(hitRoad.gameObject);
+                selectedSplineRoad = null;
+                selectedRoadPointIndex = -1;
+                isDrawingRoad = false;
+                erased = true;
+            }
+        }
+
         // 2. Check Wall Obstacles
         if (!erased)
         {
@@ -3057,9 +3394,10 @@ public class MapBuilderEditor : EditorWindow
         DrawQuickSelectBtn("🏁 Старт", ObjectType.TruckStartPoint);
         EditorGUILayout.EndHorizontal();
 
-        // Quick button row 2: Key Drawing Tools (Prominent Lawn button!)
+        // Quick button row 2: Key Drawing Tools (Prominent Lawn and Road buttons!)
         EditorGUILayout.BeginHorizontal();
         DrawQuickSelectBtn("🌱 ГАЗОН (45°/90°)", ObjectType.Lawn, new Color(0.25f, 0.90f, 0.35f, 1f));
+        DrawQuickSelectBtn("🛣️ Дорога", ObjectType.SplineRoad, new Color(0.3f, 0.8f, 1f, 1f));
         DrawQuickSelectBtn("🧱 Стена 90°", ObjectType.Wall, new Color(0.85f, 0.5f, 0.2f, 1f));
         DrawQuickSelectBtn("🖊 Разметка", ObjectType.MarkingLine, new Color(0.95f, 0.9f, 0.2f, 1f));
         DrawQuickSelectBtn("🛣️ Маршрут", ObjectType.RouteLine, new Color(1f, 0.85f, 0.1f, 1f));
@@ -3702,6 +4040,297 @@ public class MapBuilderEditor : EditorWindow
         }
         EditorGUILayout.EndVertical();
 
+        // Spline Road Configuration Section
+        EditorGUILayout.Space(6);
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        if (selectedSplineRoad != lastSelectedSplineRoad)
+        {
+            lastSelectedSplineRoad = selectedSplineRoad;
+            SyncRoadSettingsFrom(selectedSplineRoad);
+        }
+
+        if (selectedSplineRoad != null)
+        {
+            EditorGUILayout.LabelField($"🛣️ Дорога на сплайне (редактирование: '{selectedSplineRoad.name}'):", EditorStyles.boldLabel);
+        }
+        else
+        {
+            EditorGUILayout.LabelField("🛣️ Дорога на сплайне (SplineRoad2D):", EditorStyles.boldLabel);
+        }
+
+        EditorGUI.BeginChangeCheck();
+        float currentWidth = selectedSplineRoad != null ? selectedSplineRoad.roadWidth : splineRoadWidth;
+        float currentBorder = selectedSplineRoad != null ? selectedSplineRoad.borderWidth : splineRoadBorderWidth;
+        int currentSegments = selectedSplineRoad != null ? selectedSplineRoad.segmentsPerCurve : splineRoadSegments;
+        bool currentColliders = selectedSplineRoad != null ? selectedSplineRoad.createColliders : splineRoadColliders;
+        SplineRoad2D.SplineInterpolation currentInterp = selectedSplineRoad != null ? selectedSplineRoad.interpolation : splineRoadInterpolation;
+
+        float newWidth = EditorGUILayout.Slider("Ширина дороги (м)", currentWidth, 2.0f, 25.0f);
+        float newBorder = EditorGUILayout.Slider("Ширина бордюра (м)", currentBorder, 0.0f, 1.5f);
+        int newSegments = EditorGUILayout.IntSlider("Детализация сегментов", currentSegments, 4, 30);
+        bool newColliders = EditorGUILayout.Toggle("Создавать коллайдеры", currentColliders);
+        SplineRoad2D.SplineInterpolation newInterp = (SplineRoad2D.SplineInterpolation)EditorGUILayout.EnumPopup("Интерполяция", currentInterp);
+
+        if (EditorGUI.EndChangeCheck())
+        {
+            splineRoadWidth = newWidth;
+            splineRoadBorderWidth = newBorder;
+            splineRoadSegments = newSegments;
+            splineRoadColliders = newColliders;
+            splineRoadInterpolation = newInterp;
+
+            if (selectedSplineRoad != null)
+            {
+                Undo.RecordObject(selectedSplineRoad, "Edit Spline Road");
+                selectedSplineRoad.roadWidth = newWidth;
+                selectedSplineRoad.borderWidth = newBorder;
+                selectedSplineRoad.segmentsPerCurve = newSegments;
+                selectedSplineRoad.createColliders = newColliders;
+                selectedSplineRoad.interpolation = newInterp;
+                selectedSplineRoad.RebuildMesh();
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+        }
+
+        EditorGUILayout.Space(2);
+        splineRoadTruckTurnAssist = EditorGUILayout.ToggleLeft("🚚 Расчёт загиба под трак (мин. радиус R)", splineRoadTruckTurnAssist, EditorStyles.boldLabel);
+        if (splineRoadTruckTurnAssist)
+        {
+            EditorGUI.indentLevel++;
+            EditorGUI.BeginChangeCheck();
+            float newRadius = EditorGUILayout.Slider("Мин. радиус R (м)", splineRoadMinTurnRadius, 9.5f, 25.0f);
+            if (EditorGUI.EndChangeCheck())
+            {
+                splineRoadMinTurnRadius = newRadius;
+                if (selectedSplineRoad != null)
+                {
+                    Undo.RecordObject(selectedSplineRoad, "Change Min Turn Radius");
+                    selectedSplineRoad.minPassableRadius = newRadius;
+                    selectedSplineRoad.RebuildMesh();
+                    SafeMarkSceneDirty();
+                    SceneView.RepaintAll();
+                }
+            }
+            EditorGUILayout.HelpBox($"R = {splineRoadMinTurnRadius:F1}м: Расчёт минимального радиуса поворота с запасом на игру под автопоезд (тягач + полуприцеп).", MessageType.None);
+            EditorGUI.indentLevel--;
+        }
+
+        if (selectedSplineRoad != null)
+        {
+            EditorGUI.BeginChangeCheck();
+            bool curHighlight = selectedSplineRoad.highlightImpassableTurns;
+            bool newHighlight = EditorGUILayout.ToggleLeft("⚠️ Оранжевые бордюры в опасных поворотах", curHighlight, EditorStyles.boldLabel);
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(selectedSplineRoad, "Toggle Impassable Turn Highlight");
+                selectedSplineRoad.highlightImpassableTurns = newHighlight;
+                selectedSplineRoad.RebuildMesh();
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+        }
+
+        EditorGUILayout.Space(3);
+        GUI.backgroundColor = new Color(0.35f, 0.75f, 1.0f, 1f);
+        if (GUILayout.Button("Оптимальные параметры", GUILayout.Height(26)))
+        {
+            ApplyOptimalRoadParameters();
+        }
+        GUI.backgroundColor = Color.white;
+        EditorGUILayout.Space(2);
+
+        EditorGUILayout.BeginHorizontal();
+        if (isDrawingRoad)
+        {
+            GUI.backgroundColor = new Color(0.3f, 0.9f, 0.3f, 1f);
+            if (GUILayout.Button("✓ Завершить дорогу (Enter)", GUILayout.Height(26)))
+            {
+                isDrawingRoad = false;
+                if (selectedSplineRoad != null && selectedSplineRoad.points != null && selectedSplineRoad.points.Count > 0)
+                {
+                    selectedRoadPointIndex = selectedSplineRoad.points.Count - 1;
+                }
+            }
+            GUI.backgroundColor = new Color(1f, 0.6f, 0.2f, 1f);
+            if (GUILayout.Button("Отмена (Esc)", GUILayout.Height(26)))
+            {
+                isDrawingRoad = false;
+                selectedSplineRoad = null;
+                selectedRoadPointIndex = -1;
+            }
+            GUI.backgroundColor = Color.white;
+        }
+        else
+        {
+            if (GUILayout.Button("Начать новую дорогу", GUILayout.Height(26)))
+            {
+                isDrawingRoad = true;
+                selectedSplineRoad = CreateSplineRoad(cursorPosition);
+                selectedRoadPointIndex = 0;
+            }
+        }
+
+        if (GUILayout.Button("Очистить все дороги", GUILayout.Height(26)))
+        {
+            if (EditorUtility.DisplayDialog("Очистить дороги", "Удалить все нарисованные дороги на сплайне?", "Да, удалить", "Отмена"))
+            {
+                ClearAllSplineRoads();
+            }
+        }
+        EditorGUILayout.EndHorizontal();
+
+        if (selectedSplineRoad != null)
+        {
+            EditorGUILayout.Space(4);
+            int ptCount = selectedSplineRoad.points != null ? selectedSplineRoad.points.Count : 0;
+            string ptInfo = selectedRoadPointIndex >= 0 ? $"Точка {selectedRoadPointIndex + 1}/{ptCount}" : "Все точки";
+            EditorGUILayout.HelpBox($"Выделена дорога: {selectedSplineRoad.name}\nВсего точек: {ptCount} | Активная: {ptInfo}\n[Tab/Enter] след. точка, [Del] удалить точку, [WASD] сдвиг.", MessageType.Info);
+
+            if (!isDrawingRoad && !selectedSplineRoad.IsClosedLoop && ptCount > 0)
+            {
+                EditorGUILayout.BeginHorizontal();
+                GUI.backgroundColor = new Color(0.3f, 0.9f, 0.4f, 1f);
+                if (GUILayout.Button("➔ Продолжить от конца", GUILayout.Height(24)))
+                {
+                    selectedRoadPointIndex = ptCount - 1;
+                    isDrawingRoad = true;
+                    cursorPosition = selectedSplineRoad.points[selectedRoadPointIndex];
+                    SceneView.lastActiveSceneView?.ShowNotification(new GUIContent("🛣️ Продолжение рисования от конца"));
+                }
+                GUI.backgroundColor = new Color(0.2f, 0.8f, 1f, 1f);
+                if (GUILayout.Button("➔ Продолжить от начала", GUILayout.Height(24)))
+                {
+                    Undo.RecordObject(selectedSplineRoad, "Continue Road From Start");
+                    selectedSplineRoad.points.Reverse();
+                    selectedSplineRoad.RebuildMesh();
+                    selectedRoadPointIndex = selectedSplineRoad.points.Count - 1;
+                    isDrawingRoad = true;
+                    cursorPosition = selectedSplineRoad.points[selectedRoadPointIndex];
+                    SceneView.lastActiveSceneView?.ShowNotification(new GUIContent("🛣️ Продолжение рисования от начала"));
+                }
+                GUI.backgroundColor = Color.white;
+                EditorGUILayout.EndHorizontal();
+            }
+
+            if (selectedSplineRoad.IsClosedLoop)
+            {
+                GUI.backgroundColor = new Color(1.0f, 0.45f, 0.3f);
+                if (GUILayout.Button("🔓 Разомкнуть дорогу (сейчас замкнута в кольцо)", GUILayout.Height(28)))
+                {
+                    Undo.RecordObject(selectedSplineRoad, "Open Spline Road Loop");
+                    selectedSplineRoad.IsClosedLoop = false;
+                    splineRoadClosedLoop = false;
+                    selectedSplineRoad.RebuildMesh();
+                    SafeMarkSceneDirty();
+                    SceneView.RepaintAll();
+                }
+                GUI.backgroundColor = Color.white;
+            }
+            else
+            {
+                GUI.backgroundColor = new Color(0.85f, 0.85f, 0.85f);
+                if (GUILayout.Button("🔒 Замкнуть концы дороги в кольцо", GUILayout.Height(24)))
+                {
+                    Undo.RecordObject(selectedSplineRoad, "Close Spline Road Loop");
+                    selectedSplineRoad.IsClosedLoop = true;
+                    selectedSplineRoad.RebuildMesh();
+                    SafeMarkSceneDirty();
+                    SceneView.RepaintAll();
+                }
+                GUI.backgroundColor = Color.white;
+            }
+
+            EditorGUI.BeginChangeCheck();
+            float editWidth = EditorGUILayout.Slider("Ширина дороги (м)", selectedSplineRoad.roadWidth, 2.0f, 25.0f);
+            float editBorder = EditorGUILayout.Slider("Ширина бордюра (м)", selectedSplineRoad.borderWidth, 0.0f, 1.5f);
+            int editSeg = EditorGUILayout.IntSlider("Детализация сегментов", selectedSplineRoad.segmentsPerCurve, 4, 30);
+            bool editLoop = EditorGUILayout.Toggle("Замкнутое кольцо", selectedSplineRoad.IsClosedLoop);
+            bool editCols = EditorGUILayout.Toggle("Создавать коллайдеры", selectedSplineRoad.createColliders);
+            SplineRoad2D.SplineInterpolation editInterp = (SplineRoad2D.SplineInterpolation)EditorGUILayout.EnumPopup("Интерполяция", selectedSplineRoad.interpolation);
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(selectedSplineRoad, "Edit Spline Road");
+                selectedSplineRoad.roadWidth = editWidth;
+                selectedSplineRoad.borderWidth = editBorder;
+                selectedSplineRoad.segmentsPerCurve = editSeg;
+                selectedSplineRoad.IsClosedLoop = editLoop;
+                selectedSplineRoad.createColliders = editCols;
+                selectedSplineRoad.interpolation = editInterp;
+                selectedSplineRoad.RebuildMesh();
+
+                splineRoadWidth = editWidth;
+                splineRoadBorderWidth = editBorder;
+                splineRoadSegments = editSeg;
+                splineRoadColliders = editCols;
+                splineRoadInterpolation = editInterp;
+
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+
+            if (selectedRoadPointIndex >= 0 && selectedRoadPointIndex < ptCount)
+            {
+                EditorGUI.BeginChangeCheck();
+                Vector2 ptPos = EditorGUILayout.Vector2Field($"Координата точки {selectedRoadPointIndex + 1}", selectedSplineRoad.points[selectedRoadPointIndex]);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(selectedSplineRoad, "Edit Road Point Position");
+                    selectedSplineRoad.points[selectedRoadPointIndex] = ptPos;
+                    selectedSplineRoad.RebuildMesh();
+                    SafeMarkSceneDirty();
+                    SceneView.RepaintAll();
+                }
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("След. точка (Tab)", GUILayout.Height(24)))
+            {
+                if (ptCount > 0)
+                {
+                    selectedRoadPointIndex = (selectedRoadPointIndex + 1) % ptCount;
+                    cursorPosition = selectedSplineRoad.points[selectedRoadPointIndex];
+                    SceneView.RepaintAll();
+                }
+            }
+            if (GUILayout.Button("Удалить точку", GUILayout.Height(24)))
+            {
+                if (selectedRoadPointIndex >= 0 && selectedRoadPointIndex < ptCount && ptCount > 2)
+                {
+                    Undo.RecordObject(selectedSplineRoad, "Delete Road Point");
+                    selectedSplineRoad.RemovePoint(selectedRoadPointIndex);
+                    selectedRoadPointIndex = Mathf.Clamp(selectedRoadPointIndex, 0, selectedSplineRoad.points.Count - 1);
+                    selectedSplineRoad.RebuildMesh();
+                    SafeMarkSceneDirty();
+                    SceneView.RepaintAll();
+                }
+                else
+                {
+                    SafeDestroyObject(selectedSplineRoad.gameObject);
+                    selectedSplineRoad = null;
+                    selectedRoadPointIndex = -1;
+                    SafeMarkSceneDirty();
+                    SceneView.RepaintAll();
+                }
+            }
+            if (GUILayout.Button("Удалить всю дорогу", GUILayout.Height(24)))
+            {
+                SafeDestroyObject(selectedSplineRoad.gameObject);
+                selectedSplineRoad = null;
+                selectedRoadPointIndex = -1;
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+            if (GUILayout.Button("Снять выбор", GUILayout.Height(24)))
+            {
+                selectedSplineRoad = null;
+                selectedRoadPointIndex = -1;
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+        EditorGUILayout.EndVertical();
+
         // Lawn / Grass Area Configuration Section
         EditorGUILayout.Space(6);
         EditorGUILayout.BeginVertical(EditorStyles.helpBox);
@@ -3971,7 +4600,7 @@ public class MapBuilderEditor : EditorWindow
         }
 
         // Interactive 2D Position Handle for Scene View (Free Mouse Movement with Magnetic Snapping)
-        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn && (currentObjectType != ObjectType.RoadArrow || selectedRoadArrow == null) && (currentObjectType != ObjectType.PassengerCar || selectedPassengerCar == null) && (currentObjectType != ObjectType.StandaloneTruck || selectedStandaloneTruck == null) && (currentObjectType != ObjectType.StandaloneTrailer || selectedStandaloneTrailer == null))
+        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn && currentObjectType != ObjectType.SplineRoad && (currentObjectType != ObjectType.RoadArrow || selectedRoadArrow == null) && (currentObjectType != ObjectType.PassengerCar || selectedPassengerCar == null) && (currentObjectType != ObjectType.StandaloneTruck || selectedStandaloneTruck == null) && (currentObjectType != ObjectType.StandaloneTrailer || selectedStandaloneTrailer == null))
         {
             EditorGUI.BeginChangeCheck();
             Vector3 curPos3 = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
@@ -3982,7 +4611,7 @@ public class MapBuilderEditor : EditorWindow
             if (EditorGUI.EndChangeCheck())
             {
                 Vector2 rawPos = new Vector2(newPos.x, newPos.y);
-                cursorPosition = (currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || currentObjectType == ObjectType.StandaloneTrailer || IsPropType(currentObjectType) || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine || currentObjectType == ObjectType.Lawn) ? rawPos : GetMagneticSnappedPosition(rawPos, currentRotation);
+                cursorPosition = (currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || currentObjectType == ObjectType.StandaloneTrailer || IsPropType(currentObjectType) || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine || currentObjectType == ObjectType.Lawn || currentObjectType == ObjectType.SplineRoad) ? rawPos : GetMagneticSnappedPosition(rawPos, currentRotation);
                 UpdateGhostPreview();
                 Repaint();
             }
@@ -4397,6 +5026,130 @@ public class MapBuilderEditor : EditorWindow
                         cursorPosition = rawPos;
                     }
                 }
+                else if (currentObjectType == ObjectType.SplineRoad)
+                {
+                    if (e.clickCount >= 2 && isDrawingRoad)
+                    {
+                        isDrawingRoad = false;
+                        isDraggingRoadPoint = false;
+                        if (selectedSplineRoad != null && selectedSplineRoad.points != null && selectedSplineRoad.points.Count > 0)
+                        {
+                            selectedRoadPointIndex = selectedSplineRoad.points.Count - 1;
+                        }
+                    }
+                    else
+                    {
+                        // 1. FIRST PRIORITY: Check if user clicked on ANY existing point of the road to SELECT and MOVE it
+                        int hitPointIdx = -1;
+                        SplineRoad2D hitRoadWithPoint = null;
+
+                        // Check currently active road first
+                        if (selectedSplineRoad != null && selectedSplineRoad.points != null && selectedSplineRoad.points.Count > 0)
+                        {
+                            Vector2 localPos = (Vector2)selectedSplineRoad.transform.InverseTransformPoint(rawPos);
+                            float grabRadius = 1.3f; // comfortable click/drag radius
+                            float closestDist = grabRadius;
+
+                            for (int p = 0; p < selectedSplineRoad.points.Count; p++)
+                            {
+                                float d = Vector2.Distance(localPos, selectedSplineRoad.points[p]);
+                                if (d < closestDist)
+                                {
+                                    closestDist = d;
+                                    hitPointIdx = p;
+                                    hitRoadWithPoint = selectedSplineRoad;
+                                }
+                            }
+                        }
+
+                        // If not on current road, check other spline roads in scene
+                        if (hitRoadWithPoint == null)
+                        {
+                            SplineRoad2D otherRoad = FindSplineRoadNear(rawPos, 1.3f, out int otherPtIdx);
+                            if (otherRoad != null && otherPtIdx >= 0 && otherRoad.points != null && otherPtIdx < otherRoad.points.Count)
+                            {
+                                Vector2 locPos = (Vector2)otherRoad.transform.InverseTransformPoint(rawPos);
+                                if (Vector2.Distance(locPos, otherRoad.points[otherPtIdx]) <= 1.3f)
+                                {
+                                    hitRoadWithPoint = otherRoad;
+                                    hitPointIdx = otherPtIdx;
+                                }
+                            }
+                        }
+
+                        if (hitRoadWithPoint != null && hitPointIdx >= 0)
+                        {
+                            // User clicked on an EXISTING point! Select it and start dragging. DO NOT create a new point!
+                            selectedSplineRoad = hitRoadWithPoint;
+                            lastSelectedSplineRoad = selectedSplineRoad;
+                            selectedRoadPointIndex = hitPointIdx;
+                            SyncRoadSettingsFrom(selectedSplineRoad);
+                            isDraggingRoadPoint = true;
+                            cursorPosition = selectedSplineRoad.points[selectedRoadPointIndex];
+                            Undo.RecordObject(selectedSplineRoad, "Move Spline Road Point");
+                            Repaint();
+                        }
+                        else if (isDrawingRoad && selectedSplineRoad != null)
+                        {
+                            // Clicked on empty space while actively drawing -> add new point EXACTLY where user clicked!
+                            if (selectedSplineRoad.points == null) selectedSplineRoad.points = new List<Vector2>();
+
+                            // Calculate if turn is impassable for truck and warn the user
+                            if (splineRoadTruckTurnAssist && selectedSplineRoad.points.Count >= 2)
+                            {
+                                Vector2 pPrev = selectedSplineRoad.points[selectedSplineRoad.points.Count - 2];
+                                Vector2 pLast = selectedSplineRoad.points[selectedSplineRoad.points.Count - 1];
+                                TruckTurnAnalysis analysis = AnalyzeTruckTurn(pLast, pPrev, rawPos, splineRoadMinTurnRadius);
+                                if (!analysis.isPassable)
+                                {
+                                    SceneView.lastActiveSceneView?.ShowNotification(new GUIContent($"⚠️ Внимание: поворот крутой (R = {analysis.currentRadius:F1}м)! Трак не повернёт (нужно R >= {splineRoadMinTurnRadius:F1}м)"));
+                                }
+                            }
+
+                            Vector2 lastPt = selectedSplineRoad.points.Count > 0 ? selectedSplineRoad.points[selectedSplineRoad.points.Count - 1] : rawPos;
+                            if (Vector2.Distance(lastPt, rawPos) > 0.2f)
+                            {
+                                Undo.RecordObject(selectedSplineRoad, "Add Spline Road Point");
+                                selectedSplineRoad.AddPoint(rawPos);
+                                selectedRoadPointIndex = selectedSplineRoad.points.Count - 1;
+                                cursorPosition = rawPos;
+                                SafeMarkSceneDirty();
+                            }
+                        }
+                        else
+                        {
+                            // Not drawing: check if clicked on road body
+                            SplineRoad2D hitRoad = FindSplineRoadNear(rawPos, 2.0f, out int hitPtIdx);
+                            if (hitRoad != null)
+                            {
+                                selectedSplineRoad = hitRoad;
+                                lastSelectedSplineRoad = selectedSplineRoad;
+                                selectedRoadPointIndex = hitPtIdx;
+                                SyncRoadSettingsFrom(selectedSplineRoad);
+                                isDraggingRoadPoint = false;
+                                isDrawingRoad = false;
+                                if (selectedRoadPointIndex >= 0 && selectedRoadPointIndex < selectedSplineRoad.points.Count)
+                                {
+                                    cursorPosition = selectedSplineRoad.points[selectedRoadPointIndex];
+                                }
+                                else
+                                {
+                                    cursorPosition = rawPos;
+                                }
+                                Repaint();
+                            }
+                            else
+                            {
+                                // Clicked on empty space -> start a new road
+                                isDrawingRoad = true;
+                                isDraggingRoadPoint = false;
+                                selectedSplineRoad = CreateSplineRoad(rawPos);
+                                selectedRoadPointIndex = 0;
+                                cursorPosition = rawPos;
+                            }
+                        }
+                    }
+                }
                 else
                 {
                     cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
@@ -4563,6 +5316,20 @@ public class MapBuilderEditor : EditorWindow
                         SafeMarkSceneDirty();
                     }
                 }
+                else if (currentObjectType == ObjectType.SplineRoad)
+                {
+                    cursorPosition = rawPos;
+                    if (selectedSplineRoad != null && selectedRoadPointIndex >= 0 && selectedSplineRoad.points != null && selectedRoadPointIndex < selectedSplineRoad.points.Count)
+                    {
+                        if (isDraggingRoadPoint || !isDrawingRoad)
+                        {
+                            Vector2 localPos = (Vector2)selectedSplineRoad.transform.InverseTransformPoint(rawPos);
+                            selectedSplineRoad.points[selectedRoadPointIndex] = localPos;
+                            selectedSplineRoad.RebuildMesh();
+                            SafeMarkSceneDirty();
+                        }
+                    }
+                }
                 else
                 {
                     cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
@@ -4573,10 +5340,28 @@ public class MapBuilderEditor : EditorWindow
                 sceneView.Repaint();
                 e.Use();
             }
-            else if (e.type == EventType.MouseUp && GUIUtility.hotControl == defaultControlID)
+            else if (e.type == EventType.MouseUp)
             {
-                GUIUtility.hotControl = 0;
-                e.Use();
+                if (currentObjectType == ObjectType.SplineRoad && isDraggingRoadPoint)
+                {
+                    isDraggingRoadPoint = false;
+                    // Moved point and released mouse: keep road drawing ready for next point!
+                    if (selectedSplineRoad != null && !selectedSplineRoad.IsClosedLoop && selectedSplineRoad.points != null && selectedSplineRoad.points.Count > 0)
+                    {
+                        isDrawingRoad = true;
+                        if (selectedRoadPointIndex < 0 || selectedRoadPointIndex >= selectedSplineRoad.points.Count)
+                        {
+                            selectedRoadPointIndex = selectedSplineRoad.points.Count - 1;
+                        }
+                    }
+                    SafeMarkSceneDirty();
+                }
+
+                if (GUIUtility.hotControl == defaultControlID)
+                {
+                    GUIUtility.hotControl = 0;
+                    e.Use();
+                }
             }
         }
 
@@ -5587,6 +6372,117 @@ public class MapBuilderEditor : EditorWindow
                     handled = true;
                 }
             }
+            else if (currentObjectType == ObjectType.SplineRoad)
+            {
+                float step = e.shift ? 2.0f : (e.alt || e.control ? 0.1f : 0.5f);
+                Vector2 moveDelta = Vector2.zero;
+
+                switch (e.keyCode)
+                {
+                    case KeyCode.W:
+                    case KeyCode.UpArrow:
+                        moveDelta = new Vector2(0f, step);
+                        break;
+                    case KeyCode.S:
+                    case KeyCode.DownArrow:
+                        moveDelta = new Vector2(0f, -step);
+                        break;
+                    case KeyCode.A:
+                    case KeyCode.LeftArrow:
+                        moveDelta = new Vector2(-step, 0f);
+                        break;
+                    case KeyCode.D:
+                    case KeyCode.RightArrow:
+                        moveDelta = new Vector2(step, 0f);
+                        break;
+
+                    case KeyCode.Return:
+                    case KeyCode.KeypadEnter:
+                    case KeyCode.Space:
+                        if (isDrawingRoad)
+                        {
+                            isDrawingRoad = false;
+                            if (selectedSplineRoad != null && selectedSplineRoad.points != null && selectedSplineRoad.points.Count > 0)
+                            {
+                                selectedRoadPointIndex = selectedSplineRoad.points.Count - 1;
+                            }
+                        }
+                        else if (selectedSplineRoad != null && selectedSplineRoad.points != null && selectedSplineRoad.points.Count > 0)
+                        {
+                            selectedRoadPointIndex = (selectedRoadPointIndex + 1) % selectedSplineRoad.points.Count;
+                            cursorPosition = selectedSplineRoad.points[selectedRoadPointIndex];
+                        }
+                        handled = true;
+                        break;
+
+                    case KeyCode.Tab:
+                        if (selectedSplineRoad != null && selectedSplineRoad.points != null && selectedSplineRoad.points.Count > 0)
+                        {
+                            selectedRoadPointIndex = (selectedRoadPointIndex + (e.shift ? -1 : 1) + selectedSplineRoad.points.Count) % selectedSplineRoad.points.Count;
+                            cursorPosition = selectedSplineRoad.points[selectedRoadPointIndex];
+                            handled = true;
+                        }
+                        break;
+
+                    case KeyCode.Delete:
+                    case KeyCode.Backspace:
+                        if (selectedSplineRoad != null)
+                        {
+                            if (selectedRoadPointIndex >= 0 && selectedSplineRoad.points != null && selectedRoadPointIndex < selectedSplineRoad.points.Count && selectedSplineRoad.points.Count > 2)
+                            {
+                                Undo.RecordObject(selectedSplineRoad, "Delete Spline Road Point");
+                                selectedSplineRoad.RemovePoint(selectedRoadPointIndex);
+                                selectedRoadPointIndex = Mathf.Clamp(selectedRoadPointIndex, 0, selectedSplineRoad.points.Count - 1);
+                                cursorPosition = selectedSplineRoad.points[selectedRoadPointIndex];
+                                SafeMarkSceneDirty();
+                            }
+                            else
+                            {
+                                SafeDestroyObject(selectedSplineRoad.gameObject);
+                                selectedSplineRoad = null;
+                                selectedRoadPointIndex = -1;
+                                isDrawingRoad = false;
+                                SafeMarkSceneDirty();
+                            }
+                            handled = true;
+                        }
+                        break;
+
+                    case KeyCode.Escape:
+                        isDrawingRoad = false;
+                        selectedSplineRoad = null;
+                        selectedRoadPointIndex = -1;
+                        handled = true;
+                        break;
+
+                    case KeyCode.C:
+                        CycleObjectType();
+                        handled = true;
+                        break;
+
+                    case KeyCode.F:
+                        FocusSceneView();
+                        handled = true;
+                        break;
+                }
+
+                if (moveDelta != Vector2.zero)
+                {
+                    if (!isDrawingRoad && selectedSplineRoad != null && selectedRoadPointIndex >= 0 && selectedSplineRoad.points != null && selectedRoadPointIndex < selectedSplineRoad.points.Count)
+                    {
+                        Undo.RecordObject(selectedSplineRoad, "Move Spline Road Point");
+                        selectedSplineRoad.points[selectedRoadPointIndex] += moveDelta;
+                        cursorPosition = selectedSplineRoad.points[selectedRoadPointIndex];
+                        selectedSplineRoad.RebuildMesh();
+                        SafeMarkSceneDirty();
+                    }
+                    else
+                    {
+                        cursorPosition += moveDelta;
+                    }
+                    handled = true;
+                }
+            }
             else if (currentObjectType == ObjectType.TruckStartPoint)
             {
                 // Fine-grained keyboard control for Truck Start point (0.5m / 2m / 0.1m)
@@ -5831,6 +6727,20 @@ public class MapBuilderEditor : EditorWindow
             Handles.DrawLine(p - new Vector3(0.6f, 0f, 0f), p + new Vector3(0.6f, 0f, 0f));
             Handles.DrawLine(p - new Vector3(0f, 0.6f, 0f), p + new Vector3(0f, 0.6f, 0f));
             Handles.Label(p + new Vector3(0.7f, 0.7f, 0f), "🛣️ МАРШРУТ (Кликните для начала новой линии)", EditorStyles.boldLabel);
+        }
+
+        // Draw interactive Spline Road handles & preview in Scene View
+        DrawSplineRoadsHandles(sceneView);
+
+        // Draw interactive Spline Road cursor indicator when in road mode
+        if (currentObjectType == ObjectType.SplineRoad && !isDrawingRoad && selectedSplineRoad == null)
+        {
+            Vector3 p = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
+            Handles.color = new Color(0.3f, 0.85f, 1.0f, 0.85f);
+            Handles.DrawWireDisc(p, Vector3.forward, 0.5f);
+            Handles.DrawLine(p - new Vector3(0.6f, 0f, 0f), p + new Vector3(0.6f, 0f, 0f));
+            Handles.DrawLine(p - new Vector3(0f, 0.6f, 0f), p + new Vector3(0f, 0.6f, 0f));
+            Handles.Label(p + new Vector3(0.7f, 0.7f, 0f), "🛣️ ДОРОГА (Кликните для начала новой дороги)", EditorStyles.boldLabel);
         }
 
         // Draw interactive Eraser handles in Scene View
@@ -6184,6 +7094,154 @@ public class MapBuilderEditor : EditorWindow
         }
     }
 
+    private void DrawSplineRoadsHandles(SceneView sceneView)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        Transform container = workspace != null ? workspace.transform.Find(SplineRoadsContainerName) : null;
+        if (container != null)
+        {
+            for (int i = 0; i < container.childCount; i++)
+            {
+                SplineRoad2D road = container.GetChild(i).GetComponent<SplineRoad2D>();
+                if (road != null)
+                {
+                    DrawSingleSplineRoadHandle(road);
+                }
+            }
+        }
+
+        // Preview dotted line to mouse cursor while actively drawing with truck turn passability analysis
+        if (currentObjectType == ObjectType.SplineRoad && isDrawingRoad && selectedSplineRoad != null && selectedSplineRoad.points != null && selectedSplineRoad.points.Count > 0)
+        {
+            Vector2 lastPt = selectedSplineRoad.points[selectedSplineRoad.points.Count - 1];
+            Vector3 pA = selectedSplineRoad.transform.TransformPoint(lastPt);
+            Vector3 pB = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
+            float dist = Vector2.Distance(lastPt, cursorPosition);
+
+            if (selectedSplineRoad.points.Count >= 2)
+            {
+                Vector2 pPrev = selectedSplineRoad.points[selectedSplineRoad.points.Count - 2];
+                TruckTurnAnalysis analysis = AnalyzeTruckTurn(lastPt, pPrev, cursorPosition, splineRoadMinTurnRadius);
+
+                Handles.color = analysis.statusColor;
+                Handles.DrawDottedLine(pA, pB, 4f);
+
+                Handles.color = analysis.statusColor;
+                Handles.DrawSolidDisc(pB, Vector3.forward, 0.35f);
+
+                string warningSuffix = !analysis.isPassable ? "\n⚠️ [Слишком крутой поворот! Трак не повернёт]" : "";
+                string statusLabel = $"Точка {selectedSplineRoad.points.Count + 1} ({dist:F1}м) | {analysis.statusText}{warningSuffix}";
+
+                Handles.Label(pB + new Vector3(0.4f, 0.4f, 0f), statusLabel, EditorStyles.boldLabel);
+            }
+            else
+            {
+                Handles.color = new Color(0.3f, 0.85f, 1.0f, 0.95f);
+                Handles.DrawDottedLine(pA, pB, 4f);
+
+                Handles.color = new Color(0.2f, 1.0f, 0.4f, 0.95f);
+                Handles.DrawSolidDisc(pB, Vector3.forward, 0.35f);
+                Handles.Label(pB + new Vector3(0.4f, 0.4f, 0f), $"Точка 2 ({dist:F1}м) [ЛКМ / Enter]", EditorStyles.boldLabel);
+            }
+        }
+    }
+
+    private void DrawSingleSplineRoadHandle(SplineRoad2D road)
+    {
+        if (road == null || road.points == null || road.points.Count == 0) return;
+
+        bool isSelected = (selectedSplineRoad == road);
+        int ptCount = road.points.Count;
+
+        for (int i = 0; i < ptCount; i++)
+        {
+            Vector3 ptWorld = road.transform.TransformPoint(road.points[i]);
+            bool isPointSelected = isSelected && (i == selectedRoadPointIndex);
+            bool isEnd = !road.IsClosedLoop && ptCount > 1 && (i == ptCount - 1);
+            bool isStart = !road.IsClosedLoop && ptCount > 1 && (i == 0);
+
+            if (isSelected)
+            {
+                if (isPointSelected)
+                {
+                    EditorGUI.BeginChangeCheck();
+                    Vector3 newPos = Handles.PositionHandle(ptWorld, Quaternion.identity);
+                    if (EditorGUI.EndChangeCheck())
+                    {
+                        Undo.RecordObject(road, "Move Spline Road Point");
+                        road.points[i] = road.transform.InverseTransformPoint(newPos);
+                        cursorPosition = road.points[i];
+                        road.RebuildMesh();
+                        SafeMarkSceneDirty();
+                    }
+
+                    Handles.color = new Color(0.2f, 1.0f, 0.4f, 0.95f);
+                    Handles.DrawSolidDisc(ptWorld, Vector3.forward, 0.45f);
+                    string extLabel = isEnd ? " (Конец)" : (isStart ? " (Начало)" : "");
+                    Handles.Label(ptWorld + new Vector3(0.5f, 0.5f, 0f), $"★ Точка {i + 1}{extLabel}", EditorStyles.boldLabel);
+                }
+                else
+                {
+                    if (isEnd)
+                    {
+                        Handles.color = new Color(1f, 0.8f, 0.2f, 0.95f);
+                        Handles.DrawSolidDisc(ptWorld, Vector3.forward, 0.38f);
+                        Handles.Label(ptWorld + new Vector3(0.35f, 0.35f, 0f), $"★ {i + 1} [Клик: продолжить]", EditorStyles.boldLabel);
+                    }
+                    else if (isStart)
+                    {
+                        Handles.color = new Color(0.2f, 0.9f, 0.7f, 0.95f);
+                        Handles.DrawSolidDisc(ptWorld, Vector3.forward, 0.38f);
+                        Handles.Label(ptWorld + new Vector3(0.35f, 0.35f, 0f), $"● {i + 1} [Клик: продолжить]", EditorStyles.boldLabel);
+                    }
+                    else
+                    {
+                        Handles.color = new Color(0.3f, 0.85f, 1.0f, 0.90f);
+                        Handles.DrawSolidDisc(ptWorld, Vector3.forward, 0.32f);
+                        Handles.Label(ptWorld + new Vector3(0.35f, 0.35f, 0f), $"{i + 1}", EditorStyles.miniBoldLabel);
+                    }
+                }
+            }
+            else if (currentObjectType == ObjectType.SplineRoad)
+            {
+                if (isEnd || isStart)
+                {
+                    Handles.color = new Color(1f, 0.85f, 0.3f, 0.75f);
+                    Handles.DrawSolidDisc(ptWorld, Vector3.forward, 0.32f);
+                    Handles.Label(ptWorld + new Vector3(0.35f, 0.35f, 0f), isEnd ? "★ Конец" : "● Начало", EditorStyles.miniLabel);
+                }
+                else
+                {
+                    Handles.color = new Color(0.3f, 0.85f, 1.0f, 0.45f);
+                    Handles.DrawSolidDisc(ptWorld, Vector3.forward, 0.25f);
+                }
+            }
+        }
+
+        // Highlight impassable turns if enabled
+        if (road.highlightImpassableTurns && ptCount >= 3)
+        {
+            var impassableTurns = road.GetImpassableTurns();
+            for (int t = 0; t < impassableTurns.Count; t++)
+            {
+                var turn = impassableTurns[t];
+                Vector3 pWorld = new Vector3(turn.position.x, turn.position.y, road.transform.position.z);
+
+                Handles.color = new Color(1.0f, 0.55f, 0.0f, 0.25f);
+                Handles.DrawSolidDisc(pWorld, Vector3.forward, 1.4f);
+                Handles.color = new Color(1.0f, 0.55f, 0.0f, 0.95f);
+                Handles.DrawWireDisc(pWorld, Vector3.forward, 1.4f);
+                Handles.DrawWireDisc(pWorld, Vector3.forward, 1.48f);
+
+                GUIStyle warnStyle = new GUIStyle(EditorStyles.boldLabel);
+                warnStyle.normal.textColor = new Color(1.0f, 0.55f, 0.0f);
+                warnStyle.fontSize = 11;
+                Handles.Label(pWorld + new Vector3(0.7f, 0.7f, 0f),
+                    $"⚠️ Опасный поворот!\nR = {turn.radius:F1}м (мин. {road.minPassableRadius:F1}м)\nТрак не повернёт!", warnStyle);
+            }
+        }
+    }
+
     private void DrawStandaloneTrucksHandles(SceneView sceneView)
     {
         GameObject workspace = GameObject.Find(WorkspaceRootName);
@@ -6407,7 +7465,7 @@ public class MapBuilderEditor : EditorWindow
     private void MoveCursor(Vector2 delta)
     {
         cursorPosition += delta;
-        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && currentObjectType != ObjectType.StandaloneTrailer && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn)
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && currentObjectType != ObjectType.StandaloneTrailer && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn && currentObjectType != ObjectType.SplineRoad)
         {
             SnapCursorToGrid();
         }
@@ -6483,7 +7541,7 @@ public class MapBuilderEditor : EditorWindow
         {
             currentRotation = PassengerCarObstacle.SnapAngle45(currentRotation);
         }
-        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && currentObjectType != ObjectType.StandaloneTrailer && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn)
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && currentObjectType != ObjectType.StandaloneTrailer && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn && currentObjectType != ObjectType.SplineRoad)
         {
             SnapCursorToGrid();
         }
@@ -6688,6 +7746,34 @@ public class MapBuilderEditor : EditorWindow
             GUI.Label(new Rect(24, 104, 330, 18), "[ЛКМ] Добавить точку маршрута / Выбрать линию", helpStyle);
             GUI.Label(new Rect(24, 122, 330, 18), "[Enter / Space] Завершить рисование / Переключить точку", helpStyle);
             GUI.Label(new Rect(24, 140, 330, 18), "[Del] Удалить точку или линию | [Esc] Снять выбор", helpStyle);
+        }
+        else if (currentObjectType == ObjectType.SplineRoad)
+        {
+            GUI.Label(new Rect(24, 40, 330, 20), "Режим: <color=#4da6ff>🛣️ Дорога (Сплайн Catmull-Rom)</color>", textStyle);
+            if (isDrawingRoad && selectedSplineRoad != null)
+            {
+                int ptCount = selectedSplineRoad.points != null ? selectedSplineRoad.points.Count : 0;
+                GUI.Label(new Rect(24, 60, 330, 20), $"Рисование: <color=#55ff55>{ptCount} точек</color> | Ширина: <color=#55ffff>{selectedSplineRoad.roadWidth:F1}м</color>", textStyle);
+                GUI.Label(new Rect(24, 80, 330, 20), "[Enter / Двойной клик] Завершить | [Esc] Отмена", textStyle);
+            }
+            else if (selectedSplineRoad != null)
+            {
+                int ptCount = selectedSplineRoad.points != null ? selectedSplineRoad.points.Count : 0;
+                string ptStr = selectedRoadPointIndex >= 0 ? $"Точка {selectedRoadPointIndex + 1}/{ptCount}" : "Все точки";
+                GUI.Label(new Rect(24, 60, 330, 20), $"Выделена: {selectedSplineRoad.name} | <color=#55ff55>{ptStr}</color> | Ширина: {selectedSplineRoad.roadWidth:F1}м", textStyle);
+                GUI.Label(new Rect(24, 80, 330, 20), "[Tab/Enter] Точки | [Del] Удалить | [WASD] Двигать", textStyle);
+            }
+            else
+            {
+                GUI.Label(new Rect(24, 60, 330, 20), "Кликните в любом месте для начала новой дороги", textStyle);
+                GUI.Label(new Rect(24, 80, 330, 20), "Или кликните по существующей дороге для выбора", textStyle);
+            }
+
+            GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
+            helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
+            GUI.Label(new Rect(24, 104, 330, 18), "[ЛКМ] Добавить контрольную точку / Выбрать дорогу", helpStyle);
+            GUI.Label(new Rect(24, 122, 330, 18), "[Enter / Space] Завершить рисование / Переключить точку", helpStyle);
+            GUI.Label(new Rect(24, 140, 330, 18), "[Del] Удалить точку или дорогу | [Esc] Снять выбор", helpStyle);
         }
         else
         {
@@ -6940,6 +8026,15 @@ public class MapBuilderEditor : EditorWindow
         }
         curBtnX += 88;
 
+        bool isSplineRoad = currentObjectType == ObjectType.SplineRoad;
+        GUI.backgroundColor = isSplineRoad ? new Color(0.3f, 0.85f, 1f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY2, 92, btnH), "🛣️ 22. Дорога"))
+        {
+            currentObjectType = ObjectType.SplineRoad;
+            UpdateGhostPreview();
+        }
+        curBtnX += 94;
+
         bool isEraser = currentObjectType == ObjectType.Eraser;
         GUI.backgroundColor = isEraser ? new Color(1f, 0.35f, 0.35f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
         if (GUI.Button(new Rect(curBtnX, btnY2, 84, btnH), "🧹 18. Ластик"))
@@ -7006,7 +8101,7 @@ public class MapBuilderEditor : EditorWindow
 
         Handles.EndGUI();
 
-        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && currentObjectType != ObjectType.StandaloneTrailer && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn)
+        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && currentObjectType != ObjectType.StandaloneTrailer && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn && currentObjectType != ObjectType.SplineRoad)
         {
             float slotWidth = GetSlotWidth(currentObjectType);
             float slotLength = (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow) ? 26.0f : SlotLength;
@@ -7385,6 +8480,30 @@ public class MapBuilderEditor : EditorWindow
             return;
         }
 
+        if (currentObjectType == ObjectType.SplineRoad)
+        {
+            if (!isDrawingRoad || selectedSplineRoad == null)
+            {
+                isDrawingRoad = true;
+                selectedSplineRoad = CreateSplineRoad(cursorPosition);
+                selectedRoadPointIndex = 0;
+            }
+            else
+            {
+                if (selectedSplineRoad.points == null) selectedSplineRoad.points = new List<Vector2>();
+                Vector2 lastPt = selectedSplineRoad.points.Count > 0 ? selectedSplineRoad.points[selectedSplineRoad.points.Count - 1] : cursorPosition;
+                if (Vector2.Distance(lastPt, cursorPosition) > 0.2f)
+                {
+                    Undo.RecordObject(selectedSplineRoad, "Add Spline Road Point");
+                    selectedSplineRoad.AddPoint(cursorPosition);
+                    selectedRoadPointIndex = selectedSplineRoad.points.Count - 1;
+                    SafeMarkSceneDirty();
+                }
+            }
+            SceneView.RepaintAll();
+            return;
+        }
+
         GameObject workspace = GameObject.Find(WorkspaceRootName);
         Transform container = workspace != null ? workspace.transform.Find(SlotsContainerName) : null;
 
@@ -7712,7 +8831,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void BuildObjectHierarchy(Transform parent, ObjectType type, bool isPreview)
     {
-        if (type == ObjectType.MarkingLine || type == ObjectType.Wall || type == ObjectType.Eraser || type == ObjectType.RouteLine || type == ObjectType.Lawn)
+        if (type == ObjectType.MarkingLine || type == ObjectType.Wall || type == ObjectType.Eraser || type == ObjectType.RouteLine || type == ObjectType.Lawn || type == ObjectType.SplineRoad)
         {
             return;
         }

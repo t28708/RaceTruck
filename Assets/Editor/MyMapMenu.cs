@@ -21,6 +21,18 @@ public static class MyMapMenu
         PlayMap("Map_2");
     }
 
+    [MenuItem("Tools/MyMap/Practice V14 (Запустить)", false, 14)]
+    public static void Launch_Practice_V14()
+    {
+        PlayMap("Practice V14");
+    }
+
+    [MenuItem("Tools/MyMap/Practice V14 (Открыть в Конструкторе)", false, 15)]
+    public static void Edit_Practice_V14()
+    {
+        MapBuilderEditor.LoadAndEditMap("Assets/Scenes/CustomMaps/Practice V14.unity");
+    }
+
     [MenuItem("Tools/MyMap/Выбрать карту (Launcher)...", false, 100)]
     public static void OpenLauncher()
     {

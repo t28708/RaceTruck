@@ -266,6 +266,7 @@ public static class LocalizationManager
         { "OBS_TIRES", new[] { "СТОПКУ ШИН", "TIRE STACK", "PILE DE PNEUS", "PILA DE NEUMÁTICOS" } },
         { "OBS_HYDRANT", new[] { "ПОЖАРНЫЙ ГИДРАНТ", "FIRE HYDRANT", "BORNE D'INCENDIE", "BOCA DE INCENDIO" } },
         { "OBS_BORDER", new[] { "ГРАНИЦУ ПЛОЩАДКИ", "YARD BORDER", "BORDURE DU TERRAIN", "LÍMITE DEL TERRENO" } },
+        { "OBS_CURB", new[] { "БОРДЮР ДОРОГИ", "ROAD CURB", "BORDURE DE ROUTE", "BORDILLO DE CARRETERA" } },
 
         // ========================
         // Telemetry HUD Bar

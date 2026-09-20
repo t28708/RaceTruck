@@ -118,6 +118,9 @@ public class TruckCollisionDetector : MonoBehaviour
         if (string.IsNullOrEmpty(name)) return false;
         return name.IndexOf("Boundary", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Border", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("Curb", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("RoadCurb", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+               name.IndexOf("SplineRoad", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Fence", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Bumper", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Truck", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -139,16 +142,19 @@ public class TruckCollisionDetector : MonoBehaviour
                name.IndexOf("Stack", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Prop", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                name.IndexOf("Lawn", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.IndexOf("Grass", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-               name.IndexOf("Curb", System.StringComparison.OrdinalIgnoreCase) >= 0;
+               name.IndexOf("Grass", System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static bool IsMarkingName(string name)
     {
         if (string.IsNullOrEmpty(name)) return false;
-        // Note: Map boundary walls ("Border" / "Boundary") are physical obstacles, not ignored markings
+        // Note: Map boundary walls ("Border" / "Boundary") and Road Curbs ("Curb" / "Road" / "Spline")
+        // are physical obstacles, NOT ignored markings.
         if (name.IndexOf("Border", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-            name.IndexOf("Boundary", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            name.IndexOf("Boundary", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("Curb", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("Spline", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+            name.IndexOf("Road", System.StringComparison.OrdinalIgnoreCase) >= 0)
         {
             return false;
         }
@@ -283,6 +289,10 @@ public class TruckCollisionDetector : MonoBehaviour
         if (combinedName.Contains("Truck") || combinedName.Contains("Parked") || combinedName.Contains("Trailer") || combinedName.Contains("Tractor"))
         {
             return LocalizationManager.Get("OBS_TRUCK");
+        }
+        if (combinedName.Contains("Curb") || combinedName.Contains("Spline") || combinedName.Contains("RoadCurb"))
+        {
+            return LocalizationManager.Get("OBS_CURB");
         }
         if (combinedName.Contains("Cone")) return LocalizationManager.Get("OBS_CONE");
         if (combinedName.Contains("Hydrant")) return LocalizationManager.Get("OBS_HYDRANT");
