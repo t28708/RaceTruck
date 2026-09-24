@@ -65,6 +65,10 @@ public class ParkingTargetZone : MonoBehaviour
         {
             targetSlotSize.x = 3.5f;
         }
+        else if (gameObject.name.Contains("Wide"))
+        {
+            targetSlotSize.x = 5.5f;
+        }
 
         if (targetSlotSize.x < 1.0f) targetSlotSize.x = 4.5f;
         if (targetSlotSize.y < 25.0f) targetSlotSize.y = 26.0f;

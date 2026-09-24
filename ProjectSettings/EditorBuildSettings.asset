@@ -189,11 +189,26 @@ EditorBuildSettings:
     path: Assets/Scenes/CustomMaps/Practice V14.unity
     guid: a814f923b7e411ef8499a84672ad0014
   - enabled: 1
-    path: Assets/Scenes/CustomMaps/Practice V15.unity
-    guid: fcb7ac3d66de63e4a81978ab3514c404
-  - enabled: 1
     path: Assets/Scenes/CustomMaps/Practice V16.unity
     guid: b8986c1fbf3caad438c1adb795e47fd9
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Practice V17.unity
+    guid: b902ff9c113fd8e488e9dbe718d6fdea
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Practice V18.unity
+    guid: a95d494ef5bbdec4bb82d59d9ff6a3a9
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Practice V20.unity
+    guid: ee6830f8cb5882444a79020d5bc44895
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Practice V21.unity
+    guid: 131fd6bfb4b274f4a8a17b2abcf5e614
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Practice V23.unity
+    guid: 6d91530ea597d5d439e015a464e8682b
+  - enabled: 1
+    path: Assets/Scenes/CustomMaps/Practice V24.unity
+    guid: 66468854f6958684f8e725bd3707bb04
   - enabled: 1
     path: Assets/Scenes/CustomMaps/Rest Area V1.unity
     guid: 606e5cf274da37f44ab7059959d0b234

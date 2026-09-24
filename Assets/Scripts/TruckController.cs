@@ -696,6 +696,13 @@ public class TruckController : MonoBehaviour
             return;
         }
 
+        GameObject targetSlotWide = GameObject.Find("TargetParkingSlot_Wide");
+        if (targetSlotWide != null)
+        {
+            targetSlotWide.AddComponent<ParkingTargetZone>();
+            return;
+        }
+
         GameObject arrow = GameObject.Find("TargetParking_YellowArrow");
         if (arrow == null) arrow = GameObject.Find("TargetStall_Arrow");
         if (arrow != null && arrow.transform.parent != null)

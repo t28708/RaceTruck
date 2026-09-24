@@ -76,12 +76,12 @@ public class MapSelectMenu : MonoBehaviour
 
     public static readonly CategoryInfo[] Categories = new CategoryInfo[]
     {
-        new CategoryInfo { id = "Alley dock",       title = "Alley dock",       icon = "🚛", keyword = "alleydock" },
-        new CategoryInfo { id = "Angle Back",       title = "Angle Back",       icon = "📐", keyword = "angleback" },
-        new CategoryInfo { id = "Facility",         title = "Facility",         icon = "🏭", keyword = "facility" },
-        new CategoryInfo { id = "Parallel Parking", title = "Parallel Parking", icon = "🅿",  keyword = "parallel" },
-        new CategoryInfo { id = "Rest Area",        title = "Rest Area",        icon = "",   keyword = "restarea" },
-        new CategoryInfo { id = "Truck Stop",       title = "Truck Stop",       icon = "",   keyword = "truckstop" }
+        new CategoryInfo { id = "Alley dock",       title = "ALLEY DOCK",       icon = "", keyword = "alleydock" },
+        new CategoryInfo { id = "Angle Back",       title = "ANGLE BACK",       icon = "", keyword = "angleback" },
+        new CategoryInfo { id = "Facility",         title = "FACILITY",         icon = "", keyword = "facility" },
+        new CategoryInfo { id = "Parallel Parking", title = "PARALLEL PARKING", icon = "", keyword = "parallel" },
+        new CategoryInfo { id = "Rest Area",        title = "REST AREA",        icon = "", keyword = "restarea" },
+        new CategoryInfo { id = "Truck Stop",       title = "TRUCK STOP",       icon = "", keyword = "truckstop" }
     };
 
     private void OnEnable()
@@ -138,13 +138,13 @@ public class MapSelectMenu : MonoBehaviour
         if (string.IsNullOrEmpty(catId)) return "";
         switch (catId)
         {
-            case "Alley dock":       return LocalizationManager.Get("CAT_ALLEY_DOCK");
-            case "Angle Back":       return LocalizationManager.Get("CAT_ANGLE_BACK");
-            case "Facility":         return LocalizationManager.Get("CAT_FACILITY");
-            case "Parallel Parking": return LocalizationManager.Get("CAT_PARALLEL");
-            case "Rest Area":        return LocalizationManager.Get("CAT_REST_AREA");
-            case "Truck Stop":       return LocalizationManager.Get("CAT_TRUCK_STOP");
-            case "Other":            return LocalizationManager.Get("CAT_OTHER");
+            case "Alley dock":       return "ALLEY DOCK";
+            case "Angle Back":       return "ANGLE BACK";
+            case "Facility":         return "FACILITY";
+            case "Parallel Parking": return "PARALLEL PARKING";
+            case "Rest Area":        return "REST AREA";
+            case "Truck Stop":       return "TRUCK STOP";
+            case "Other":            return "OTHER MAPS";
             default:                 return catId.ToUpperInvariant();
         }
     }
@@ -884,7 +884,7 @@ public class MapSelectMenu : MonoBehaviour
         }
         if (id == "Other")
         {
-            return new CategoryInfo { id = "Other", title = LocalizationManager.Get("CAT_OTHER"), icon = "", keyword = "" };
+            return new CategoryInfo { id = "Other", title = "OTHER MAPS", icon = "", keyword = "" };
         }
         return null;
     }
@@ -973,7 +973,7 @@ public class MapSelectMenu : MonoBehaviour
             CategoryInfo otherCat = new CategoryInfo
             {
                 id = "Other",
-                title = LocalizationManager.Get("CAT_OTHER"),
+                title = "OTHER MAPS",
                 icon = "",
                 keyword = ""
             };

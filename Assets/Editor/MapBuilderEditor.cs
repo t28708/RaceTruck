@@ -63,7 +63,9 @@ public class MapBuilderEditor : EditorWindow
         RouteLine = 18,           // 19. 🛣️ Направляющая линия маршрута (Полилиния / Route)
         Lawn = 19,                // 20. 🌱 Газон (Замкнутая область 45°/90°)
         StandaloneTrailer = 20,   // 21. 🚚 Трейлер (Любой угол)
-        SplineRoad = 21           // 22. 🛣️ Дорога (Сплайн)
+        SplineRoad = 21,          // 22. 🛣️ Дорога (Сплайн)
+        Roundabout = 22,          // 23. 🔄 Круговое движение
+        TargetParkingWide = 23    // 24. 🎯 Целевое место парковки (5.5м, Единственное)
     }
 
     public const string CustomMapsFolder = "Assets/Scenes/CustomMaps";
@@ -80,10 +82,12 @@ public class MapBuilderEditor : EditorWindow
     private const string RoutesContainerName = "MapBuilder_Routes";
     private const string LawnsContainerName = "MapBuilder_Lawns";
     private const string SplineRoadsContainerName = "MapBuilder_SplineRoads";
+    private const string RoundaboutsContainerName = "MapBuilder_Roundabouts";
     private const string GhostPreviewName = "__MapBuilder_GhostPreview__";
 
     public const float SlotWidth = 4.5f;         // Фиксированная ширина стандартного места (4.5м)
     public const float NarrowSlotWidth = 3.5f;   // Фиксированная ширина узкого места (3.5м)
+    public const float WideSlotWidth = 5.5f;     // Фиксированная ширина широкого места (5.5м)
     public const float SlotLength = 26.0f;       // Фиксированная длина места (26.0м)
 
     public static float GetSlotWidth(ObjectType type)
@@ -91,6 +95,10 @@ public class MapBuilderEditor : EditorWindow
         if (type == ObjectType.StandardEmptyNarrow || type == ObjectType.TargetParkingNarrow)
         {
             return NarrowSlotWidth;
+        }
+        if (type == ObjectType.TargetParkingWide)
+        {
+            return WideSlotWidth;
         }
         return SlotWidth;
     }
@@ -200,6 +208,16 @@ public class MapBuilderEditor : EditorWindow
     [SerializeField] private bool splineRoadTruckTurnAssist = true;
     [SerializeField] private float splineRoadMinTurnRadius = 13.5f;
 
+    // Roundabout Tool State
+    [SerializeField] private RoundaboutGenerator2D selectedRoundabout = null;
+    [SerializeField] private float roundaboutOuterRadius = 25.0f;
+    [SerializeField] private int roundaboutLaneCount = 2;
+    [SerializeField] private float roundaboutLaneWidth = 5.0f;
+    [SerializeField] private float roundaboutCurbWidth = 0.5f;
+    [SerializeField] private bool roundaboutHasApron = true;
+    [SerializeField] private float roundaboutApronWidth = 2.5f;
+    [SerializeField] private float roundaboutArmWidth = 8.5f;
+
     private GameObject ghostPreviewObj;
     private ObjectType lastBuiltPreviewType = (ObjectType)(-1);
     private Sprite asphaltSprite;
@@ -247,7 +265,9 @@ public class MapBuilderEditor : EditorWindow
         "19. 🛣️ Направляющая линия маршрута (Полилиния / Route)",
         "20. 🌱 Газон (Замкнутая область 45°/90°)",
         "21. 🚚 Трейлер (Любой угол)",
-        "22. 🛣️ Дорога (Сплайн)"
+        "22. 🛣️ Дорога (Сплайн)",
+        "23. 🔄 Круговое движение",
+        "24. 🎯 Целевое место парковки (5.5м, Единственное)"
     };
 
     [MenuItem("Tools/Map Builder/Open Editor", false, 1)]
@@ -576,7 +596,7 @@ public class MapBuilderEditor : EditorWindow
     private Vector2 GetMagneticSnappedPosition(Vector2 rawPos, float rot)
     {
         // Only apply magnetic snap for parking stalls (StandardEmpty, StandardParked, TargetParking)
-        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || currentObjectType == ObjectType.StandaloneTrailer || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine || currentObjectType == ObjectType.Lawn || currentObjectType == ObjectType.SplineRoad) return rawPos;
+        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || currentObjectType == ObjectType.StandaloneTrailer || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine || currentObjectType == ObjectType.Lawn || currentObjectType == ObjectType.SplineRoad || currentObjectType == ObjectType.Roundabout) return rawPos;
 
         GameObject workspace = GameObject.Find(WorkspaceRootName);
         if (workspace == null) return rawPos;
@@ -604,7 +624,7 @@ public class MapBuilderEditor : EditorWindow
             Vector2 childRight = new Vector2(child.right.x, child.right.y);
             Vector2 childUp = new Vector2(child.up.x, child.up.y);
 
-            float childWidth = child.name.Contains("Narrow") ? NarrowSlotWidth : SlotWidth;
+            float childWidth = child.name.Contains("Narrow") ? NarrowSlotWidth : (child.name.Contains("Wide") ? WideSlotWidth : SlotWidth);
             float currentWidth = GetSlotWidth(currentObjectType);
             float sideOffset = (childWidth + currentWidth) * 0.5f;
 
@@ -768,7 +788,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void SnapCursorToGrid()
     {
-        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || currentObjectType == ObjectType.StandaloneTrailer || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine || currentObjectType == ObjectType.Lawn || currentObjectType == ObjectType.SplineRoad) return;
+        if (currentObjectType == ObjectType.TruckStartPoint || currentObjectType == ObjectType.MarkingLine || currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.Wall || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || currentObjectType == ObjectType.StandaloneTrailer || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine || currentObjectType == ObjectType.Lawn || currentObjectType == ObjectType.SplineRoad || currentObjectType == ObjectType.Roundabout) return;
 
         float rem = Mathf.Abs(currentRotation) % 90f;
         if (rem > 1.0f && rem < 89.0f)
@@ -1840,6 +1860,166 @@ public class MapBuilderEditor : EditorWindow
         return bestRoad;
     }
 
+    public RoundaboutGenerator2D CreateRoundabout(Vector2 centerPos)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null) return null;
+        Transform container = workspace.transform.Find(RoundaboutsContainerName);
+        if (container == null)
+        {
+            GameObject containerGo = new GameObject(RoundaboutsContainerName);
+            containerGo.transform.SetParent(workspace.transform, false);
+            container = containerGo.transform;
+            SafeRegisterCreatedObjectUndo(containerGo, "Create Roundabouts Container");
+        }
+
+        // Avoid duplicate stacking: if there is already a roundabout near centerPos, update it instead of creating duplicates!
+        RoundaboutGenerator2D existing = FindRoundaboutNear(centerPos, roundaboutOuterRadius * 0.75f);
+        if (existing != null)
+        {
+            Undo.RecordObject(existing.transform, "Update Roundabout Position");
+            Undo.RecordObject(existing, "Update Roundabout Settings");
+            existing.transform.position = new Vector3(centerPos.x, centerPos.y, 0f);
+            existing.outerRadius = roundaboutOuterRadius;
+            existing.laneCount = roundaboutLaneCount;
+            existing.laneWidth = roundaboutLaneWidth;
+            existing.curbWidth = roundaboutCurbWidth;
+            existing.hasTruckApron = roundaboutHasApron;
+            existing.truckApronWidth = roundaboutApronWidth;
+            existing.armWidth = roundaboutArmWidth;
+            existing.RebuildRoundabout();
+            selectedRoundabout = existing;
+            CleanDuplicateRoundabouts();
+            SafeMarkSceneDirty();
+            SceneView.RepaintAll();
+            return existing;
+        }
+
+        int index = container.childCount + 1;
+        GameObject roundaboutGo = new GameObject($"Roundabout_{index}");
+        roundaboutGo.transform.SetParent(container, false);
+        roundaboutGo.transform.position = new Vector3(centerPos.x, centerPos.y, 0f);
+
+        RoundaboutGenerator2D gen = roundaboutGo.AddComponent<RoundaboutGenerator2D>();
+        gen.outerRadius = roundaboutOuterRadius;
+        gen.laneCount = roundaboutLaneCount;
+        gen.laneWidth = roundaboutLaneWidth;
+        gen.curbWidth = roundaboutCurbWidth;
+        gen.hasTruckApron = roundaboutHasApron;
+        gen.truckApronWidth = roundaboutApronWidth;
+        gen.armWidth = roundaboutArmWidth;
+        gen.hasCenterIsland = true;
+        gen.sortingOrder = -8;
+        gen.SetPreset_1Entry_2Exits(roundaboutArmWidth);
+        gen.RebuildRoundabout();
+
+        selectedRoundabout = gen;
+
+        CleanDuplicateRoundabouts();
+
+        SafeRegisterCreatedObjectUndo(roundaboutGo, $"Create Roundabout_{index}");
+        SafeMarkSceneDirty();
+        SceneView.RepaintAll();
+        return gen;
+    }
+
+    public static void CleanDuplicateRoundabouts()
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null) return;
+        Transform container = workspace.transform.Find(RoundaboutsContainerName);
+        if (container == null) return;
+
+        var allRoundabouts = container.GetComponentsInChildren<RoundaboutGenerator2D>(true);
+        if (allRoundabouts == null || allRoundabouts.Length <= 1) return;
+
+        var toDelete = new HashSet<GameObject>();
+        for (int i = 0; i < allRoundabouts.Length; i++)
+        {
+            for (int j = i + 1; j < allRoundabouts.Length; j++)
+            {
+                var rA = allRoundabouts[i];
+                var rB = allRoundabouts[j];
+                if (rA == null || rB == null) continue;
+                if (toDelete.Contains(rA.gameObject) || toDelete.Contains(rB.gameObject)) continue;
+
+                if (Vector2.Distance(rA.transform.position, rB.transform.position) < 5.0f)
+                {
+                    // Duplicates stacked on top of each other! Keep the larger radius one
+                    if (rA.outerRadius >= rB.outerRadius)
+                    {
+                        toDelete.Add(rB.gameObject);
+                    }
+                    else
+                    {
+                        toDelete.Add(rA.gameObject);
+                    }
+                }
+            }
+        }
+
+        foreach (var go in toDelete)
+        {
+            if (go != null)
+            {
+                if (Application.isPlaying) Destroy(go);
+                else DestroyImmediate(go);
+            }
+        }
+    }
+
+    public void ClearAllRoundabouts()
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace != null)
+        {
+            Transform container = workspace.transform.Find(RoundaboutsContainerName);
+            if (container != null)
+            {
+                if (!EditorApplication.isPlaying)
+                {
+                    Undo.RegisterFullObjectHierarchyUndo(container.gameObject, "Clear All Roundabouts");
+                }
+                for (int i = container.childCount - 1; i >= 0; i--)
+                {
+                    SafeDestroyObject(container.GetChild(i).gameObject);
+                }
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+        }
+        selectedRoundabout = null;
+    }
+
+    public RoundaboutGenerator2D FindRoundaboutNear(Vector2 worldPos, float extraTolerance = 1.0f)
+    {
+        GameObject workspace = GameObject.Find(WorkspaceRootName);
+        if (workspace == null) return null;
+        Transform container = workspace.transform.Find(RoundaboutsContainerName);
+        if (container == null) return null;
+
+        RoundaboutGenerator2D bestRoundabout = null;
+        float bestDist = float.MaxValue;
+
+        for (int i = 0; i < container.childCount; i++)
+        {
+            RoundaboutGenerator2D gen = container.GetChild(i).GetComponent<RoundaboutGenerator2D>();
+            if (gen == null) continue;
+
+            float distToCenter = Vector2.Distance(gen.transform.position, worldPos);
+            if (distToCenter <= gen.outerRadius + extraTolerance)
+            {
+                if (distToCenter < bestDist)
+                {
+                    bestDist = distToCenter;
+                    bestRoundabout = gen;
+                }
+            }
+        }
+
+        return bestRoundabout;
+    }
+
     public struct TruckTurnAnalysis
     {
         public float angleDeg;
@@ -2803,7 +2983,7 @@ public class MapBuilderEditor : EditorWindow
                     Transform child = slotsContainer.GetChild(i);
                     Vector2 childPos = new Vector2(child.position.x, child.position.y);
                     Vector2 localDiff = Quaternion.Euler(0f, 0f, -child.eulerAngles.z) * (worldPos - childPos);
-                    float halfW = child.name.Contains("Narrow") ? (NarrowSlotWidth * 0.5f + 0.6f) : (SlotWidth * 0.5f + 0.6f);
+                    float halfW = child.name.Contains("Narrow") ? (NarrowSlotWidth * 0.5f + 0.6f) : (child.name.Contains("Wide") ? (WideSlotWidth * 0.5f + 0.6f) : (SlotWidth * 0.5f + 0.6f));
                     float halfL = (SlotLength * 0.5f + 0.6f);
 
                     if (Mathf.Abs(localDiff.x) <= halfW && Mathf.Abs(localDiff.y) <= halfL)
@@ -3390,7 +3570,8 @@ public class MapBuilderEditor : EditorWindow
         DrawQuickSelectBtn("🅿 4.5м", ObjectType.StandardEmpty);
         DrawQuickSelectBtn("🚛 4.5м", ObjectType.StandardParked);
         DrawQuickSelectBtn("🅿 3.5м", ObjectType.StandardEmptyNarrow);
-        DrawQuickSelectBtn("🎯 Цель", ObjectType.TargetParking);
+        DrawQuickSelectBtn("🎯 4.5м", ObjectType.TargetParking);
+        DrawQuickSelectBtn("🎯 5.5м", ObjectType.TargetParkingWide);
         DrawQuickSelectBtn("🏁 Старт", ObjectType.TruckStartPoint);
         EditorGUILayout.EndHorizontal();
 
@@ -3398,6 +3579,7 @@ public class MapBuilderEditor : EditorWindow
         EditorGUILayout.BeginHorizontal();
         DrawQuickSelectBtn("🌱 ГАЗОН (45°/90°)", ObjectType.Lawn, new Color(0.25f, 0.90f, 0.35f, 1f));
         DrawQuickSelectBtn("🛣️ Дорога", ObjectType.SplineRoad, new Color(0.3f, 0.8f, 1f, 1f));
+        DrawQuickSelectBtn("🔄 Кольцо", ObjectType.Roundabout, new Color(0.3f, 0.95f, 0.75f, 1f));
         DrawQuickSelectBtn("🧱 Стена 90°", ObjectType.Wall, new Color(0.85f, 0.5f, 0.2f, 1f));
         DrawQuickSelectBtn("🖊 Разметка", ObjectType.MarkingLine, new Color(0.95f, 0.9f, 0.2f, 1f));
         DrawQuickSelectBtn("🛣️ Маршрут", ObjectType.RouteLine, new Color(1f, 0.85f, 0.1f, 1f));
@@ -4331,6 +4513,152 @@ public class MapBuilderEditor : EditorWindow
         }
         EditorGUILayout.EndVertical();
 
+        // Roundabout Configuration Section
+        EditorGUILayout.Space(6);
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        CleanDuplicateRoundabouts();
+        if (selectedRoundabout != null)
+        {
+            EditorGUILayout.LabelField($"🔄 Круговое движение (выбрано: '{selectedRoundabout.name}'):", EditorStyles.boldLabel);
+        }
+        else
+        {
+            EditorGUILayout.LabelField("🔄 Круговое движение (Roundabout 2D):", EditorStyles.boldLabel);
+        }
+
+        EditorGUI.BeginChangeCheck();
+        float currentRadius = selectedRoundabout != null ? selectedRoundabout.outerRadius : roundaboutOuterRadius;
+        int currentLanes = selectedRoundabout != null ? selectedRoundabout.laneCount : roundaboutLaneCount;
+        float currentLaneW = selectedRoundabout != null ? selectedRoundabout.laneWidth : roundaboutLaneWidth;
+        float currentCurbW = selectedRoundabout != null ? selectedRoundabout.curbWidth : roundaboutCurbWidth;
+        bool currentApron = selectedRoundabout != null ? selectedRoundabout.hasTruckApron : roundaboutHasApron;
+        float currentApronW = selectedRoundabout != null ? selectedRoundabout.truckApronWidth : roundaboutApronWidth;
+        float currentArmW = selectedRoundabout != null ? selectedRoundabout.armWidth : roundaboutArmWidth;
+
+        float newRoundaboutRadius = EditorGUILayout.Slider("Внешний радиус (м)", currentRadius, 14.0f, 60.0f);
+        int newLanes = EditorGUILayout.IntSlider("Число полос движения", currentLanes, 1, 3);
+        float newLaneW = EditorGUILayout.Slider("Ширина полосы (м)", currentLaneW, 3.5f, 7.0f);
+        float newCurbW = EditorGUILayout.Slider("Ширина бордюра (м)", currentCurbW, 0.2f, 1.0f);
+        bool newApron = EditorGUILayout.Toggle("Наездной островок (Truck Apron)", currentApron);
+        float maxApronW = Mathf.Max(25.0f, currentRadius - currentCurbW - (currentLanes * currentLaneW) - 0.5f);
+        float newApronW = newApron ? EditorGUILayout.Slider("Ширина островка (м)", currentApronW, 0.5f, maxApronW) : currentApronW;
+        float newArmW = EditorGUILayout.Slider("Ширина заездов/выездов (м)", currentArmW, 4.0f, 16.0f);
+
+        if (EditorGUI.EndChangeCheck())
+        {
+            roundaboutOuterRadius = newRoundaboutRadius;
+            roundaboutLaneCount = newLanes;
+            roundaboutLaneWidth = newLaneW;
+            roundaboutCurbWidth = newCurbW;
+            roundaboutHasApron = newApron;
+            roundaboutApronWidth = newApronW;
+            roundaboutArmWidth = newArmW;
+
+            if (selectedRoundabout != null)
+            {
+                Undo.RecordObject(selectedRoundabout, "Edit Roundabout");
+                selectedRoundabout.outerRadius = newRoundaboutRadius;
+                selectedRoundabout.laneCount = newLanes;
+                selectedRoundabout.laneWidth = newLaneW;
+                selectedRoundabout.curbWidth = newCurbW;
+                selectedRoundabout.hasTruckApron = newApron;
+                selectedRoundabout.truckApronWidth = newApronW;
+                selectedRoundabout.SetAllArmsWidth(newArmW);
+                selectedRoundabout.RebuildRoundabout();
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+        }
+
+        EditorGUILayout.Space(4);
+        EditorGUILayout.BeginHorizontal();
+        GUI.backgroundColor = new Color(0.3f, 0.95f, 0.75f, 1f);
+        string placeBtnText = selectedRoundabout != null ? "⚡ Переместить кольцо к курсору" : "⚡ Поставить кольцо по курсору";
+        if (GUILayout.Button(placeBtnText, GUILayout.Height(26)))
+        {
+            currentObjectType = ObjectType.Roundabout;
+            if (selectedRoundabout != null)
+            {
+                Undo.RecordObject(selectedRoundabout.transform, "Move Roundabout");
+                selectedRoundabout.transform.position = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
+                SafeMarkSceneDirty();
+            }
+            else
+            {
+                selectedRoundabout = CreateRoundabout(cursorPosition);
+            }
+            SceneView.RepaintAll();
+        }
+        GUI.backgroundColor = Color.white;
+
+        if (GUILayout.Button("Очистить все кольца", GUILayout.Height(26)))
+        {
+            if (EditorUtility.DisplayDialog("Очистить кольца", "Удалить все созданные кольцевые развязки?", "Да, удалить", "Отмена"))
+            {
+                ClearAllRoundabouts();
+            }
+        }
+        EditorGUILayout.EndHorizontal();
+
+        if (selectedRoundabout != null)
+        {
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("Готовые пресеты примыканий:", EditorStyles.miniBoldLabel);
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("1 Заезд + 2 Выезда", GUILayout.Height(22)))
+            {
+                Undo.RecordObject(selectedRoundabout, "Preset 1 Entry 2 Exits");
+                selectedRoundabout.SetPreset_1Entry_2Exits(roundaboutArmWidth);
+                selectedRoundabout.RebuildRoundabout();
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+            if (GUILayout.Button("1 Заезд + 3 Выезда", GUILayout.Height(22)))
+            {
+                Undo.RecordObject(selectedRoundabout, "Preset 1 Entry 3 Exits");
+                selectedRoundabout.SetPreset_1Entry_3Exits(roundaboutArmWidth);
+                selectedRoundabout.RebuildRoundabout();
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+            if (GUILayout.Button("4-Way", GUILayout.Height(22)))
+            {
+                Undo.RecordObject(selectedRoundabout, "Preset 4-Way");
+                selectedRoundabout.SetPreset_4Way(roundaboutArmWidth);
+                selectedRoundabout.RebuildRoundabout();
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+            if (GUILayout.Button("Очистить рукава", GUILayout.Height(22)))
+            {
+                Undo.RecordObject(selectedRoundabout, "Clear Arms");
+                selectedRoundabout.arms.Clear();
+                selectedRoundabout.RebuildRoundabout();
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.HelpBox($"Позиция кольца: ({selectedRoundabout.transform.position.x:F1}, {selectedRoundabout.transform.position.y:F1})\n[WASD / Handles] переместить, [Del] удалить.", MessageType.Info);
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("Удалить кольцо (Del)", GUILayout.Height(24)))
+            {
+                SafeDestroyObject(selectedRoundabout.gameObject);
+                selectedRoundabout = null;
+                SafeMarkSceneDirty();
+                SceneView.RepaintAll();
+            }
+            if (GUILayout.Button("Снять выбор", GUILayout.Height(24)))
+            {
+                selectedRoundabout = null;
+                SceneView.RepaintAll();
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+        EditorGUILayout.EndVertical();
+
         // Lawn / Grass Area Configuration Section
         EditorGUILayout.Space(6);
         EditorGUILayout.BeginVertical(EditorStyles.helpBox);
@@ -4600,7 +4928,7 @@ public class MapBuilderEditor : EditorWindow
         }
 
         // Interactive 2D Position Handle for Scene View (Free Mouse Movement with Magnetic Snapping)
-        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn && currentObjectType != ObjectType.SplineRoad && (currentObjectType != ObjectType.RoadArrow || selectedRoadArrow == null) && (currentObjectType != ObjectType.PassengerCar || selectedPassengerCar == null) && (currentObjectType != ObjectType.StandaloneTruck || selectedStandaloneTruck == null) && (currentObjectType != ObjectType.StandaloneTrailer || selectedStandaloneTrailer == null))
+        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn && currentObjectType != ObjectType.SplineRoad && (currentObjectType != ObjectType.Roundabout || selectedRoundabout == null) && (currentObjectType != ObjectType.RoadArrow || selectedRoadArrow == null) && (currentObjectType != ObjectType.PassengerCar || selectedPassengerCar == null) && (currentObjectType != ObjectType.StandaloneTruck || selectedStandaloneTruck == null) && (currentObjectType != ObjectType.StandaloneTrailer || selectedStandaloneTrailer == null))
         {
             EditorGUI.BeginChangeCheck();
             Vector3 curPos3 = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
@@ -4611,7 +4939,7 @@ public class MapBuilderEditor : EditorWindow
             if (EditorGUI.EndChangeCheck())
             {
                 Vector2 rawPos = new Vector2(newPos.x, newPos.y);
-                cursorPosition = (currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || currentObjectType == ObjectType.StandaloneTrailer || IsPropType(currentObjectType) || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine || currentObjectType == ObjectType.Lawn || currentObjectType == ObjectType.SplineRoad) ? rawPos : GetMagneticSnappedPosition(rawPos, currentRotation);
+                cursorPosition = (currentObjectType == ObjectType.RoadArrow || currentObjectType == ObjectType.PassengerCar || currentObjectType == ObjectType.StandaloneTruck || currentObjectType == ObjectType.StandaloneTrailer || IsPropType(currentObjectType) || currentObjectType == ObjectType.Eraser || currentObjectType == ObjectType.RouteLine || currentObjectType == ObjectType.Lawn || currentObjectType == ObjectType.SplineRoad || currentObjectType == ObjectType.Roundabout) ? rawPos : GetMagneticSnappedPosition(rawPos, currentRotation);
                 UpdateGhostPreview();
                 Repaint();
             }
@@ -4749,6 +5077,21 @@ public class MapBuilderEditor : EditorWindow
                 selectedProp.position = new Vector2(newPos.x, newPos.y);
                 selectedProp.UpdateTransformAndVisual(GetPropSprite(selectedProp.propType));
                 cursorPosition = selectedProp.position;
+                SafeMarkSceneDirty();
+                Repaint();
+            }
+        }
+        else if (currentObjectType == ObjectType.Roundabout && selectedRoundabout != null)
+        {
+            EditorGUI.BeginChangeCheck();
+            Vector3 curPos3 = selectedRoundabout.transform.position;
+            Vector3 newPos = Handles.PositionHandle(curPos3, Quaternion.identity);
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(selectedRoundabout.transform, "Move Roundabout");
+                selectedRoundabout.transform.position = new Vector3(newPos.x, newPos.y, 0f);
+                cursorPosition = (Vector2)newPos;
                 SafeMarkSceneDirty();
                 Repaint();
             }
@@ -5150,6 +5493,27 @@ public class MapBuilderEditor : EditorWindow
                         }
                     }
                 }
+                else if (currentObjectType == ObjectType.Roundabout)
+                {
+                    RoundaboutGenerator2D hitRoundabout = FindRoundaboutNear(rawPos, 1.0f);
+                    if (hitRoundabout != null)
+                    {
+                        selectedRoundabout = hitRoundabout;
+                        roundaboutOuterRadius = hitRoundabout.outerRadius;
+                        roundaboutLaneCount = hitRoundabout.laneCount;
+                        roundaboutLaneWidth = hitRoundabout.laneWidth;
+                        roundaboutCurbWidth = hitRoundabout.curbWidth;
+                        roundaboutHasApron = hitRoundabout.hasTruckApron;
+                        roundaboutApronWidth = hitRoundabout.truckApronWidth;
+                        roundaboutArmWidth = hitRoundabout.armWidth;
+                        cursorPosition = hitRoundabout.transform.position;
+                        Repaint();
+                    }
+                    else
+                    {
+                        cursorPosition = rawPos;
+                    }
+                }
                 else
                 {
                     cursorPosition = GetMagneticSnappedPosition(rawPos, currentRotation);
@@ -5329,6 +5693,10 @@ public class MapBuilderEditor : EditorWindow
                             SafeMarkSceneDirty();
                         }
                     }
+                }
+                else if (currentObjectType == ObjectType.Roundabout)
+                {
+                    cursorPosition = rawPos;
                 }
                 else
                 {
@@ -6483,6 +6851,80 @@ public class MapBuilderEditor : EditorWindow
                     handled = true;
                 }
             }
+            else if (currentObjectType == ObjectType.Roundabout)
+            {
+                float step = e.shift ? 2.0f : (e.alt || e.control ? 0.1f : 0.5f);
+                Vector2 moveDelta = Vector2.zero;
+
+                switch (e.keyCode)
+                {
+                    case KeyCode.W:
+                    case KeyCode.UpArrow:
+                        moveDelta = new Vector2(0f, step);
+                        break;
+                    case KeyCode.S:
+                    case KeyCode.DownArrow:
+                        moveDelta = new Vector2(0f, -step);
+                        break;
+                    case KeyCode.A:
+                    case KeyCode.LeftArrow:
+                        moveDelta = new Vector2(-step, 0f);
+                        break;
+                    case KeyCode.D:
+                    case KeyCode.RightArrow:
+                        moveDelta = new Vector2(step, 0f);
+                        break;
+
+                    case KeyCode.Delete:
+                    case KeyCode.Backspace:
+                        if (selectedRoundabout != null)
+                        {
+                            SafeDestroyObject(selectedRoundabout.gameObject);
+                            selectedRoundabout = null;
+                            SafeMarkSceneDirty();
+                            handled = true;
+                        }
+                        break;
+
+                    case KeyCode.Return:
+                    case KeyCode.KeypadEnter:
+                    case KeyCode.Space:
+                        PlaceCurrentObject();
+                        handled = true;
+                        break;
+
+                    case KeyCode.Escape:
+                        selectedRoundabout = null;
+                        handled = true;
+                        break;
+
+                    case KeyCode.C:
+                        CycleObjectType();
+                        handled = true;
+                        break;
+
+                    case KeyCode.F:
+                        FocusSceneView();
+                        handled = true;
+                        break;
+                }
+
+                if (moveDelta != Vector2.zero)
+                {
+                    if (selectedRoundabout != null)
+                    {
+                        Undo.RecordObject(selectedRoundabout.transform, "Move Roundabout");
+                        selectedRoundabout.transform.position += (Vector3)moveDelta;
+                        cursorPosition = selectedRoundabout.transform.position;
+                        SafeMarkSceneDirty();
+                    }
+                    else
+                    {
+                        cursorPosition += moveDelta;
+                    }
+                    handled = true;
+                }
+            }
             else if (currentObjectType == ObjectType.TruckStartPoint)
             {
                 // Fine-grained keyboard control for Truck Start point (0.5m / 2m / 0.1m)
@@ -6741,6 +7183,27 @@ public class MapBuilderEditor : EditorWindow
             Handles.DrawLine(p - new Vector3(0.6f, 0f, 0f), p + new Vector3(0.6f, 0f, 0f));
             Handles.DrawLine(p - new Vector3(0f, 0.6f, 0f), p + new Vector3(0f, 0.6f, 0f));
             Handles.Label(p + new Vector3(0.7f, 0.7f, 0f), "🛣️ ДОРОГА (Кликните для начала новой дороги)", EditorStyles.boldLabel);
+        }
+
+        // Draw interactive Roundabout indicator / selection in Scene View
+        if (currentObjectType == ObjectType.Roundabout)
+        {
+            if (selectedRoundabout != null)
+            {
+                Vector3 cp = selectedRoundabout.transform.position;
+                Handles.color = new Color(0.2f, 1.0f, 0.4f, 0.95f);
+                Handles.DrawWireDisc(cp, Vector3.forward, selectedRoundabout.outerRadius);
+                Handles.Label(cp + new Vector3(0f, selectedRoundabout.outerRadius + 1.0f, 0f), $"🔄 {selectedRoundabout.name} (R={selectedRoundabout.outerRadius:F1}м)", EditorStyles.boldLabel);
+            }
+            else
+            {
+                Vector3 p = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
+                Handles.color = new Color(0.3f, 0.95f, 0.75f, 0.8f);
+                Handles.DrawWireDisc(p, Vector3.forward, roundaboutOuterRadius);
+                Handles.DrawLine(p - new Vector3(1f, 0f, 0f), p + new Vector3(1f, 0f, 0f));
+                Handles.DrawLine(p - new Vector3(0f, 1f, 0f), p + new Vector3(0f, 1f, 0f));
+                Handles.Label(p + new Vector3(0f, roundaboutOuterRadius + 1.0f, 0f), "🔄 КРУГОВОЕ ДВИЖЕНИЕ ([Enter] поставить)", EditorStyles.boldLabel);
+            }
         }
 
         // Draw interactive Eraser handles in Scene View
@@ -7465,7 +7928,7 @@ public class MapBuilderEditor : EditorWindow
     private void MoveCursor(Vector2 delta)
     {
         cursorPosition += delta;
-        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && currentObjectType != ObjectType.StandaloneTrailer && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn && currentObjectType != ObjectType.SplineRoad)
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && currentObjectType != ObjectType.StandaloneTrailer && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn && currentObjectType != ObjectType.SplineRoad && currentObjectType != ObjectType.Roundabout)
         {
             SnapCursorToGrid();
         }
@@ -7541,7 +8004,7 @@ public class MapBuilderEditor : EditorWindow
         {
             currentRotation = PassengerCarObstacle.SnapAngle45(currentRotation);
         }
-        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && currentObjectType != ObjectType.StandaloneTrailer && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn && currentObjectType != ObjectType.SplineRoad)
+        if (currentObjectType != ObjectType.TruckStartPoint && currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && currentObjectType != ObjectType.StandaloneTrailer && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn && currentObjectType != ObjectType.SplineRoad && currentObjectType != ObjectType.Roundabout)
         {
             SnapCursorToGrid();
         }
@@ -7775,6 +8238,26 @@ public class MapBuilderEditor : EditorWindow
             GUI.Label(new Rect(24, 122, 330, 18), "[Enter / Space] Завершить рисование / Переключить точку", helpStyle);
             GUI.Label(new Rect(24, 140, 330, 18), "[Del] Удалить точку или дорогу | [Esc] Снять выбор", helpStyle);
         }
+        else if (currentObjectType == ObjectType.Roundabout)
+        {
+            GUI.Label(new Rect(24, 40, 330, 20), "Режим: <color=#55ffaa>🔄 Круговое движение</color>", textStyle);
+            if (selectedRoundabout != null)
+            {
+                GUI.Label(new Rect(24, 60, 330, 20), $"Выделено: {selectedRoundabout.name} (R={selectedRoundabout.outerRadius:F1}м)", textStyle);
+                GUI.Label(new Rect(24, 80, 330, 20), $"Позиция: ({selectedRoundabout.transform.position.x:F1}, {selectedRoundabout.transform.position.y:F1})", textStyle);
+            }
+            else
+            {
+                GUI.Label(new Rect(24, 60, 330, 20), "Кликните по кольцу для выбора или [Enter] поставить", textStyle);
+                GUI.Label(new Rect(24, 80, 330, 20), $"Курсор: ({cursorPosition.x:F1}, {cursorPosition.y:F1})", textStyle);
+            }
+
+            GUIStyle helpStyle = new GUIStyle(EditorStyles.miniLabel);
+            helpStyle.normal.textColor = new Color(0.85f, 0.85f, 0.85f);
+            GUI.Label(new Rect(24, 104, 330, 18), "[Enter / Space] Поставить / переместить кольцо к курсору", helpStyle);
+            GUI.Label(new Rect(24, 122, 330, 18), "[WASD / Стрелки гизмо] Переместить кольцо", helpStyle);
+            GUI.Label(new Rect(24, 140, 330, 18), "[Del] Удалить кольцо | [Esc] Снять выбор", helpStyle);
+        }
         else
         {
             float curW = GetSlotWidth(currentObjectType);
@@ -7854,6 +8337,16 @@ public class MapBuilderEditor : EditorWindow
         if (GUI.Button(new Rect(curBtnX, btnY1, 74, btnH), "🎯 7. 3.5м"))
         {
             currentObjectType = ObjectType.TargetParkingNarrow;
+            SnapCursorToGrid();
+            UpdateGhostPreview();
+        }
+        curBtnX += 76;
+
+        bool isTargetWide = currentObjectType == ObjectType.TargetParkingWide;
+        GUI.backgroundColor = isTargetWide ? new Color(1f, 0.85f, 0.05f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY1, 74, btnH), "🎯 24. 5.5м"))
+        {
+            currentObjectType = ObjectType.TargetParkingWide;
             SnapCursorToGrid();
             UpdateGhostPreview();
         }
@@ -8035,6 +8528,15 @@ public class MapBuilderEditor : EditorWindow
         }
         curBtnX += 94;
 
+        bool isRoundabout = currentObjectType == ObjectType.Roundabout;
+        GUI.backgroundColor = isRoundabout ? new Color(0.3f, 0.95f, 0.75f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
+        if (GUI.Button(new Rect(curBtnX, btnY2, 92, btnH), "🔄 23. Кольцо"))
+        {
+            currentObjectType = ObjectType.Roundabout;
+            UpdateGhostPreview();
+        }
+        curBtnX += 94;
+
         bool isEraser = currentObjectType == ObjectType.Eraser;
         GUI.backgroundColor = isEraser ? new Color(1f, 0.35f, 0.35f, 1f) : new Color(0.25f, 0.25f, 0.25f, 0.85f);
         if (GUI.Button(new Rect(curBtnX, btnY2, 84, btnH), "🧹 18. Ластик"))
@@ -8101,10 +8603,10 @@ public class MapBuilderEditor : EditorWindow
 
         Handles.EndGUI();
 
-        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && currentObjectType != ObjectType.StandaloneTrailer && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn && currentObjectType != ObjectType.SplineRoad)
+        if (currentObjectType != ObjectType.MarkingLine && currentObjectType != ObjectType.RoadArrow && currentObjectType != ObjectType.Wall && currentObjectType != ObjectType.PassengerCar && currentObjectType != ObjectType.StandaloneTruck && currentObjectType != ObjectType.StandaloneTrailer && !IsPropType(currentObjectType) && currentObjectType != ObjectType.Eraser && currentObjectType != ObjectType.RouteLine && currentObjectType != ObjectType.Lawn && currentObjectType != ObjectType.SplineRoad && currentObjectType != ObjectType.Roundabout)
         {
             float slotWidth = GetSlotWidth(currentObjectType);
-            float slotLength = (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow) ? 26.0f : SlotLength;
+            float slotLength = (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow || currentObjectType == ObjectType.TargetParkingWide) ? 26.0f : SlotLength;
             Vector3 size = new Vector3(slotWidth, slotLength, 0f);
             
             Matrix4x4 origMatrix = Handles.matrix;
@@ -8118,7 +8620,7 @@ public class MapBuilderEditor : EditorWindow
                 boxOutlineColor = new Color(0.2f, 0.95f, 0.4f, 0.95f);
                 boxFillColor = new Color(0.2f, 0.95f, 0.4f, 0.15f);
             }
-            else if (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow)
+            else if (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow || currentObjectType == ObjectType.TargetParkingWide)
             {
                 boxOutlineColor = new Color(1f, 0.85f, 0.05f, 0.98f);
                 boxFillColor = new Color(1f, 0.85f, 0.05f, 0.22f);
@@ -8297,7 +8799,7 @@ public class MapBuilderEditor : EditorWindow
             return;
         }
 
-        if (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow)
+        if (currentObjectType == ObjectType.TargetParking || currentObjectType == ObjectType.TargetParkingNarrow || currentObjectType == ObjectType.TargetParkingWide)
         {
             PlaceOrRelocateTargetParking(reverseAdvance);
             return;
@@ -8504,6 +9006,24 @@ public class MapBuilderEditor : EditorWindow
             return;
         }
 
+        if (currentObjectType == ObjectType.Roundabout)
+        {
+            if (selectedRoundabout != null)
+            {
+                Undo.RecordObject(selectedRoundabout.transform, "Move Roundabout");
+                selectedRoundabout.transform.position = new Vector3(cursorPosition.x, cursorPosition.y, 0f);
+                SafeMarkSceneDirty();
+                SceneView.lastActiveSceneView?.ShowNotification(new GUIContent($"🔄 Кольцо перемещено в ({cursorPosition.x:F1}, {cursorPosition.y:F1})"));
+            }
+            else
+            {
+                selectedRoundabout = CreateRoundabout(cursorPosition);
+                SceneView.lastActiveSceneView?.ShowNotification(new GUIContent($"🔄 Кольцо создано ({cursorPosition.x:F1}, {cursorPosition.y:F1})"));
+            }
+            SceneView.RepaintAll();
+            return;
+        }
+
         GameObject workspace = GameObject.Find(WorkspaceRootName);
         Transform container = workspace != null ? workspace.transform.Find(SlotsContainerName) : null;
 
@@ -8585,6 +9105,8 @@ public class MapBuilderEditor : EditorWindow
         if (strayTarget != null) SafeDestroyObject(strayTarget);
         GameObject strayTargetNarrow = GameObject.Find("TargetParkingSlot_Narrow");
         if (strayTargetNarrow != null) SafeDestroyObject(strayTargetNarrow);
+        GameObject strayTargetWide = GameObject.Find("TargetParkingSlot_Wide");
+        if (strayTargetWide != null) SafeDestroyObject(strayTargetWide);
 
         float curWidth = GetSlotWidth(currentObjectType);
         float threshold = curWidth * 0.45f;
@@ -8603,7 +9125,7 @@ public class MapBuilderEditor : EditorWindow
             }
         }
 
-        string slotName = (currentObjectType == ObjectType.TargetParkingNarrow) ? "TargetParkingSlot_Narrow" : "TargetParkingSlot";
+        string slotName = (currentObjectType == ObjectType.TargetParkingNarrow) ? "TargetParkingSlot_Narrow" : (currentObjectType == ObjectType.TargetParkingWide ? "TargetParkingSlot_Wide" : "TargetParkingSlot");
         GameObject slotObj = new GameObject(slotName);
         if (container != null)
         {
@@ -8624,7 +9146,7 @@ public class MapBuilderEditor : EditorWindow
         }
 
         SceneView.RepaintAll();
-        string widthStr = (currentObjectType == ObjectType.TargetParkingNarrow) ? "3.5м" : "4.5м";
+        string widthStr = (currentObjectType == ObjectType.TargetParkingNarrow) ? "3.5м" : (currentObjectType == ObjectType.TargetParkingWide ? "5.5м" : "4.5м");
         Debug.Log($"<color=#ffd700>[MapBuilder] Установлено единственное Целевое место парковки ({widthStr}) в ({cursorPosition.x:F1}, {cursorPosition.y:F1})</color>");
     }
 
@@ -8831,7 +9353,7 @@ public class MapBuilderEditor : EditorWindow
 
     private void BuildObjectHierarchy(Transform parent, ObjectType type, bool isPreview)
     {
-        if (type == ObjectType.MarkingLine || type == ObjectType.Wall || type == ObjectType.Eraser || type == ObjectType.RouteLine || type == ObjectType.Lawn || type == ObjectType.SplineRoad)
+        if (type == ObjectType.MarkingLine || type == ObjectType.Wall || type == ObjectType.Eraser || type == ObjectType.RouteLine || type == ObjectType.Lawn || type == ObjectType.SplineRoad || type == ObjectType.Roundabout)
         {
             return;
         }
@@ -8950,7 +9472,7 @@ public class MapBuilderEditor : EditorWindow
             return;
         }
 
-        bool isTargetParking = (type == ObjectType.TargetParking || type == ObjectType.TargetParkingNarrow);
+        bool isTargetParking = (type == ObjectType.TargetParking || type == ObjectType.TargetParkingNarrow || type == ObjectType.TargetParkingWide);
         float width = GetSlotWidth(type);
         float length = isTargetParking ? 26.0f : SlotLength;
         float halfWidth = width * 0.5f;
