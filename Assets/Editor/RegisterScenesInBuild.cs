@@ -81,6 +81,22 @@ public static class RegisterScenesInBuild
             PlayerSettings.SplashScreen.show = false;
             PlayerSettings.SplashScreen.showUnityLogo = false;
 
+            try
+            {
+                var pAssets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset");
+                if (pAssets != null && pAssets.Length > 0)
+                {
+                    SerializedObject so = new SerializedObject(pAssets[0]);
+                    SerializedProperty submitProp = so.FindProperty("submitAnalytics");
+                    if (submitProp != null && submitProp.boolValue)
+                    {
+                        submitProp.boolValue = false;
+                        so.ApplyModifiedProperties();
+                    }
+                }
+            }
+            catch (Exception) {}
+
             Texture2D icon = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Resources/AppIcon.png");
             if (icon != null)
             {
