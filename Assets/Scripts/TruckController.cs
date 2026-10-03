@@ -602,58 +602,16 @@ public class TruckController : MonoBehaviour
         // Apply saved pedal side layout (Left vs Right)
         SteeringWheelUI.ApplyPedalSideLayout(SteeringWheelUI.CurrentPedalSide);
 
-        // 3. HUD Plashka (Telemetry Panel with Speed, Steer, Articulation Angle)
+        // 3. HUD Plashka (Telemetry Panel with Speed, Steer, Articulation Angle) - Diagnostic display disabled per user request
         Transform hudPanelTrans = canvasGo.transform.Find("HUD_Panel");
-        GameObject hudPanelGo = (hudPanelTrans != null) ? hudPanelTrans.gameObject : null;
-        if (hudPanelGo == null)
-        {
-            Transform oldHud = canvasGo.transform.Find("TruckHUDText");
-            if (oldHud != null) Destroy(oldHud.gameObject);
-
-            hudPanelGo = new GameObject("HUD_Panel");
-            hudPanelGo.transform.SetParent(canvasGo.transform, false);
-            
-            RectTransform panelRt = hudPanelGo.AddComponent<RectTransform>();
-            panelRt.anchorMin = new Vector2(0.5f, 1f);
-            panelRt.anchorMax = new Vector2(0.5f, 1f);
-            panelRt.pivot = new Vector2(0.5f, 1f);
-            panelRt.anchoredPosition = new Vector2(0f, -20f);
-            panelRt.sizeDelta = new Vector2(1050f, 54f);
-
-            Image panelImg = hudPanelGo.AddComponent<Image>();
-            panelImg.color = new Color(0.08f, 0.09f, 0.13f, 0.85f);
-            panelImg.raycastTarget = false;
-
-            GameObject hudTextGo = new GameObject("TruckHUDText");
-            hudTextGo.transform.SetParent(hudPanelGo.transform, false);
-            RectTransform textRt = hudTextGo.AddComponent<RectTransform>();
-            textRt.anchorMin = Vector2.zero;
-            textRt.anchorMax = Vector2.one;
-            textRt.offsetMin = new Vector2(15f, 4f);
-            textRt.offsetMax = new Vector2(-15f, -4f);
-
-            Text t = hudTextGo.AddComponent<Text>();
-            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            if (font != null) t.font = font;
-            t.alignment = TextAnchor.MiddleCenter;
-            t.fontSize = 20;
-            t.fontStyle = FontStyle.Bold;
-            t.color = new Color(1f, 0.95f, 0.8f, 1f);
-            t.supportRichText = true;
-            t.raycastTarget = false;
-            hudText = t;
-        }
-        else
-        {
-            hudText = hudPanelGo.GetComponentInChildren<Text>();
-            if (hudText != null && hudText.font == null)
-            {
-                Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                if (font != null) hudText.font = font;
-            }
-        }
+        if (hudPanelTrans != null) hudPanelTrans.gameObject.SetActive(false);
+        Transform oldHud = canvasGo.transform.Find("TruckHUDText");
+        if (oldHud != null) oldHud.gameObject.SetActive(false);
+        GameObject strayPanel = GameObject.Find("HUD_Panel");
+        if (strayPanel != null) strayPanel.SetActive(false);
+        GameObject strayHudText = GameObject.Find("TruckHUDText");
+        if (strayHudText != null) strayHudText.SetActive(false);
+        hudText = null;
 
         // 4. Camera Zoom Multiplier Widget (Top-Right: "< 1x >")
         Transform zoomTrans = canvasGo.transform.Find("CameraZoomWidget");
@@ -957,11 +915,6 @@ public class TruckController : MonoBehaviour
             if (fr != null) frontRightWheel = fr;
         }
 
-        if (hudText == null)
-        {
-            GameObject hudGo = GameObject.Find("TruckHUDText");
-            if (hudGo != null) hudText = hudGo.GetComponent<Text>();
-        }
 
         if (tractorCollider == null)
         {
@@ -1423,96 +1376,8 @@ public class TruckController : MonoBehaviour
 
     private void UpdateHUD()
     {
-        if (hudText == null)
-        {
-            GameObject hudGo = GameObject.Find("TruckHUDText");
-            if (hudGo != null) hudText = hudGo.GetComponent<Text>();
-        }
-
-        if (hudText == null) return;
-
-        if (hudText.font == null)
-        {
-            Font f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (f == null) f = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            if (f != null) hudText.font = f;
-        }
-
-        float kmh = Mathf.Abs(currentSpeed) * 3.6f;
-        string gear = "N";
-        string mode = LocalizationManager.Get("HUD_MODE_STOP");
-
-        bool forwardInput = wPressed || gasPedalPressed;
-        bool reverseInput = sPressed || brakePedalPressed;
-
-        string modeBrake = LocalizationManager.Get("HUD_MODE_BRAKE");
-        string modeCoast = LocalizationManager.Get("HUD_MODE_COAST");
-        string modeGas = LocalizationManager.Get("HUD_MODE_GAS");
-        string modeForward = LocalizationManager.Get("HUD_MODE_FORWARD");
-        string modeReverse = LocalizationManager.Get("HUD_MODE_REVERSE");
-        string kmhUnit = LocalizationManager.Get("HUD_KMH");
-
-        if (currentSpeed > 0.05f)
-        {
-            gear = "D";
-            if (reverseInput) mode = modeBrake;
-            else if (forwardInput) mode = isFastForwardMode ? $"{modeGas} x2 (20{kmhUnit})" : $"{modeGas} (10{kmhUnit})";
-            else mode = modeCoast;
-        }
-        else if (currentSpeed < -0.05f)
-        {
-            gear = "R";
-            if (forwardInput) mode = modeBrake;
-            else if (reverseInput) mode = $"{modeReverse} (10{kmhUnit})";
-            else mode = modeCoast;
-        }
-        else
-        {
-            if (spacePressed) mode = LocalizationManager.Get("HUD_MODE_PARK");
-            else if (forwardInput) mode = isFastForwardMode ? $"{modeForward} x2 (20{kmhUnit})" : modeForward;
-            else if (reverseInput) mode = modeReverse;
-            else mode = LocalizationManager.Get("HUD_MODE_STOP");
-        }
-
-        float steer = actualSteerAngle;
-        string steerStr = Mathf.Abs(steer) < 0.5f ? "0°" : $"{Mathf.Abs(steer):0}° {(steer > 0 ? "L" : "R")}";
-
-        float articulation = 0f;
-        if (trailerRb != null)
-        {
-            articulation = Mathf.DeltaAngle(tractorRb.rotation, trailerRb.rotation);
-        }
-
-        string camZoom = "1x";
-        CameraFollow cf = CameraFollow.Instance;
-        if (cf == null && Camera.main != null) cf = Camera.main.GetComponent<CameraFollow>();
-        if (cf != null) camZoom = $"{cf.ZoomMultiplier}x";
-
-        string warning = "";
-        if (isJackknifed)
-        {
-            warning = $" | <color=#FF2222>{LocalizationManager.Get("HUD_WARN_JACKKNIFE")}</color>";
-        }
-        else if (isBlockedReverse)
-        {
-            warning = $" | <color=#FF4444>{LocalizationManager.Get("HUD_WARN_REAR_HIT")}</color>";
-        }
-        else if (isBlockedForward)
-        {
-            warning = $" | <color=#FF4444>{LocalizationManager.Get("HUD_WARN_FRONT_HIT")}</color>";
-        }
-        else if (Mathf.Abs(articulation) >= maxArticulationAngle - 10.0f)
-        {
-            string riskFmt = LocalizationManager.Get("HUD_WARN_JACKKNIFE_RISK");
-            warning = $" | <color=#FFCC00>{string.Format(riskFmt, Mathf.RoundToInt(Mathf.Abs(articulation)), Mathf.RoundToInt(maxArticulationAngle))}</color>";
-        }
-
-        string lblSpeed = LocalizationManager.Get("HUD_SPEED");
-        string lblSteer = LocalizationManager.Get("HUD_STEER");
-        string lblHitch = LocalizationManager.Get("HUD_HITCH");
-        string lblZoom  = LocalizationManager.Get("HUD_ZOOM");
-
-        hudText.text = $"{lblSpeed}<color=#55FFFF>{kmh:0.0}{kmhUnit}</color> [{gear}:{mode}] | {lblSteer}<color=#FFFF55>{steerStr}</color> | {lblHitch}<color=#55FF55>{Mathf.Abs(articulation):0.0}°</color> | {lblZoom}<color=#FFAA55>{camZoom}</color>{warning}";
+        // Diagnostic telemetry HUD display (Speed, Steer, Hitch, Zoom) removed per user request.
+        // Full truck mechanics (speed, steering, hitch physics, zoom multiplier, collisions) remain intact.
     }
 
     private void FixedUpdate()

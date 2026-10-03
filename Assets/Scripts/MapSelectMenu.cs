@@ -59,6 +59,8 @@ public class MapSelectMenu : MonoBehaviour
     private Text backButtonText;
     private Text closeButtonText;
     private Text languageButtonText;
+    private GameObject bottomStatsGo;
+    private Text bottomStatsText;
 
     private Dictionary<string, Sprite> cachedSprites = new Dictionary<string, Sprite>();
 
@@ -78,8 +80,8 @@ public class MapSelectMenu : MonoBehaviour
     {
         new CategoryInfo { id = "Alley dock",       title = "ALLEY DOCK",       icon = "", keyword = "alleydock" },
         new CategoryInfo { id = "Angle Back",       title = "ANGLE BACK",       icon = "", keyword = "angleback" },
-        new CategoryInfo { id = "Facility",         title = "FACILITY",         icon = "", keyword = "facility" },
         new CategoryInfo { id = "Parallel Parking", title = "PARALLEL PARKING", icon = "", keyword = "parallel" },
+        new CategoryInfo { id = "Facility",         title = "FACILITY",         icon = "", keyword = "facility" },
         new CategoryInfo { id = "Rest Area",        title = "REST AREA",        icon = "", keyword = "restarea" },
         new CategoryInfo { id = "Truck Stop",       title = "TRUCK STOP",       icon = "", keyword = "truckstop" }
     };
@@ -108,14 +110,17 @@ public class MapSelectMenu : MonoBehaviour
         if (backButtonText != null)
         {
             backButtonText.text = LocalizationManager.Get("BTN_BACK");
+            UpdateBackButtonLayout();
         }
         if (closeButtonText != null)
         {
             closeButtonText.text = LocalizationManager.Get("BTN_CLOSE");
+            UpdateCloseButtonLayout();
         }
         if (languageButtonText != null)
         {
             languageButtonText.text = LocalizationManager.GetLanguageShortButtonText();
+            UpdateLanguageButtonLayout();
         }
         if (headerTitleText != null)
         {
@@ -125,12 +130,57 @@ public class MapSelectMenu : MonoBehaviour
             }
             else
             {
-                CategoryInfo catInfo = GetCategoryInfo(currentCategory);
-                string iconPrefix = (catInfo != null && !string.IsNullOrEmpty(catInfo.icon)) ? (catInfo.icon + " ") : "";
-                string displayTitle = GetCategoryTitle(currentCategory);
-                headerTitleText.text = $"{iconPrefix}{displayTitle}";
+                headerTitleText.text = LocalizationManager.Get("MAP_SELECT_TITLE").ToUpperInvariant();
             }
         }
+    }
+
+    private void UpdateBackButtonLayout()
+    {
+        if (backButtonGo == null || backButtonText == null) return;
+        RectTransform backRt = backButtonGo.GetComponent<RectTransform>();
+        if (backRt == null) return;
+
+        backButtonText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        backButtonText.verticalOverflow = VerticalWrapMode.Overflow;
+
+        float textWidth = backButtonText.preferredWidth;
+        float padding = 50f;
+        float calculatedWidth = Mathf.Max(120f, textWidth + padding);
+
+        backRt.sizeDelta = new Vector2(calculatedWidth, 44f);
+    }
+
+    private void UpdateCloseButtonLayout()
+    {
+        if (closeButtonGo == null || closeButtonText == null) return;
+        RectTransform closeRt = closeButtonGo.GetComponent<RectTransform>();
+        if (closeRt == null) return;
+
+        closeButtonText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        closeButtonText.verticalOverflow = VerticalWrapMode.Overflow;
+
+        float textWidth = closeButtonText.preferredWidth;
+        float padding = 46f;
+        float calculatedWidth = Mathf.Max(110f, textWidth + padding);
+
+        closeRt.sizeDelta = new Vector2(calculatedWidth, 44f);
+    }
+
+    private void UpdateLanguageButtonLayout()
+    {
+        if (languageButtonGo == null || languageButtonText == null) return;
+        RectTransform langRt = languageButtonGo.GetComponent<RectTransform>();
+        if (langRt == null) return;
+
+        languageButtonText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        languageButtonText.verticalOverflow = VerticalWrapMode.Overflow;
+
+        float textWidth = languageButtonText.preferredWidth;
+        float padding = 40f;
+        float calculatedWidth = Mathf.Max(85f, textWidth + padding);
+
+        langRt.sizeDelta = new Vector2(calculatedWidth, 44f);
     }
 
     public static string GetCategoryTitle(string catId)
@@ -243,6 +293,24 @@ public class MapSelectMenu : MonoBehaviour
         }
     }
 
+    public static void LockOrientationToPortrait()
+    {
+        Screen.autorotateToLandscapeLeft = false;
+        Screen.autorotateToLandscapeRight = false;
+        Screen.autorotateToPortraitUpsideDown = false;
+        Screen.autorotateToPortrait = true;
+        Screen.orientation = ScreenOrientation.Portrait;
+    }
+
+    public static void UnlockOrientation()
+    {
+        Screen.autorotateToPortrait = true;
+        Screen.autorotateToPortraitUpsideDown = false;
+        Screen.autorotateToLandscapeLeft = true;
+        Screen.autorotateToLandscapeRight = true;
+        Screen.orientation = ScreenOrientation.AutoRotation;
+    }
+
     public void ToggleMenu()
     {
         string currentScene = SceneManager.GetActiveScene().name;
@@ -270,7 +338,15 @@ public class MapSelectMenu : MonoBehaviour
 
         if (isMenuOpen)
         {
+            LockOrientationToPortrait();
             EnsureEventSystem();
+        }
+        else
+        {
+            if (currentScene != "MainMenu" && (InGameMenu.Instance == null || !InGameMenu.Instance.IsMenuOpen))
+            {
+                UnlockOrientation();
+            }
         }
 
         if (menuCanvasGo == null)
@@ -392,10 +468,17 @@ public class MapSelectMenu : MonoBehaviour
     {
         string[] spriteNames = new string[]
         {
+            "UI_Card_Completed",
+            "UI_Card_Active",
+            "UI_Card_Locked",
+            "UI_Btn_DarkPill",
+            "UI_Badge_Play",
+            "UI_Panel_Modern",
             "UI_Panel_Frame",
             "UI_Btn_Normal",
             "UI_Btn_Special",
             "UI_Btn_Active",
+            "UI_Btn_Green",
             "UI_Card_Category",
             "UI_Card_Category_Gold",
             "UI_Btn_Back",
@@ -412,27 +495,86 @@ public class MapSelectMenu : MonoBehaviour
         {
             if (cachedSprites.ContainsKey(sName)) continue;
 
-            string filePath = Path.Combine(Application.dataPath, "GeneratedSprites/UI", sName + ".png");
-            if (File.Exists(filePath))
+            // 1. Try Resources.Load<Sprite> or Texture2D with 9-slice borders
+            Sprite resSprite = Resources.Load<Sprite>("UI/" + sName);
+            if (resSprite != null && resSprite.texture != null)
             {
-                try
+                cachedSprites[sName] = CreateSpriteWithBorder(resSprite.texture, sName);
+                continue;
+            }
+
+            Texture2D resTex = Resources.Load<Texture2D>("UI/" + sName);
+            if (resTex != null)
+            {
+                cachedSprites[sName] = CreateSpriteWithBorder(resTex, sName);
+                continue;
+            }
+
+            // 2. Fallback for editor or raw disk file
+            string[] candidatePaths = new string[]
+            {
+                Path.Combine(Application.dataPath, "Resources/UI", sName + ".png"),
+                Path.Combine(Application.dataPath, "GeneratedSprites/UI", sName + ".png")
+            };
+
+            foreach (string filePath in candidatePaths)
+            {
+                if (File.Exists(filePath))
                 {
-                    byte[] data = File.ReadAllBytes(filePath);
-                    Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                    if (tex.LoadImage(data))
+                    try
                     {
-                        tex.filterMode = FilterMode.Bilinear;
-                        tex.wrapMode = TextureWrapMode.Clamp;
-                        Sprite sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
-                        cachedSprites[sName] = sprite;
+                        byte[] data = File.ReadAllBytes(filePath);
+                        Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                        if (tex.LoadImage(data))
+                        {
+                            tex.filterMode = FilterMode.Bilinear;
+                            tex.wrapMode = TextureWrapMode.Clamp;
+                            cachedSprites[sName] = CreateSpriteWithBorder(tex, sName);
+                            break;
+                        }
                     }
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[MapSelectMenu] Failed to load sprite {sName}: {ex.Message}");
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[MapSelectMenu] Failed to load sprite {sName}: {ex.Message}");
+                    }
                 }
             }
         }
+    }
+
+    private static Sprite CreateSpriteWithBorder(Texture2D tex, string sName)
+    {
+        Vector4 border = Vector4.zero;
+        if (sName == "UI_Panel_Frame" || sName == "UI_Panel_Modern")
+        {
+            border = new Vector4(32, 32, 32, 32);
+        }
+        else if (sName == "UI_Card_Completed" || sName == "UI_Card_Active" || sName == "UI_Card_Locked")
+        {
+            border = new Vector4(34, 34, 34, 34);
+        }
+        else if (sName == "UI_Btn_DarkPill")
+        {
+            border = new Vector4(24, 24, 24, 24);
+        }
+        else if (sName == "UI_Badge_Play")
+        {
+            border = new Vector4(16, 16, 16, 16);
+        }
+        else if (sName == "UI_Btn_Back" || sName == "UI_Btn_Close" || sName == "UI_Btn_Green")
+        {
+            border = new Vector4(24, 20, 24, 20);
+        }
+        else if (sName.StartsWith("UI_Btn_") || sName.StartsWith("UI_Card_"))
+        {
+            border = new Vector4(24, 24, 24, 24);
+        }
+        else if (sName.StartsWith("UI_ProgressBar_"))
+        {
+            border = new Vector4(8, 8, 8, 8);
+        }
+
+        return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, border);
     }
 
     private Sprite GetSprite(string name)
@@ -506,15 +648,15 @@ public class MapSelectMenu : MonoBehaviour
         CanvasScaler scaler = menuCanvasGo.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(720, 1280);
-        scaler.matchWidthOrHeight = 0.5f;
+        scaler.matchWidthOrHeight = 0f; // Strict width match for mobile portrait screens
 
         menuCanvasGo.AddComponent<GraphicRaycaster>();
 
-        // 2. Fullscreen Dark Dimming Backdrop (clicking empty area outside returns to map if not MainMenu)
+        // 2. Fullscreen Dark Dimming Backdrop (100% opaque to fully hide gameplay)
         GameObject bgGo = CreateUIObject("DarkBackdrop", menuCanvasGo.transform);
         StretchFull(bgGo.GetComponent<RectTransform>());
         Image bgImg = bgGo.AddComponent<Image>();
-        bgImg.color = new Color(0.06f, 0.07f, 0.09f, 0.96f);
+        bgImg.color = new Color(0.05f, 0.06f, 0.08f, 1.0f);
         bgImg.raycastTarget = true;
 
         Button bgBtn = bgGo.AddComponent<Button>();
@@ -527,56 +669,52 @@ public class MapSelectMenu : MonoBehaviour
             }
         });
 
-        // 3. Top Header Bar (RACE TRUCK Logo on Left, LEDs on Right)
+        // 3. Top Header Bar (RACE TRUCK Logo positioned safely below mobile notch / camera cutout)
         GameObject topBarGo = CreateUIObject("TopBar", menuCanvasGo.transform);
         RectTransform topBarRt = topBarGo.GetComponent<RectTransform>();
         topBarRt.anchorMin = new Vector2(0.5f, 1f);
         topBarRt.anchorMax = new Vector2(0.5f, 1f);
         topBarRt.pivot = new Vector2(0.5f, 1f);
-        topBarRt.sizeDelta = new Vector2(640, 90);
-        topBarRt.anchoredPosition = new Vector2(0, -35);
+        topBarRt.sizeDelta = new Vector2(650, 70);
+        topBarRt.anchoredPosition = new Vector2(0, -68);
 
-        // Logo
-        GameObject logoGo = CreateUIObject("LogoRaceTruck", topBarGo.transform);
+        // Logo (CDL TRUCK PARKING)
+        GameObject logoGo = CreateUIObject("LogoCDLTruckParking", topBarGo.transform);
         RectTransform logoRt = logoGo.GetComponent<RectTransform>();
-        logoRt.anchorMin = new Vector2(0, 0.5f);
-        logoRt.anchorMax = new Vector2(0, 0.5f);
+        logoRt.anchorMin = new Vector2(0.5f, 0.5f);
+        logoRt.anchorMax = new Vector2(0.5f, 0.5f);
         logoRt.pivot = new Vector2(0.5f, 0.5f);
-        logoRt.sizeDelta = new Vector2(320, 75);
+        logoRt.sizeDelta = new Vector2(430, 65);
         logoRt.anchoredPosition = new Vector2(0, 0);
         Image logoImg = logoGo.AddComponent<Image>();
+        logoImg.preserveAspect = true;
         Sprite logoSp = GetSprite("UI_Logo_RaceTruck");
         if (logoSp != null) logoImg.sprite = logoSp;
         else logoImg.color = Color.clear;
 
-        // LEDs / Status Right
-        GameObject ledsGo = CreateUIObject("StatusLEDs", topBarGo.transform);
-        RectTransform ledsRt = ledsGo.GetComponent<RectTransform>();
-        ledsRt.anchorMin = new Vector2(1, 0.5f);
-        ledsRt.anchorMax = new Vector2(1, 0.5f);
-        ledsRt.pivot = new Vector2(1, 0.5f);
-        ledsRt.sizeDelta = new Vector2(200, 40);
-        ledsRt.anchoredPosition = new Vector2(0, 5);
-        Image ledsImg = ledsGo.AddComponent<Image>();
-        Sprite ledsSp = GetSprite("UI_Status_LEDs");
-        if (ledsSp != null) ledsImg.sprite = ledsSp;
-        else ledsImg.color = Color.clear;
-
-        // 4. Central Window Frame (640 x 1020)
+        // 4. Central Window Frame (stretches dynamically across mobile screen height with safe margins)
         GameObject centerWindowGo = CreateUIObject("CenterWindowPanel", menuCanvasGo.transform);
         RectTransform centerRt = centerWindowGo.GetComponent<RectTransform>();
-        centerRt.anchorMin = new Vector2(0.5f, 0.5f);
-        centerRt.anchorMax = new Vector2(0.5f, 0.5f);
+        centerRt.anchorMin = new Vector2(0f, 0f);
+        centerRt.anchorMax = new Vector2(1f, 1f);
         centerRt.pivot = new Vector2(0.5f, 0.5f);
-        centerRt.sizeDelta = new Vector2(640, 1020);
-        centerRt.anchoredPosition = new Vector2(0, -30);
+        centerRt.offsetMin = new Vector2(35, 40);
+        centerRt.offsetMax = new Vector2(-35, -148);
 
         // Frame Graphic
         Image centerImg = centerWindowGo.AddComponent<Image>();
         centerImg.raycastTarget = true;
-        Sprite frameSp = GetSprite("UI_Panel_Frame");
-        if (frameSp != null) centerImg.sprite = frameSp;
-        else centerImg.color = new Color(0.14f, 0.17f, 0.21f, 1.0f);
+        Sprite frameSp = GetSprite("UI_Panel_Modern") ?? GetSprite("UI_Panel_Frame");
+        if (frameSp != null)
+        {
+            centerImg.sprite = frameSp;
+            centerImg.type = Image.Type.Sliced;
+            centerImg.color = Color.white;
+        }
+        else
+        {
+            centerImg.color = new Color(0.07f, 0.09f, 0.13f, 1.0f);
+        }
 
         // Header Title Text
         GameObject titleGo = CreateUIObject("HeaderTitle", centerWindowGo.transform);
@@ -584,20 +722,23 @@ public class MapSelectMenu : MonoBehaviour
         titleRt.anchorMin = new Vector2(0, 1);
         titleRt.anchorMax = new Vector2(1, 1);
         titleRt.pivot = new Vector2(0.5f, 1);
-        titleRt.sizeDelta = new Vector2(-280, 75);
-        titleRt.anchoredPosition = new Vector2(0, -5);
+        titleRt.sizeDelta = new Vector2(-360, 52);
+        titleRt.anchoredPosition = new Vector2(0, -18);
 
         headerTitleText = titleGo.AddComponent<Text>();
         if (font != null) headerTitleText.font = font;
-        headerTitleText.fontSize = 26;
+        headerTitleText.fontSize = 24;
         headerTitleText.fontStyle = FontStyle.Bold;
         headerTitleText.alignment = TextAnchor.MiddleCenter;
-        headerTitleText.color = new Color(1f, 0.88f, 0.20f);
+        headerTitleText.resizeTextForBestFit = true;
+        headerTitleText.resizeTextMinSize = 16;
+        headerTitleText.resizeTextMaxSize = 24;
+        headerTitleText.color = new Color(0.97f, 0.98f, 0.99f);
         headerTitleText.text = LocalizationManager.Get("MENU_SELECT_MODE");
 
         Shadow textShadow = titleGo.AddComponent<Shadow>();
-        textShadow.effectColor = new Color(0, 0, 0, 0.9f);
-        textShadow.effectDistance = new Vector2(2, -2);
+        textShadow.effectColor = new Color(0, 0, 0, 0.6f);
+        textShadow.effectDistance = new Vector2(1, -1);
 
         // Header Back Button (Left: visible when inside a category)
         GameObject backGo = CreateUIObject("Btn_BackToCategories", centerWindowGo.transform);
@@ -605,38 +746,44 @@ public class MapSelectMenu : MonoBehaviour
         backRt.anchorMin = new Vector2(0, 1);
         backRt.anchorMax = new Vector2(0, 1);
         backRt.pivot = new Vector2(0, 1);
-        backRt.sizeDelta = new Vector2(125, 46);
-        backRt.anchoredPosition = new Vector2(20, -18);
+        backRt.sizeDelta = new Vector2(130, 44);
+        backRt.anchoredPosition = new Vector2(25, -20);
 
         Image backImg = backGo.AddComponent<Image>();
-        Sprite backSp = GetSprite("UI_Btn_Back");
-        if (backSp != null) backImg.sprite = backSp;
+        Sprite backSp = GetSprite("UI_Btn_DarkPill") ?? GetSprite("UI_Btn_Back");
+        if (backSp != null)
+        {
+            backImg.sprite = backSp;
+            backImg.type = Image.Type.Sliced;
+        }
         backImg.color = Color.white;
 
         Button backBtn = backGo.AddComponent<Button>();
         backBtn.targetGraphic = backImg;
         ColorBlock backCb = backBtn.colors;
         backCb.normalColor = Color.white;
-        backCb.highlightedColor = new Color(1.10f, 1.10f, 1.10f, 1f);
-        backCb.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+        backCb.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
+        backCb.pressedColor = new Color(0.80f, 0.80f, 0.80f, 1f);
         backBtn.colors = backCb;
         backBtn.onClick.AddListener(BackToCategories);
 
         GameObject backTextGo = CreateUIObject("Label", backGo.transform);
         StretchFull(backTextGo.GetComponent<RectTransform>());
-        backTextGo.GetComponent<RectTransform>().offsetMin = new Vector2(4, 6);
-        backTextGo.GetComponent<RectTransform>().offsetMax = new Vector2(-4, -2);
+        backTextGo.GetComponent<RectTransform>().offsetMin = new Vector2(0, 2);
+        backTextGo.GetComponent<RectTransform>().offsetMax = new Vector2(0, 0);
         Text backText = backTextGo.AddComponent<Text>();
         if (font != null) backText.font = font;
-        backText.fontSize = 18;
+        backText.fontSize = 17;
         backText.fontStyle = FontStyle.Bold;
         backText.alignment = TextAnchor.MiddleCenter;
-        backText.color = new Color(0.15f, 0.10f, 0.02f);
+        backText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        backText.verticalOverflow = VerticalWrapMode.Overflow;
+        backText.color = new Color(0.80f, 0.84f, 0.88f);
         backText.raycastTarget = false;
         backText.text = LocalizationManager.Get("BTN_BACK");
         Shadow backShadow = backTextGo.AddComponent<Shadow>();
-        backShadow.effectColor = new Color(1f, 1f, 1f, 0.35f);
-        backShadow.effectDistance = new Vector2(0, -1f);
+        backShadow.effectColor = new Color(0, 0, 0, 0.6f);
+        backShadow.effectDistance = new Vector2(1, -1);
         backButtonText = backText;
         backButtonGo = backGo;
         backButtonGo.SetActive(!string.IsNullOrEmpty(currentCategory));
@@ -648,38 +795,44 @@ public class MapSelectMenu : MonoBehaviour
         closeRt.anchorMin = new Vector2(1, 1);
         closeRt.anchorMax = new Vector2(1, 1);
         closeRt.pivot = new Vector2(1, 1);
-        closeRt.sizeDelta = new Vector2(110, 46);
-        closeRt.anchoredPosition = new Vector2(-20, -18);
+        closeRt.sizeDelta = new Vector2(110, 44);
+        closeRt.anchoredPosition = new Vector2(-25, -20);
 
         Image closeImg = closeGo.AddComponent<Image>();
-        Sprite closeSp = GetSprite("UI_Btn_Close") ?? GetSprite("UI_Btn_Back");
-        if (closeSp != null) closeImg.sprite = closeSp;
+        Sprite closeSp = GetSprite("UI_Btn_DarkPill") ?? GetSprite("UI_Btn_Close");
+        if (closeSp != null)
+        {
+            closeImg.sprite = closeSp;
+            closeImg.type = Image.Type.Sliced;
+        }
         closeImg.color = Color.white;
 
         Button closeBtn = closeGo.AddComponent<Button>();
         closeBtn.targetGraphic = closeImg;
         ColorBlock closeCb = closeBtn.colors;
         closeCb.normalColor = Color.white;
-        closeCb.highlightedColor = new Color(1.10f, 1.10f, 1.10f, 1f);
-        closeCb.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+        closeCb.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
+        closeCb.pressedColor = new Color(0.80f, 0.80f, 0.80f, 1f);
         closeBtn.colors = closeCb;
         closeBtn.onClick.AddListener(CloseMenu);
 
         GameObject closeTextGo = CreateUIObject("Label", closeGo.transform);
         StretchFull(closeTextGo.GetComponent<RectTransform>());
-        closeTextGo.GetComponent<RectTransform>().offsetMin = new Vector2(4, 6);
-        closeTextGo.GetComponent<RectTransform>().offsetMax = new Vector2(-4, -2);
+        closeTextGo.GetComponent<RectTransform>().offsetMin = new Vector2(0, 2);
+        closeTextGo.GetComponent<RectTransform>().offsetMax = new Vector2(0, 0);
         Text closeText = closeTextGo.AddComponent<Text>();
         if (font != null) closeText.font = font;
         closeText.fontSize = 17;
         closeText.fontStyle = FontStyle.Bold;
         closeText.alignment = TextAnchor.MiddleCenter;
-        closeText.color = new Color(0.90f, 0.94f, 1.0f);
+        closeText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        closeText.verticalOverflow = VerticalWrapMode.Overflow;
+        closeText.color = new Color(0.80f, 0.84f, 0.88f);
         closeText.raycastTarget = false;
         closeText.text = LocalizationManager.Get("BTN_CLOSE");
         Shadow closeShadow = closeTextGo.AddComponent<Shadow>();
-        closeShadow.effectColor = new Color(0, 0, 0, 0.85f);
-        closeShadow.effectDistance = new Vector2(1f, -1f);
+        closeShadow.effectColor = new Color(0, 0, 0, 0.6f);
+        closeShadow.effectDistance = new Vector2(1, -1);
         closeButtonText = closeText;
         closeButtonGo = closeGo;
         closeButtonGo.SetActive(curScene != "MainMenu");
@@ -690,20 +843,24 @@ public class MapSelectMenu : MonoBehaviour
         langRt.anchorMin = new Vector2(1, 1);
         langRt.anchorMax = new Vector2(1, 1);
         langRt.pivot = new Vector2(1, 1);
-        langRt.sizeDelta = new Vector2(110, 46);
-        langRt.anchoredPosition = new Vector2(-20, -18);
+        langRt.sizeDelta = new Vector2(85, 44);
+        langRt.anchoredPosition = new Vector2(-25, -20);
 
         Image langImg = langGo.AddComponent<Image>();
-        Sprite langSp = GetSprite("UI_Btn_Active") ?? GetSprite("UI_Btn_Back");
-        if (langSp != null) langImg.sprite = langSp;
+        Sprite langSp = GetSprite("UI_Btn_DarkPill") ?? GetSprite("UI_Btn_Green");
+        if (langSp != null)
+        {
+            langImg.sprite = langSp;
+            langImg.type = Image.Type.Sliced;
+        }
         langImg.color = Color.white;
 
         Button langBtn = langGo.AddComponent<Button>();
         langBtn.targetGraphic = langImg;
         ColorBlock langCb = langBtn.colors;
         langCb.normalColor = Color.white;
-        langCb.highlightedColor = new Color(1.10f, 1.10f, 1.10f, 1f);
-        langCb.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+        langCb.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
+        langCb.pressedColor = new Color(0.80f, 0.80f, 0.80f, 1f);
         langBtn.colors = langCb;
         langBtn.onClick.AddListener(() =>
         {
@@ -712,22 +869,40 @@ public class MapSelectMenu : MonoBehaviour
 
         GameObject langTextGo = CreateUIObject("Label", langGo.transform);
         StretchFull(langTextGo.GetComponent<RectTransform>());
-        langTextGo.GetComponent<RectTransform>().offsetMin = new Vector2(4, 6);
-        langTextGo.GetComponent<RectTransform>().offsetMax = new Vector2(-4, -2);
+        langTextGo.GetComponent<RectTransform>().offsetMin = new Vector2(0, 2);
+        langTextGo.GetComponent<RectTransform>().offsetMax = new Vector2(0, 0);
         Text langText = langTextGo.AddComponent<Text>();
         if (font != null) langText.font = font;
         langText.fontSize = 17;
         langText.fontStyle = FontStyle.Bold;
         langText.alignment = TextAnchor.MiddleCenter;
-        langText.color = new Color(0.08f, 0.22f, 0.12f);
+        langText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        langText.verticalOverflow = VerticalWrapMode.Overflow;
+        langText.color = new Color(0.22f, 0.74f, 0.97f); // #38bdf8 cyan accent
         langText.raycastTarget = false;
         langText.text = LocalizationManager.GetLanguageShortButtonText();
         Shadow langShadow = langTextGo.AddComponent<Shadow>();
-        langShadow.effectColor = new Color(1f, 1f, 1f, 0.4f);
-        langShadow.effectDistance = new Vector2(0, -1f);
+        langShadow.effectColor = new Color(0, 0, 0, 0.6f);
+        langShadow.effectDistance = new Vector2(1, -1);
         languageButtonText = langText;
         languageButtonGo = langGo;
         languageButtonGo.SetActive(curScene == "MainMenu");
+
+        // Thin divider line under header
+        GameObject divGo = CreateUIObject("HeaderDivider", centerWindowGo.transform);
+        RectTransform divRt = divGo.GetComponent<RectTransform>();
+        divRt.anchorMin = new Vector2(0, 1);
+        divRt.anchorMax = new Vector2(1, 1);
+        divRt.pivot = new Vector2(0.5f, 1);
+        divRt.sizeDelta = new Vector2(-40, 1.5f);
+        divRt.anchoredPosition = new Vector2(0, -72);
+        Image divImg = divGo.AddComponent<Image>();
+        divImg.color = new Color(0.20f, 0.25f, 0.33f, 0.6f);
+
+        // Initial layout updates for buttons based on localized content
+        UpdateBackButtonLayout();
+        UpdateCloseButtonLayout();
+        UpdateLanguageButtonLayout();
 
         // 5. Scroll View for Maps (Middle Area)
         GameObject scrollGo = CreateUIObject("MapsScrollView", centerWindowGo.transform);
@@ -735,8 +910,8 @@ public class MapSelectMenu : MonoBehaviour
         scrollRt.anchorMin = new Vector2(0, 0);
         scrollRt.anchorMax = new Vector2(1, 1);
 
-        scrollRt.offsetMin = new Vector2(25, 30);
-        scrollRt.offsetMax = new Vector2(-25, -85);
+        scrollRt.offsetMin = new Vector2(20, 20);
+        scrollRt.offsetMax = new Vector2(-20, -82);
 
         ScrollRect scrollRect = scrollGo.AddComponent<ScrollRect>();
         scrollRect.horizontal = false;
@@ -774,6 +949,38 @@ public class MapSelectMenu : MonoBehaviour
         scrollRect.viewport = viewportGo.GetComponent<RectTransform>();
         scrollRect.content = contentRt;
         mapCardsContainer = contentGo.transform;
+
+        // 6. Bottom Stats Bar (from modern SVG mock)
+        GameObject bottomBarGo = CreateUIObject("BottomStatsBar", centerWindowGo.transform);
+        RectTransform botRt = bottomBarGo.GetComponent<RectTransform>();
+        botRt.anchorMin = new Vector2(0, 0);
+        botRt.anchorMax = new Vector2(1, 0);
+        botRt.pivot = new Vector2(0.5f, 0);
+        botRt.anchoredPosition = new Vector2(0, 16);
+        botRt.sizeDelta = new Vector2(-40, 44);
+
+        Image botImg = bottomBarGo.AddComponent<Image>();
+        Sprite botSp = GetSprite("UI_Btn_DarkPill") ?? GetSprite("UI_Panel_Modern");
+        if (botSp != null)
+        {
+            botImg.sprite = botSp;
+            botImg.type = Image.Type.Sliced;
+        }
+        botImg.color = Color.white;
+
+        GameObject botTextGo = CreateUIObject("Label", bottomBarGo.transform);
+        StretchFull(botTextGo.GetComponent<RectTransform>());
+        botTextGo.GetComponent<RectTransform>().offsetMin = new Vector2(16, 0);
+        botTextGo.GetComponent<RectTransform>().offsetMax = new Vector2(-16, 0);
+        Text botText = botTextGo.AddComponent<Text>();
+        if (font != null) botText.font = font;
+        botText.fontSize = 15;
+        botText.fontStyle = FontStyle.Bold;
+        botText.alignment = TextAnchor.MiddleCenter;
+        botText.color = new Color(0.58f, 0.64f, 0.72f);
+        bottomStatsText = botText;
+        bottomStatsGo = bottomBarGo;
+        bottomStatsGo.SetActive(false);
 
         PopulateCards();
     }
@@ -957,7 +1164,13 @@ public class MapSelectMenu : MonoBehaviour
 
             // ===== 1. CATEGORIES VIEW =====
             if (backButtonGo != null) backButtonGo.SetActive(false);
+            if (bottomStatsGo != null) bottomStatsGo.SetActive(false);
             if (headerTitleText != null) headerTitleText.text = LocalizationManager.Get("MENU_SELECT_MODE");
+            if (menuScrollRect != null)
+            {
+                RectTransform sRt = menuScrollRect.GetComponent<RectTransform>();
+                sRt.offsetMin = new Vector2(20, 20);
+            }
 
             if (glg != null)
             {
@@ -965,10 +1178,17 @@ public class MapSelectMenu : MonoBehaviour
                 glg.constraintCount = 1;
                 glg.cellSize = new Vector2(560, 115);
                 glg.spacing = new Vector2(0, 14);
-                glg.padding = new RectOffset(5, 5, 15, 25);
+                glg.padding = new RectOffset(5, 5, 25, 25);
             }
 
-            // 1. "OTHER MAPS" (Другие карты) at the very top of the menu
+            // 1. Standard categories (Alley dock, Angle Back, Parallel Parking, Facility, Rest Area, Truck Stop)
+            foreach (var cat in Categories)
+            {
+                var (completed, total) = GetCategoryProgress(cat.id);
+                CreateCategoryCard(cat, completed, total, font);
+            }
+
+            // 2. "OTHER MAPS" (Другие карты) at the end of the menu
             var (otherCompleted, otherTotal) = GetCategoryProgress("Other");
             CategoryInfo otherCat = new CategoryInfo
             {
@@ -978,33 +1198,48 @@ public class MapSelectMenu : MonoBehaviour
                 keyword = ""
             };
             CreateCategoryCard(otherCat, otherCompleted, otherTotal, font);
-
-            // 2. Standard categories
-            foreach (var cat in Categories)
-            {
-                var (completed, total) = GetCategoryProgress(cat.id);
-                CreateCategoryCard(cat, completed, total, font);
-            }
         }
         else
         {
             // ===== 2. LEVEL CARDS VIEW =====
-            if (backButtonGo != null) backButtonGo.SetActive(true);
+            if (backButtonGo != null)
+            {
+                backButtonGo.SetActive(true);
+                UpdateBackButtonLayout();
+            }
+            if (bottomStatsGo != null)
+            {
+                bottomStatsGo.SetActive(true);
+                var (catComp, catTot) = GetCategoryProgress(currentCategory);
+                if (bottomStatsText != null)
+                {
+                    bottomStatsText.text = $"TOTAL STARS:   <color=#fbbf24>★ {catComp * 3} / {catTot * 3}</color>";
+                }
+            }
+            if (menuScrollRect != null)
+            {
+                RectTransform sRt = menuScrollRect.GetComponent<RectTransform>();
+                sRt.offsetMin = new Vector2(20, 68);
+            }
+
             CategoryInfo currentCatInfo = GetCategoryInfo(currentCategory);
-            string iconStr = (currentCatInfo != null && !string.IsNullOrEmpty(currentCatInfo.icon)) ? (currentCatInfo.icon + " ") : "";
             string catDisplayName = GetCategoryTitle(currentCategory);
-            if (headerTitleText != null) headerTitleText.text = $"{iconStr}{catDisplayName}";
+            if (headerTitleText != null)
+            {
+                headerTitleText.text = LocalizationManager.Get("MAP_SELECT_TITLE").ToUpperInvariant();
+            }
 
             if (glg != null)
             {
                 glg.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-                glg.constraintCount = 2;
-                glg.cellSize = new Vector2(275, 125);
-                glg.spacing = new Vector2(25, 20);
-                glg.padding = new RectOffset(5, 5, 15, 25);
+                glg.constraintCount = 3;
+                glg.cellSize = new Vector2(184, 114);
+                glg.spacing = new Vector2(16, 16);
+                glg.padding = new RectOffset(10, 10, 16, 20);
             }
 
             List<string> categoryMaps = GetMapsForCategory(currentCategory);
+            categoryMaps.Sort(NaturalCompare);
 
             if (categoryMaps.Count == 0)
             {
@@ -1038,11 +1273,40 @@ public class MapSelectMenu : MonoBehaviour
                 targetMap = curScene;
             }
 
+            // Determine active level index
+            int activeIndex = -1;
+            if (!string.IsNullOrEmpty(targetMap))
+            {
+                for (int i = 0; i < categoryMaps.Count; i++)
+                {
+                    if (string.Equals(categoryMaps[i], targetMap, StringComparison.OrdinalIgnoreCase))
+                    {
+                        activeIndex = i;
+                        break;
+                    }
+                }
+            }
+            if (activeIndex == -1)
+            {
+                for (int i = 0; i < categoryMaps.Count; i++)
+                {
+                    if (PlayerPrefs.GetInt("MapCompleted_" + categoryMaps[i], 0) == 0)
+                    {
+                        activeIndex = i;
+                        break;
+                    }
+                }
+            }
+            if (activeIndex == -1 && categoryMaps.Count > 0)
+            {
+                activeIndex = categoryMaps.Count - 1;
+            }
+
             for (int i = 0; i < categoryMaps.Count; i++)
             {
                 string mapName = categoryMaps[i];
-                GameObject cardGo = CreateMapCard(mapName, font);
-                if (!string.IsNullOrEmpty(targetMap) && string.Equals(mapName, targetMap, StringComparison.OrdinalIgnoreCase))
+                GameObject cardGo = CreateMapCard(mapName, font, i, activeIndex);
+                if (i == activeIndex)
                 {
                     targetCardRt = cardGo.GetComponent<RectTransform>();
                     targetIndex = i;
@@ -1073,10 +1337,18 @@ public class MapSelectMenu : MonoBehaviour
         cardRt.sizeDelta = new Vector2(560, 115);
 
         Image cardImg = cardGo.AddComponent<Image>();
-        Sprite sp = GetSprite(isAllCompleted ? "UI_Card_Category_Gold" : "UI_Card_Category") ??
-                    GetSprite(isAllCompleted ? "UI_Btn_Special" : "UI_Btn_Normal");
-        if (sp != null) cardImg.sprite = sp;
-        cardImg.color = Color.white;
+        Sprite sp = GetSprite(isAllCompleted ? "UI_Card_Completed" : "UI_Card_Locked") ??
+                    GetSprite("UI_Panel_Modern");
+        if (sp != null)
+        {
+            cardImg.sprite = sp;
+            cardImg.type = Image.Type.Sliced;
+            cardImg.color = Color.white;
+        }
+        else
+        {
+            cardImg.color = new Color(0.10f, 0.13f, 0.18f, 1f);
+        }
 
         Button cardBtn = cardGo.AddComponent<Button>();
         cardBtn.targetGraphic = cardImg;
@@ -1108,7 +1380,7 @@ public class MapSelectMenu : MonoBehaviour
         titleText.fontSize = 21;
         titleText.fontStyle = FontStyle.Bold;
         titleText.alignment = TextAnchor.MiddleLeft;
-        titleText.color = isAllCompleted ? new Color(1.0f, 0.95f, 0.60f) : Color.white;
+        titleText.color = isAllCompleted ? new Color(0.96f, 0.62f, 0.04f) : Color.white;
         titleText.raycastTarget = false;
         titleText.text = $"{iconPrefix}{displayTitle}";
 
@@ -1223,12 +1495,13 @@ public class MapSelectMenu : MonoBehaviour
         }
     }
 
-    private GameObject CreateMapCard(string mapName, Font font)
+    private GameObject CreateMapCard(string mapName, Font font, int index, int activeIndex)
     {
         string capturedName = mapName;
         bool isCompleted = PlayerPrefs.GetInt("MapCompleted_" + capturedName, 0) == 1;
-        string activeMap = PlayerPrefs.GetString("CurrentActiveMap", PlayerPrefs.GetString("LastPlayedMap", ""));
-        bool isCurrentPlaying = string.Equals(capturedName, activeMap, StringComparison.OrdinalIgnoreCase);
+        bool isCurrentPlaying = (index == activeIndex);
+        bool isLocked = !isCompleted && !isCurrentPlaying;
+
         bool isJustCompleted = !string.IsNullOrEmpty(activeAnimatedCompletedMap) &&
                                string.Equals(capturedName, activeAnimatedCompletedMap, StringComparison.OrdinalIgnoreCase);
 
@@ -1236,39 +1509,43 @@ public class MapSelectMenu : MonoBehaviour
 
         GameObject cardGo = CreateUIObject($"Card_{capturedName}", mapCardsContainer);
         RectTransform cardRt = cardGo.GetComponent<RectTransform>();
-        cardRt.sizeDelta = new Vector2(275, 125);
+        cardRt.sizeDelta = new Vector2(184, 114);
 
         Image cardImg = cardGo.AddComponent<Image>();
         Sprite sp;
-        if (isJustCompleted)
+        if (isJustCompleted || isCurrentPlaying)
         {
-            // Starts in green active appearance, will animate to gold!
-            sp = GetSprite("UI_Btn_Active") ?? GetSprite("UI_Btn_Normal");
+            sp = GetSprite("UI_Card_Active");
         }
         else if (isCompleted)
         {
-            // ── 1. ЖЁЛТАЯ/ЗОЛОТАЯ КАРТА (ВСЕГДА, КОГДА ПРОЙДЕНА) ──
-            sp = GetSprite("UI_Btn_Special");
-        }
-        else if (isCurrentPlaying)
-        {
-            // ── 2. ЗЕЛЁНАЯ КАРТА (ТОЛЬКО ОДНА: НАЧАТА И НЕ ПРОЙДЕНА) ──
-            sp = GetSprite("UI_Btn_Active") ?? GetSprite("UI_Btn_Normal");
+            sp = GetSprite("UI_Card_Completed");
         }
         else
         {
-            // ── 3. ОБЫЧНАЯ КАРТА (СТАНДАРТНЫЙ 3D ТИТАНОВЫЙ СТИЛЬ) ──
-            sp = GetSprite("UI_Btn_Normal");
+            sp = GetSprite("UI_Card_Locked");
         }
 
-        if (sp != null) cardImg.sprite = sp;
-        cardImg.color = Color.white;
+        if (sp != null)
+        {
+            cardImg.sprite = sp;
+            cardImg.type = Image.Type.Sliced;
+            cardImg.color = Color.white;
+        }
+        else
+        {
+            cardImg.color = isCurrentPlaying
+                ? new Color(0.06f, 0.73f, 0.51f, 1f)
+                : isCompleted
+                    ? new Color(0.14f, 0.18f, 0.24f, 1f)
+                    : new Color(0.08f, 0.10f, 0.13f, 1f);
+        }
 
         Button cardBtn = cardGo.AddComponent<Button>();
         cardBtn.targetGraphic = cardImg;
         ColorBlock cb = cardBtn.colors;
         cb.normalColor = Color.white;
-        cb.highlightedColor = new Color(1.10f, 1.10f, 1.10f, 1f);
+        cb.highlightedColor = new Color(1.12f, 1.12f, 1.12f, 1f);
         cb.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
         cardBtn.colors = cb;
 
@@ -1279,10 +1556,8 @@ public class MapSelectMenu : MonoBehaviour
 
         if (isJustCompleted)
         {
-            // ── ANIMATED JUST-COMPLETED CARD SETUP ──
-            Sprite goldSp = GetSprite("UI_Btn_Special");
+            Sprite goldSp = GetSprite("UI_Card_Completed");
 
-            // 1. Pulsing border glow aura behind the card
             GameObject borderGlowGo = CreateUIObject("BorderGlow", cardGo.transform);
             borderGlowGo.transform.SetAsFirstSibling();
             StretchFull(borderGlowGo.GetComponent<RectTransform>());
@@ -1291,15 +1566,13 @@ public class MapSelectMenu : MonoBehaviour
             bgRt.offsetMax = new Vector2(6, 6);
             Image borderGlowImg = borderGlowGo.AddComponent<Image>();
             if (goldSp != null) borderGlowImg.sprite = goldSp;
-            borderGlowImg.color = new Color(1.0f, 0.85f, 0.20f, 0f);
+            borderGlowImg.color = new Color(0.96f, 0.62f, 0.04f, 0f);
             borderGlowImg.raycastTarget = false;
 
-            // 2. Animated outline on card body
             Outline outline = cardGo.AddComponent<Outline>();
-            outline.effectColor = new Color(1.0f, 0.88f, 0.25f, 0f);
+            outline.effectColor = new Color(0.96f, 0.62f, 0.04f, 0f);
             outline.effectDistance = new Vector2(2.5f, -2.5f);
 
-            // 3. Gold transition overlay (fades in)
             GameObject goldOverlayGo = CreateUIObject("GoldOverlay", cardGo.transform);
             StretchFull(goldOverlayGo.GetComponent<RectTransform>());
             Image goldOverlayImg = goldOverlayGo.AddComponent<Image>();
@@ -1307,7 +1580,6 @@ public class MapSelectMenu : MonoBehaviour
             goldOverlayImg.color = new Color(1f, 1f, 1f, 0f);
             goldOverlayImg.raycastTarget = false;
 
-            // 4. Gold flash sparkle overlay
             GameObject flashOverlayGo = CreateUIObject("FlashOverlay", cardGo.transform);
             StretchFull(flashOverlayGo.GetComponent<RectTransform>());
             Image flashOverlayImg = flashOverlayGo.AddComponent<Image>();
@@ -1315,75 +1587,181 @@ public class MapSelectMenu : MonoBehaviour
             flashOverlayImg.color = new Color(1f, 0.95f, 0.50f, 0f);
             flashOverlayImg.raycastTarget = false;
 
-            // 5. Text Label
-            GameObject textGo = CreateUIObject("Title", cardGo.transform);
+            GameObject numGo = CreateUIObject("Number", cardGo.transform);
+            numGo.transform.SetAsLastSibling();
+            RectTransform numRt = numGo.GetComponent<RectTransform>();
+            numRt.anchorMin = new Vector2(0, 0.38f);
+            numRt.anchorMax = new Vector2(1, 1);
+            numRt.offsetMin = Vector2.zero;
+            numRt.offsetMax = Vector2.zero;
+            Text numText = numGo.AddComponent<Text>();
+            if (font != null) numText.font = font;
+            numText.fontSize = 28;
+            numText.fontStyle = FontStyle.Bold;
+            numText.alignment = TextAnchor.MiddleCenter;
+            numText.color = Color.white;
+            numText.raycastTarget = false;
+            numText.text = displayName;
+
+            GameObject textGo = CreateUIObject("Subtitle", cardGo.transform);
             textGo.transform.SetAsLastSibling();
-            StretchFull(textGo.GetComponent<RectTransform>());
-            textGo.GetComponent<RectTransform>().offsetMin = new Vector2(10, 14);
-            textGo.GetComponent<RectTransform>().offsetMax = new Vector2(-10, -4);
+            RectTransform textRt = textGo.GetComponent<RectTransform>();
+            textRt.anchorMin = new Vector2(0, 0.08f);
+            textRt.anchorMax = new Vector2(1, 0.45f);
+            textRt.offsetMin = Vector2.zero;
+            textRt.offsetMax = Vector2.zero;
 
             Text text = textGo.AddComponent<Text>();
             if (font != null) text.font = font;
-            text.fontSize = 17;
-            text.fontStyle = FontStyle.Bold;
+            text.fontSize = 15;
             text.alignment = TextAnchor.MiddleCenter;
-            text.horizontalOverflow = HorizontalWrapMode.Wrap;
-            text.verticalOverflow = VerticalWrapMode.Truncate;
             text.raycastTarget = false;
+            text.color = new Color(0.65f, 0.95f, 0.82f);
+            text.text = "PLAY";
 
-            string inProgressLabel = LocalizationManager.Get("MAP_IN_PROGRESS");
-            string completedLabel = LocalizationManager.Get("MAP_COMPLETED");
-
-            text.color = Color.white;
-            text.text = $"▶ {displayName}\n<size=13><color=#8AFFB8>{inProgressLabel}</color></size>";
-
-            Shadow ts = textGo.AddComponent<Shadow>();
-            ts.effectColor = new Color(0, 0, 0, 0.95f);
-            ts.effectDistance = new Vector2(1.5f, -1.8f);
-
-            // 6. Attach animation driver
             JustCompletedCardAnimator anim = cardGo.AddComponent<JustCompletedCardAnimator>();
-            anim.Initialize(cardImg, goldOverlayImg, flashOverlayImg, borderGlowImg, outline, text, displayName, completedLabel);
+            anim.Initialize(cardImg, goldOverlayImg, flashOverlayImg, borderGlowImg, outline, text, displayName, "★ ★ ★");
 
             return cardGo;
         }
 
-        // Standard Card Text Label (centered on raised 3D faceplate)
-        GameObject stdTextGo = CreateUIObject("Title", cardGo.transform);
-        StretchFull(stdTextGo.GetComponent<RectTransform>());
-        stdTextGo.GetComponent<RectTransform>().offsetMin = new Vector2(10, 14);
-        stdTextGo.GetComponent<RectTransform>().offsetMax = new Vector2(-10, -4);
-
-        Text stdText = stdTextGo.AddComponent<Text>();
-        if (font != null) stdText.font = font;
-        stdText.fontSize = 17;
-        stdText.fontStyle = FontStyle.Bold;
-        stdText.alignment = TextAnchor.MiddleCenter;
-        stdText.horizontalOverflow = HorizontalWrapMode.Wrap;
-        stdText.verticalOverflow = VerticalWrapMode.Truncate;
-        stdText.raycastTarget = false;
-
         if (isCompleted)
         {
-            stdText.color = new Color(1.0f, 0.95f, 0.70f);
-            string completedLabel = LocalizationManager.Get("MAP_COMPLETED");
-            stdText.text = $"{displayName}\n<size=13><color=#FFE066>★ {completedLabel}</color></size>";
+            // ── 1. COMPLETED CARD (Dark Slate, Amber Gold Border, White Number, Gold Stars) ──
+            GameObject numGo = CreateUIObject("Number", cardGo.transform);
+            RectTransform numRt = numGo.GetComponent<RectTransform>();
+            numRt.anchorMin = new Vector2(0, 0.38f);
+            numRt.anchorMax = new Vector2(1, 1);
+            numRt.offsetMin = Vector2.zero;
+            numRt.offsetMax = Vector2.zero;
+
+            Text numText = numGo.AddComponent<Text>();
+            if (font != null) numText.font = font;
+            numText.fontSize = 28;
+            numText.fontStyle = FontStyle.Bold;
+            numText.alignment = TextAnchor.MiddleCenter;
+            numText.color = Color.white;
+            numText.raycastTarget = false;
+            numText.text = displayName;
+
+            Shadow numShadow = numGo.AddComponent<Shadow>();
+            numShadow.effectColor = new Color(0, 0, 0, 0.6f);
+            numShadow.effectDistance = new Vector2(1, -1);
+
+            GameObject starsGo = CreateUIObject("Stars", cardGo.transform);
+            RectTransform starsRt = starsGo.GetComponent<RectTransform>();
+            starsRt.anchorMin = new Vector2(0, 0.08f);
+            starsRt.anchorMax = new Vector2(1, 0.45f);
+            starsRt.offsetMin = Vector2.zero;
+            starsRt.offsetMax = Vector2.zero;
+
+            Text starsText = starsGo.AddComponent<Text>();
+            if (font != null) starsText.font = font;
+            starsText.fontSize = 15;
+            starsText.alignment = TextAnchor.MiddleCenter;
+            starsText.raycastTarget = false;
+
+            int stars = PlayerPrefs.GetInt("MapStars_" + capturedName, 3);
+            if (stars >= 3)
+                starsText.text = "<color=#fbbf24>★ ★ ★</color>";
+            else if (stars == 2)
+                starsText.text = "<color=#fbbf24>★ ★ </color><color=#475569>★</color>";
+            else
+                starsText.text = "<color=#fbbf24>★ </color><color=#475569>★ ★</color>";
         }
         else if (isCurrentPlaying)
         {
-            stdText.color = Color.white;
-            string inProgressLabel = LocalizationManager.Get("MAP_IN_PROGRESS");
-            stdText.text = $"▶ {displayName}\n<size=13><color=#8AFFB8>{inProgressLabel}</color></size>";
+            // ── 2. ACTIVE CARD (Emerald Green, Mint Border, White Number ▶, Dark Green PLAY Pill) ──
+            Outline glow = cardGo.AddComponent<Outline>();
+            glow.effectColor = new Color(0.06f, 0.73f, 0.51f, 0.65f);
+            glow.effectDistance = new Vector2(2.5f, -2.5f);
+
+            GameObject numGo = CreateUIObject("Number", cardGo.transform);
+            RectTransform numRt = numGo.GetComponent<RectTransform>();
+            numRt.anchorMin = new Vector2(0, 0.38f);
+            numRt.anchorMax = new Vector2(1, 1);
+            numRt.offsetMin = Vector2.zero;
+            numRt.offsetMax = Vector2.zero;
+
+            Text numText = numGo.AddComponent<Text>();
+            if (font != null) numText.font = font;
+            numText.fontSize = 28;
+            numText.fontStyle = FontStyle.Bold;
+            numText.alignment = TextAnchor.MiddleCenter;
+            numText.color = Color.white;
+            numText.raycastTarget = false;
+            numText.text = $"{displayName}  ▶";
+
+            Shadow numShadow = numGo.AddComponent<Shadow>();
+            numShadow.effectColor = new Color(0, 0, 0, 0.5f);
+            numShadow.effectDistance = new Vector2(1, -1);
+
+            GameObject badgeGo = CreateUIObject("PlayBadge", cardGo.transform);
+            RectTransform badgeRt = badgeGo.GetComponent<RectTransform>();
+            badgeRt.anchorMin = new Vector2(0.5f, 0f);
+            badgeRt.anchorMax = new Vector2(0.5f, 0f);
+            badgeRt.pivot = new Vector2(0.5f, 0f);
+            badgeRt.anchoredPosition = new Vector2(0, 12);
+            badgeRt.sizeDelta = new Vector2(88, 22);
+
+            Image badgeImg = badgeGo.AddComponent<Image>();
+            Sprite badgeSp = GetSprite("UI_Badge_Play");
+            if (badgeSp != null)
+            {
+                badgeImg.sprite = badgeSp;
+                badgeImg.type = Image.Type.Sliced;
+            }
+            else
+            {
+                badgeImg.color = new Color(0.02f, 0.31f, 0.23f, 1f);
+            }
+            badgeImg.raycastTarget = false;
+
+            GameObject playTextGo = CreateUIObject("Label", badgeGo.transform);
+            StretchFull(playTextGo.GetComponent<RectTransform>());
+            Text playText = playTextGo.AddComponent<Text>();
+            if (font != null) playText.font = font;
+            playText.fontSize = 11;
+            playText.fontStyle = FontStyle.Bold;
+            playText.alignment = TextAnchor.MiddleCenter;
+            playText.color = new Color(0.65f, 0.95f, 0.82f);
+            playText.raycastTarget = false;
+            playText.text = "PLAY";
         }
         else
         {
-            stdText.color = new Color(0.88f, 0.92f, 0.98f);
-            stdText.text = displayName;
-        }
+            // ── 3. LOCKED CARD (Dark Graphite, Slate Border, Muted Number, Lock Icon) ──
+            GameObject numGo = CreateUIObject("Number", cardGo.transform);
+            RectTransform numRt = numGo.GetComponent<RectTransform>();
+            numRt.anchorMin = new Vector2(0, 0.38f);
+            numRt.anchorMax = new Vector2(1, 1);
+            numRt.offsetMin = Vector2.zero;
+            numRt.offsetMax = Vector2.zero;
 
-        Shadow stdTs = stdTextGo.AddComponent<Shadow>();
-        stdTs.effectColor = new Color(0, 0, 0, 0.95f);
-        stdTs.effectDistance = new Vector2(1.5f, -1.8f);
+            Text numText = numGo.AddComponent<Text>();
+            if (font != null) numText.font = font;
+            numText.fontSize = 26;
+            numText.fontStyle = FontStyle.Bold;
+            numText.alignment = TextAnchor.MiddleCenter;
+            numText.color = new Color(0.28f, 0.33f, 0.41f);
+            numText.raycastTarget = false;
+            numText.text = displayName;
+
+            GameObject lockGo = CreateUIObject("Lock", cardGo.transform);
+            RectTransform lockRt = lockGo.GetComponent<RectTransform>();
+            lockRt.anchorMin = new Vector2(0, 0.08f);
+            lockRt.anchorMax = new Vector2(1, 0.45f);
+            lockRt.offsetMin = Vector2.zero;
+            lockRt.offsetMax = Vector2.zero;
+
+            Text lockText = lockGo.AddComponent<Text>();
+            if (font != null) lockText.font = font;
+            lockText.fontSize = 16;
+            lockText.alignment = TextAnchor.MiddleCenter;
+            lockText.color = new Color(0.28f, 0.33f, 0.41f);
+            lockText.raycastTarget = false;
+            lockText.text = "🔒";
+        }
 
         return cardGo;
     }
@@ -1479,22 +1857,24 @@ public class MapSelectMenu : MonoBehaviour
 
     public static string FormatMapDisplayName(string rawName)
     {
-        string formatted = rawName.Replace("-", " ").Replace("_", " ").ToUpperInvariant();
-        string[] parts = formatted.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        if (string.IsNullOrEmpty(rawName)) return "";
 
-        if (parts.Length >= 2 && parts[0] == "MAP")
+        // 1. Look for 'V' followed by digits (e.g. "Practice V1" -> "01", "Alley dock V9" -> "09")
+        var match = System.Text.RegularExpressions.Regex.Match(rawName, @"\bV\s*(\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (match.Success && int.TryParse(match.Groups[1].Value, out int vNum))
         {
-            string num = parts[1];
-            string rest = string.Join(" ", parts, 2, parts.Length - 2);
-            if (string.IsNullOrEmpty(rest)) return $"MAP {num}";
-            if (rest.Length > 16)
-            {
-                rest = rest.Replace("STANDART", "STD").Replace("SMALLER", "SM").Replace("SMALL", "SM");
-            }
-            return $"MAP {num}\n{rest}";
+            return vNum.ToString("D2");
         }
 
-        return formatted;
+        // 2. Fallback: if name contains any digits (e.g. "Map 3" -> "03")
+        var numMatch = System.Text.RegularExpressions.Regex.Match(rawName, @"\d+");
+        if (numMatch.Success && int.TryParse(numMatch.Value, out int num))
+        {
+            return num.ToString("D2");
+        }
+
+        // 3. Fallback if no numbers at all
+        return rawName.Trim().ToUpperInvariant();
     }
 
     public static int NaturalCompare(string a, string b)
@@ -1652,7 +2032,7 @@ public class MapSelectMenu : MonoBehaviour
                 {
                     textSwitched = true;
                     titleText.color = new Color(1.0f, 0.95f, 0.70f);
-                    titleText.text = $"{displayName}\n<size=13><color=#FFE066>★ {completedLabel}</color></size>";
+                    titleText.text = $"{displayName}\n<size=11><color=#FFE066>★ {completedLabel}</color></size>";
                 }
 
                 yield return null;
