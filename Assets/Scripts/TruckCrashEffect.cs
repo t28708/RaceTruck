@@ -403,4 +403,21 @@ public class TruckCrashEffect : MonoBehaviour
         if (redFlashImage != null) { redFlashImage.gameObject.SetActive(false); }
         currentCrashRoutine = null;
     }
+
+    public void ClearActiveCrashFeedback()
+    {
+        if (currentCrashRoutine != null)
+        {
+            StopCoroutine(currentCrashRoutine);
+            currentCrashRoutine = null;
+        }
+        if (crashText != null)
+        {
+            crashText.gameObject.SetActive(false);
+        }
+        if (redFlashImage != null)
+        {
+            redFlashImage.gameObject.SetActive(false);
+        }
+    }
 }

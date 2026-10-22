@@ -156,6 +156,24 @@ public static class LocalizationManager
         { "MENU_MAIN", new[] { "🗺 В ГЛАВНОЕ МЕНЮ", "🗺 MAIN MENU", "🗺 MENU PRINCIPAL", "🗺 MENÚ PRINCIPAL" } },
         { "MENU_RESUME", new[] { "▶ ПРОДОЛЖИТЬ", "▶ RESUME", "▶ REPRENDRE", "▶ CONTINUAR" } },
 
+        // Pause Modal UI Labels (Matching Industrial Mockup)
+        { "PAUSE_TITLE", new[] { "ПАУЗА", "PAUSE", "PAUSE", "PAUSA" } },
+        { "LBL_SOUND", new[] { "ЗВУК", "SOUND", "SON", "SONIDO" } },
+        { "LBL_CONTROLS", new[] { "УПРАВЛЕНИЕ", "CONTROLS", "CONTRÔLES", "CONTROLES" } },
+        { "LBL_AUTOCENTER", new[] { "АВТОВОЗВРАТ", "AUTO-CENTER", "RETOUR AUTO", "AUTOCENTRADO" } },
+        { "LBL_PEDALS", new[] { "ПЕДАЛИ", "PEDALS", "PÉDALES", "PEDALES" } },
+        { "LBL_LANGUAGE", new[] { "ЯЗЫК", "LANGUAGE", "LANGUE", "IDIOMA" } },
+        { "VAL_ON_SHORT", new[] { "ВКЛ", "ON", "OUI", "SÍ" } },
+        { "VAL_OFF_SHORT", new[] { "ВЫКЛ", "OFF", "NON", "NO" } },
+        { "VAL_CTRL_WHEEL", new[] { "КРУГЛЫЙ РУЛЬ", "ROUND WHEEL", "VOLANT ROND", "VOLANTE" } },
+        { "VAL_CTRL_ARROWS", new[] { "СТРЕЛКИ", "ARROWS", "FLÈCHES", "FLECHAS" } },
+        { "VAL_CTRL_SLIDER", new[] { "СЛАЙДЕР", "SLIDER", "CURSEUR", "DESLIZADOR" } },
+        { "VAL_SIDE_LEFT", new[] { "СЛЕВА", "LEFT", "GAUCHE", "IZQUIERDA" } },
+        { "VAL_SIDE_RIGHT", new[] { "СПРАВА", "RIGHT", "DROITE", "DERECHA" } },
+        { "BTN_RESTART_MAP", new[] { "ПЕРЕЗАПУСТИТЬ", "RESTART MAP", "RECOMMENCER", "REINICIAR MAPA" } },
+        { "BTN_MAIN_MENU", new[] { "ГЛАВНОЕ МЕНЮ", "MAIN MENU", "MENU PRINCIPAL", "MENÚ PRINCIPAL" } },
+        { "BTN_RESUME_CLEAN", new[] { "ПРОДОЛЖИТЬ", "RESUME", "REPRENDRE", "CONTINUAR" } },
+
         // ========================
         // Controls UI
         // ========================
@@ -306,6 +324,22 @@ public static class LocalizationManager
             "⚠️ JACKKNIFE RISK ({0}°/{1}°)",
             "⚠️ RISQUE DE PORTEFEUILLE ({0}°/{1}°)",
             "⚠️ RIESGO DE TIJERAZO ({0}°/{1}°)"
+        } },
+
+        // ========================
+        // Checkpoint Save & Load
+        // ========================
+        { "BTN_SAVE_SHORT", new[] { "СОХР.", "SAVE", "SAUV.", "GUARDAR" } },
+        { "BTN_LOAD_SHORT", new[] { "↺ ЗАГР.", "↺ LOAD", "↺ CHARG.", "↺ CARGAR" } },
+        { "MENU_SAVE_POS", new[] { "💾 СОХРАНИТЬ ПОЗИЦИЮ", "💾 SAVE POSITION", "💾 SAUVEGARDER POSITION", "💾 GUARDAR POSICIÓN" } },
+        { "MENU_LOAD_POS", new[] { "↺ ЗАГРУЗИТЬ ПОЗИЦИЮ", "↺ LOAD POSITION", "↺ CHARGER POSITION", "↺ CARGAR POSICIÓN" } },
+        { "CHECKPOINT_SAVED", new[] { "✓ ПОЗИЦИЯ СОХРАНЕНА", "✓ POSITION SAVED", "✓ POSITION SAUVEGARDÉE", "✓ POSICIÓN GUARDADA" } },
+        { "CHECKPOINT_LOADED", new[] { "✓ ПОЗИЦИЯ ВОССТАНОВЛЕНА", "✓ POSITION RESTORED", "✓ POSITION RESTAURÉE", "✓ POSICIÓN RESTAURADA" } },
+        { "BANNER_RESTORE_PROMPT", new[] {
+            "↺ ВОССТАНОВИТЬ СОХРАНЕННУЮ ПОЗИЦИЮ",
+            "↺ RESTORE SAVED POSITION",
+            "↺ RESTAURER LA POSITION SAUVEGARDÉE",
+            "↺ RESTAURAR POSICIÓN GUARDADA"
         } }
     };
 

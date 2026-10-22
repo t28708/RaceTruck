@@ -567,6 +567,7 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
 
     public void SetTouchButtonState(SteerTouchButton.Direction dir, bool pressed)
     {
+        if (pressed) isHoldingRestoredAngle = false;
         if (dir == SteerTouchButton.Direction.Left) leftBtnPressed = pressed;
         else rightBtnPressed = pressed;
 
@@ -579,6 +580,7 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
 
     public void SetSliderInput(float steerNorm, float handleX)
     {
+        isHoldingRestoredAngle = false;
         isSliderDragging = true;
         // Apply 3.5% center deadzone on slider
         if (Mathf.Abs(steerNorm) < 0.035f)
@@ -602,6 +604,7 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
     public void OnPointerDown(PointerEventData eventData)
     {
         if (controlType != SteeringControlType.Wheel) return;
+        isHoldingRestoredAngle = false;
         isDragging = true;
         previousPointerAngle = CalculatePointerAngle(eventData.position, eventData.pressEventCamera);
     }
@@ -609,6 +612,7 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
     public void OnDrag(PointerEventData eventData)
     {
         if (controlType != SteeringControlType.Wheel || !isDragging) return;
+        isHoldingRestoredAngle = false;
 
         float newPointerAngle = CalculatePointerAngle(eventData.position, eventData.pressEventCamera);
         float angleDelta = Mathf.DeltaAngle(previousPointerAngle, newPointerAngle);
@@ -626,6 +630,8 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
             isDragging = false;
         }
     }
+
+    private bool isHoldingRestoredAngle = false;
 
     private void Update()
     {
@@ -648,12 +654,17 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
 #endif
 
         bool hasKeyInput = HandleKeyboardSteering();
+        if (hasKeyInput)
+        {
+            isHoldingRestoredAngle = false;
+        }
 
         if (controlType == SteeringControlType.Buttons)
         {
             // Button steering: rotates with keyTurnSpeed while button is held, springs back to 0 on release
             if (Mathf.Abs(touchButtonInput) > 0.01f && !hasKeyInput)
             {
+                isHoldingRestoredAngle = false;
                 currentWheelAngle = Mathf.Clamp(
                     currentWheelAngle + touchButtonInput * keyTurnSpeed * Time.deltaTime,
                     -maxWheelAngle,
@@ -661,12 +672,12 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
                 );
                 UpdateWheelVisual();
             }
-            else if (!hasKeyInput && AutoCenterEnabled && returnToCenterSpeed > 0f && Mathf.Abs(currentWheelAngle) > 0.01f)
+            else if (!hasKeyInput && !isHoldingRestoredAngle && AutoCenterEnabled && returnToCenterSpeed > 0f && Mathf.Abs(currentWheelAngle) > 0.01f)
             {
                 currentWheelAngle = Mathf.MoveTowards(currentWheelAngle, 0f, returnToCenterSpeed * Time.deltaTime);
                 UpdateWheelVisual();
             }
-            else if (!hasKeyInput && AutoCenterEnabled && Mathf.Abs(currentWheelAngle) <= 0.01f && currentWheelAngle != 0f)
+            else if (!hasKeyInput && !isHoldingRestoredAngle && AutoCenterEnabled && Mathf.Abs(currentWheelAngle) <= 0.01f && currentWheelAngle != 0f)
             {
                 currentWheelAngle = 0f;
                 UpdateWheelVisual();
@@ -675,7 +686,7 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
         else if (controlType == SteeringControlType.Slider)
         {
             // Slider spring return to center (0) when finger is released (only if auto-center is enabled)
-            if (!isSliderDragging && !hasKeyInput && AutoCenterEnabled && Mathf.Abs(currentWheelAngle) > 0.01f)
+            if (!isSliderDragging && !hasKeyInput && !isHoldingRestoredAngle && AutoCenterEnabled && Mathf.Abs(currentWheelAngle) > 0.01f)
             {
                 currentWheelAngle = Mathf.MoveTowards(currentWheelAngle, 0f, returnToCenterSpeed * 2.5f * Time.deltaTime);
                 if (touchSliderScript != null)
@@ -685,7 +696,7 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
                 }
                 UpdateWheelVisual();
             }
-            else if (!isSliderDragging && !hasKeyInput && AutoCenterEnabled && Mathf.Abs(currentWheelAngle) <= 0.01f && currentWheelAngle != 0f)
+            else if (!isSliderDragging && !hasKeyInput && !isHoldingRestoredAngle && AutoCenterEnabled && Mathf.Abs(currentWheelAngle) <= 0.01f && currentWheelAngle != 0f)
             {
                 currentWheelAngle = 0f;
                 if (touchSliderScript != null)
@@ -698,12 +709,12 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
         else // SteeringControlType.Wheel
         {
             // Wheel spring return to center (0) when released (only if auto-center is enabled)
-            if (!isDragging && !hasKeyInput && AutoCenterEnabled && returnToCenterSpeed > 0f && Mathf.Abs(currentWheelAngle) > 0.01f)
+            if (!isDragging && !hasKeyInput && !isHoldingRestoredAngle && AutoCenterEnabled && returnToCenterSpeed > 0f && Mathf.Abs(currentWheelAngle) > 0.01f)
             {
                 currentWheelAngle = Mathf.MoveTowards(currentWheelAngle, 0f, returnToCenterSpeed * Time.deltaTime);
                 UpdateWheelVisual();
             }
-            else if (!isDragging && !hasKeyInput && AutoCenterEnabled && Mathf.Abs(currentWheelAngle) <= 0.01f && currentWheelAngle != 0f)
+            else if (!isDragging && !hasKeyInput && !isHoldingRestoredAngle && AutoCenterEnabled && Mathf.Abs(currentWheelAngle) <= 0.01f && currentWheelAngle != 0f)
             {
                 currentWheelAngle = 0f;
                 UpdateWheelVisual();
@@ -777,10 +788,34 @@ public class SteeringWheelUI : MonoBehaviour, IPointerDownHandler, IDragHandler,
         rightBtnPressed = false;
         isDragging = false;
         isSliderDragging = false;
+        isHoldingRestoredAngle = false;
         if (touchSliderScript != null)
         {
             touchSliderScript.SetHandleLocalX(0f);
         }
+        UpdateWheelVisual();
+    }
+
+    /// <summary>
+    /// Synchronizes the UI steering wheel / slider / button state to a saved wheel angle
+    /// during checkpoint restoration without triggering spring auto-centering until the user touches steering.
+    /// </summary>
+    public void RestoreWheelAngle(float savedUiWheelAngle)
+    {
+        currentWheelAngle = Mathf.Clamp(savedUiWheelAngle, -maxWheelAngle, maxWheelAngle);
+        touchButtonInput = 0f;
+        leftBtnPressed = false;
+        rightBtnPressed = false;
+        isDragging = false;
+        isSliderDragging = false;
+        isHoldingRestoredAngle = true;
+
+        if (touchSliderScript != null)
+        {
+            float currentNorm = (maxWheelAngle > 0.001f) ? (currentWheelAngle / maxWheelAngle) : 0f;
+            touchSliderScript.SetHandleLocalX(-currentNorm * SliderTrackHalfWidth);
+        }
+
         UpdateWheelVisual();
     }
 }

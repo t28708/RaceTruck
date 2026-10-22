@@ -2027,12 +2027,12 @@ public class MapSelectMenu : MonoBehaviour
                 }
                 transform.localScale = origScale * scaleMultiplier;
 
-                // 4. Switch text to completed ★ badge at peak
+                // 4. Switch subtitle to completed ★ ★ ★ stars at peak (without repeating displayName)
                 if (t >= 0.35f && !textSwitched && titleText != null)
                 {
                     textSwitched = true;
-                    titleText.color = new Color(1.0f, 0.95f, 0.70f);
-                    titleText.text = $"{displayName}\n<size=11><color=#FFE066>★ {completedLabel}</color></size>";
+                    titleText.color = Color.white;
+                    titleText.text = $"<color=#fbbf24>{completedLabel}</color>";
                 }
 
                 yield return null;

@@ -55,6 +55,8 @@ public class TruckController : MonoBehaviour
     [SerializeField] private float doubleTapInterval = 0.35f;
     [Tooltip("Maximum reverse backing speed in km/h (fixed at 10.0 km/h)")]
     [SerializeField] private float maxReverseSpeedKmh = 10.0f;
+    [Tooltip("Fast reverse speed in km/h on quick double press (20.0 km/h)")]
+    [SerializeField] private float fastReverseSpeedKmh = 20.0f;
     [Tooltip("Engine acceleration (smooth ramp to 10 km/h)")]
     [SerializeField] private float acceleration = 2.5f;
     [Tooltip("Progressive pneumatic air brake deceleration (smooth stop)")]
@@ -67,17 +69,21 @@ public class TruckController : MonoBehaviour
     [SerializeField] private float rollingResistance = 1.6f;
 
     public bool IsFastForwardMode => isFastForwardMode;
+    public bool IsFastReverseMode => isFastReverseMode;
     public float CurrentMaxForwardSpeedKmh => isFastForwardMode ? fastForwardSpeedKmh : maxForwardSpeedKmh;
+    public float CurrentMaxReverseSpeedKmh => isFastReverseMode ? fastReverseSpeedKmh : maxReverseSpeedKmh;
     public float MaxForwardSpeed => CurrentMaxForwardSpeedKmh / 3.6f;
-    public float MaxReverseSpeed => maxReverseSpeedKmh / 3.6f;
+    public float MaxReverseSpeed => CurrentMaxReverseSpeedKmh / 3.6f;
 
     private Rigidbody2D tractorRb;
     private float currentSpeed = 0f;
     private float actualSteerAngle = 0f; // Smooth hydraulic front wheel angle
 
-    // Double tap gas speed boost
+    // Double tap gas & reverse speed boost
     private bool isFastForwardMode = false;
     private float lastGasPressTime = -100f;
+    private bool isFastReverseMode = false;
+    private float lastReversePressTime = -100f;
 
     // Mobile touch pedal & keyboard state
     private bool gasPedalPressed = false;
@@ -153,7 +159,9 @@ public class TruckController : MonoBehaviour
         obstacleFilter.useLayerMask = false;
 
         maxForwardSpeedKmh = 10.0f;
+        fastForwardSpeedKmh = 20.0f;
         maxReverseSpeedKmh = 10.0f;
+        fastReverseSpeedKmh = 20.0f;
         maxArticulationAngle = 107.3f;
         EnsurePlayerTractorVisuals();
     }
@@ -161,7 +169,9 @@ public class TruckController : MonoBehaviour
     private void OnValidate()
     {
         maxForwardSpeedKmh = 10.0f;
+        fastForwardSpeedKmh = 20.0f;
         maxReverseSpeedKmh = 10.0f;
+        fastReverseSpeedKmh = 20.0f;
         maxArticulationAngle = 107.3f;
         EnsurePlayerTractorVisuals();
     }
@@ -178,6 +188,7 @@ public class TruckController : MonoBehaviour
         EnsurePlayerTractorVisuals();
         EnsureAudioController();
         EnsureJackknifeWarningIndicator();
+        EnsureSaveLoadSystem();
         EnsureDebugMapNameLabel();
 
         string sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
@@ -194,6 +205,14 @@ public class TruckController : MonoBehaviour
         if (GetComponent<JackknifeWarningIndicator>() == null)
         {
             gameObject.AddComponent<JackknifeWarningIndicator>();
+        }
+    }
+
+    private void EnsureSaveLoadSystem()
+    {
+        if (GetComponent<SaveLoadTruckSystem>() == null && Object.FindFirstObjectByType<SaveLoadTruckSystem>() == null)
+        {
+            gameObject.AddComponent<SaveLoadTruckSystem>();
         }
     }
 
@@ -1295,8 +1314,13 @@ public class TruckController : MonoBehaviour
         isInitialized = true;
     }
 
+    private bool isTeleportFrozen = false;
+    private TruckGearState lastGearState = TruckGearState.Neutral;
+
     private void Update()
     {
+        if (isTeleportFrozen) return;
+
         // 1. Read W, S, Space input
         wPressed = false;
         sPressed = false;
@@ -1350,6 +1374,35 @@ public class TruckController : MonoBehaviour
             }
         }
 
+        bool reverseDown = reverseInput && !prevReverseInput;
+        bool reverseUp = !reverseInput && prevReverseInput;
+
+        if (reverseDown)
+        {
+            float timeSinceLastPress = Time.time - lastReversePressTime;
+            if (timeSinceLastPress <= doubleTapInterval && timeSinceLastPress >= 0.04f)
+            {
+                // Quick double press detected -> 20 km/h reverse mode!
+                isFastReverseMode = true;
+                lastReversePressTime = -100f; // Consume double tap so subsequent taps start fresh
+            }
+            else
+            {
+                // Normal single press -> 10 km/h reverse mode
+                isFastReverseMode = false;
+                lastReversePressTime = Time.time;
+            }
+        }
+        else if (reverseUp)
+        {
+            if (isFastReverseMode)
+            {
+                // Released the 20 km/h reverse hold -> reset mode and consume timer
+                isFastReverseMode = false;
+                lastReversePressTime = -100f;
+            }
+        }
+
         prevWPressed = wPressed;
         prevSPressed = sPressed;
         prevGasPedalPressed = gasPedalPressed;
@@ -1382,6 +1435,7 @@ public class TruckController : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (isTeleportFrozen) return;
         if (!isInitialized) InitializePositions();
 
         float dt = Time.fixedDeltaTime;
@@ -1639,8 +1693,10 @@ public class TruckController : MonoBehaviour
             else
             {
                 // If moving forward, apply strong braking force towards 0, then smoothly accelerate in reverse
-                float rate = (currentSpeed > 0f) ? brakePower : reverseAcceleration;
-                currentSpeed = Mathf.MoveTowards(currentSpeed, -MaxReverseSpeed, rate * dt);
+                float targetMaxReverseSpeed = MaxReverseSpeed;
+                float currentReverseAccel = isFastReverseMode ? (reverseAcceleration * 1.6f) : reverseAcceleration;
+                float rate = (currentSpeed > 0f) ? brakePower : currentReverseAccel;
+                currentSpeed = Mathf.MoveTowards(currentSpeed, -targetMaxReverseSpeed, rate * dt);
             }
             return;
         }
@@ -1686,4 +1742,58 @@ public class TruckController : MonoBehaviour
             sr.sortingOrder = 8;
         }
     }
+
+    #region Checkpoint Save & Load Integration
+    public TruckGearState GetCurrentGearState()
+    {
+        if (currentSpeed > 0.05f || IsForwardInputActive) return TruckGearState.Drive;
+        if (currentSpeed < -0.05f || IsReverseInputActive) return TruckGearState.Reverse;
+        return lastGearState;
+    }
+
+    public void BeginTeleportFreeze()
+    {
+        isTeleportFrozen = true;
+        currentSpeed = 0f;
+        isFastForwardMode = false;
+        isFastReverseMode = false;
+        gasPedalPressed = false;
+        brakePedalPressed = false;
+        wPressed = false;
+        sPressed = false;
+        spacePressed = false;
+        prevGasPedalPressed = false;
+        prevBrakePedalPressed = false;
+        prevWPressed = false;
+        prevSPressed = false;
+        isBlockedForward = false;
+        isBlockedReverse = false;
+        lastCrashDirection = 0;
+        lastCrashedObstacle = null;
+    }
+
+    public void SyncTractrixAfterTeleport(bool savedIsJackknifed)
+    {
+        InitializePositions();
+        isJackknifed = savedIsJackknifed;
+        isBlockedForward = false;
+        isBlockedReverse = savedIsJackknifed;
+        lastCrashDirection = 0;
+        lastCrashedObstacle = null;
+    }
+
+    public void RestoreSteerAndGear(float restoredSteerAngle, TruckGearState restoredGear)
+    {
+        actualSteerAngle = Mathf.Clamp(restoredSteerAngle, -maxSteerAngle, maxSteerAngle);
+        lastGearState = restoredGear;
+        UpdateWheelVisuals();
+        UpdateHUD();
+    }
+
+    public void EndTeleportFreeze()
+    {
+        InitializePositions();
+        isTeleportFrozen = false;
+    }
+    #endregion
 }
